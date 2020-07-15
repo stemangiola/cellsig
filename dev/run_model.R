@@ -2,13 +2,11 @@ library(tidyverse)
 library(magrittr)
 library(cellsig)
 
-my_level = 1
-my_run = 1
 
-counts_run =
+counts =
   readRDS(file="~/PhD/deconvolution/ARMET/dev/counts_infer_NB.rds") %>%
-  left_join( (.) %>% distinct(`symbol original`) %>% mutate(run = sample(1:5, n(), replace = T))) %>%
-  filter(`Cell type category` == "house_keeping" | run == my_run) %>%
+  #left_join( (.) %>% distinct(`symbol original`) %>% mutate(run = sample(1:5, n(), replace = T))) %>%
+  #filter(`Cell type category` == "house_keeping" | run == my_run) %>%
   mutate(symbol = `symbol original`) %>%
 
   # Replace the category house_keeping
@@ -26,6 +24,7 @@ counts_run =
   # Adapt it as input
   select(sample, symbol, count, `Cell type category`, level, `count scaled`, `house keeping`)
 
+my_level = 1
 
 
 
