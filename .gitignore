@@ -39,3 +39,10 @@ vignettes/*.pdf
 *.Rproj
 doc
 Meta
+
+RcppExports.o
+cellsig.so
+stanExports_ARMET_ref.h
+stanExports_ARMET_ref.o
+stanExports_ARMET_ref.cc
+RcppExports.cpp
