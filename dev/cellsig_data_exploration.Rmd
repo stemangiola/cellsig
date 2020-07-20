@@ -1,0 +1,56 @@
+---
+title: "cellsig_data_exploration"
+author: "Jian"
+date: "19/07/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r message = FALSE}
+# load libraries
+library(tidyverse)
+library(tidyHeatmap)
+library(tidybulk)
+library(ggrepel)
+library(plotly)
+```
+
+
+```{r data}
+# import data
+counts = cellsig::counts 
+
+head(counts)
+tail(counts)
+```
+
+```{r type conversion}
+
+levels(counts$cell_type)
+```
+
+```{r PCA}
+# PCA plot
+tt_PCA <- counts %>%
+  filter(level ==3) %>%
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, count, method = 'PCA')
+
+tt_PCA
+```
+
+```{r heatmap}
+# heatmap
+tt_PCA %>%
+  keep_variable(sample, symbol, count_scaled) %>%
+  heatmap(  .row = symbol,
+              .column = sample,
+              .value = count_scaled
+      ) %>%
+  add_tile(cell_type)
+```
+
