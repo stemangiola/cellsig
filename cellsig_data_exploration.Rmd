@@ -1,0 +1,64 @@
+---
+title: "cellsig_data_exploration"
+author: "Jian"
+date: "19/07/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r message = FALSE}
+# load libraries
+library(tidyverse)
+library(tibble)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(stringr)
+library(ggplot2)
+library(tidyHeatmap)
+library(tidybulk)
+library(ggrepel)
+library(plotly)
+```
+
+
+```{r data}
+# import data
+cellsig <- readRDS('dev/counts.rds')
+
+View(cellsig)
+
+str(cellsig)
+head(cellsig)
+tail(cellsig)
+```
+
+```{r type conversion}
+cellsig$`Cell type category` <- as.factor(cellsig$`Cell type category`)
+
+levels(cellsig$`Cell type category`)
+```
+
+```{r PCA}
+cellsig_PCA <- cellsig %>% 
+  reduce_dimensions(.feature = symbol,
+                    .abundance = `count scaled`, 
+                    method = 'PCA', 
+                    .dims = 4)
+
+str(cellsig_PCA)
+```
+
+```{r heatmap}
+cellsig %>% 
+  keep_variable(.transcript = symbol,
+                .abundance = `count scaled`) %>% 
+  heatmap(.column = `Cell type category`,
+          .row = symbol,
+          .value = `count scaled`)
+```
+
