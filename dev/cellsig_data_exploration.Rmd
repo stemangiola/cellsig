@@ -12,45 +12,333 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r message = FALSE}
 # load libraries
+library(devtools)
+install_github("jokergoo/ComplexHeatmap")
+devtools::install_github("stemangiola/tidyHeatmap")
+install.packages("tidyverse")
 library(tidyverse)
-library(tidyHeatmap)
 library(tidybulk)
+library(tidyHeatmap)
 library(ggrepel)
 library(plotly)
+library(GGally)
 ```
 
 
 ```{r data}
 # import data
-counts = cellsig::counts 
-
-head(counts)
-tail(counts)
+counts <- readRDS("counts.rds")
 ```
 
-```{r type conversion}
+```{r data inspection}
+# data inspection
+head(counts)
 
-levels(counts$cell_type)
+tail(counts)
+
+str(counts)
+
+View(counts)
+
+levels(as.factor(counts$`Cell type category`))
+
+levels(as.factor(counts$level))
 ```
 
 ```{r PCA}
-# PCA plot
-tt_PCA <- counts %>%
-  filter(level ==3) %>%
-  scale_abundance(sample, symbol, count) %>%
-  reduce_dimensions(sample, symbol, count, method = 'PCA')
+# PCA at each of the five levels
+tt_PCA_1 <- counts %>%
+  filter(level == 1) %>%
+  scale_abundance(sample, symbol, count) %>% 
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'PCA', .dims = 4)
 
-tt_PCA
+tt_PCA_2 <- counts %>%
+  filter(level == 2) %>%
+  scale_abundance(sample, symbol, count) %>% 
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'PCA', .dims = 4)
+
+tt_PCA_3 <- counts %>%
+  filter(level == 3) %>% 
+  scale_abundance(sample, symbol, count) %>% 
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'PCA', dims = 4)
+
+tt_PCA_4 <- counts %>%
+  filter(level == 4) %>%
+  scale_abundance(sample, symbol, count) %>% 
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'PCA', .dims = 4)
+
+tt_PCA_5 <- counts %>%
+  filter(level == 5) %>%
+  scale_abundance(sample, symbol, count) %>% 
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'PCA', .dims = 4)
 ```
+```{r}
+View(tt_PCA_1)
+```
+
+
+```{r PCA plot}
+# PCA plots at each of the 5 levels
+tt_PCA_1 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = `Cell type category`)) +
+  geom_point() +
+  theme_bw()
+
+tt_PCA_2 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = `Cell type category`)) +
+  geom_point() +
+  theme_bw()
+
+tt_PCA_3 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = `Cell type category`)) +
+  geom_point() +
+  theme_bw()
+
+tt_PCA_4 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = `Cell type category`)) +
+  geom_point() +
+  theme_bw()
+
+tt_PCA_5 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = `Cell type category`)) +
+  geom_point() +
+  theme_bw()
+```
+
+```{r}
+# tSNE
+tt_tSNE_1 <- counts %>%
+  filter(level == 1) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'tSNE',
+                    perplexity = 10, pca_scale = TRUE)
+
+tt_tSNE_2 <- counts %>%
+  filter(level == 2) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'tSNE',
+                    perplexity = 10, pca_scale = TRUE)
+
+tt_tSNE_3 <- counts %>%
+  filter(level == 3) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'tSNE',
+                    perplexity = 10, pca_scale = TRUE)
+
+tt_tSNE_4 <- counts %>%
+  filter(level == 4) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'tSNE',
+                    perplexity = 10, pca_scale = TRUE)
+
+tt_tSNE_5 <- counts %>%
+  filter(level == 5) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'tSNE',
+                    perplexity = 10, pca_scale = TRUE)
+```
+
+```{r}
+View(tt_tSNE_1)
+```
+
+```{r}
+# plot tSNE
+tt_tSNE_1 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = tSNE1, y = tSNE2, colour = `Cell type category`)) +
+  geom_point() +
+  theme_bw()
+
+tt_tSNE_2 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = tSNE1, y = tSNE2, colour = `Cell type category`)) +
+  geom_point() +
+  theme_bw()
+
+tt_tSNE_3 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = tSNE1, y = tSNE2, colour = `Cell type category`)) +
+  geom_point() +
+  theme_bw()
+
+tt_tSNE_4 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = tSNE1, y = tSNE2, colour = `Cell type category`)) +
+  geom_point() +
+  theme_bw()
+
+tt_tSNE_5 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = tSNE1, y = tSNE2, colour = `Cell type category`)) +
+  geom_point() +
+  theme_bw()
+```
+
+```{r}
+# MDS
+tt_MDS_1 <- counts %>%
+  filter(level == 1) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'MDS', .dims = 4)
+
+tt_MDS_2 <- counts %>%
+  filter(level == 2) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'MDS', .dims = 4)
+
+tt_MDS_3 <- counts %>%
+  filter(level == 3) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'MDS', .dims = 4)
+
+tt_MDS_4 <- counts %>%
+  filter(level == 4) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'MDS', .dims = 4)
+
+tt_MDS_5 <- counts %>%
+  filter(level == 5) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, `count scaled`, method = 'MDS', .dims = 4)
+```
+
+
+```{r}
+View(tt_MDS_1 %>% pivot_sample())
+```
+
+
+```{r}
+# plot MDS
+tt_MDS_1 %>%  
+  pivot_sample() %>% 
+  ggpairs(columns = 6:9 , aes(colour = `Cell type category`))
+
+tt_MDS_2 %>%  
+  pivot_sample() %>% 
+  ggpairs(columns = 6:9 , aes(colour = `Cell type category`))
+
+tt_MDS_3 %>%  
+  pivot_sample() %>% 
+  ggpairs(columns = 6:9 , aes(colour = `Cell type category`))
+```
+
+```{r}
+
+tt_MDS_4 %>%  
+  pivot_sample() %>% 
+  ggpairs(columns = 6:9 , aes(colour = `Cell type category`))
+
+tt_MDS_5 %>%  
+  pivot_sample() %>% 
+  ggpairs(columns = 6:9 , aes(colour = `Cell type category`))
+
+```
+
+
+```{r}
+# Cluster samples
+tt_MDS_1 %>% 
+  cluster_elements(method = "kmeans", centers = 2, action = "get") %>% 
+  ggplot(aes(x = "Dim1", y = "Dim2", colour = `cluster kmeans`)) +
+  geom_point() +
+  theme_bw()
+```
+
+```{r}
+# cluster
+tt_SNN_3 <- tt_tSNE_3 %>% 
+  cluster_elements(method = "SNN")
+
+View(tt_SNN_3)
+
+tt_SNN_3 %>% 
+  pivot_sample() %>%
+  gather(source, Call, c("cluster SNN", "Call")) %>%
+  distinct() %>%
+  ggplot(aes(x = `tSNE1`, y = `tSNE2`, color=Call)) + 
+  geom_point() + 
+  facet_grid(~source) + 
+  theme_bw()
+```
+
 
 ```{r heatmap}
 # heatmap
-tt_PCA %>%
+tt_PCA_1 %>%
   keep_variable(sample, symbol, count_scaled) %>%
-  heatmap(  .row = symbol,
-              .column = sample,
-              .value = count_scaled
-      ) %>%
-  add_tile(cell_type)
+  group_by(`Cell type category`) %>% 
+  heatmap(.row = symbol,
+          .column = sample,
+          .value = count_scaled)
+
+tt_PCA_2 %>%
+  keep_variable(sample, symbol, count_scaled) %>%
+  group_by(`Cell type category`) %>% 
+  heatmap(.row = symbol,
+          .column = sample,
+          .value = count_scaled)
+
+tt_PCA_3 %>%
+  keep_variable(sample, symbol, count_scaled) %>%
+  group_by(`Cell type category`) %>% 
+  heatmap(.row = symbol,
+          .column = sample,
+          .value = count_scaled)
+
+tt_PCA_4 %>%
+  keep_variable(sample, symbol, count_scaled) %>%
+  group_by(`Cell type category`) %>%  
+  heatmap(.row = symbol,
+          .column = sample,
+          .value = count_scaled)
+
+tt_PCA_5 %>%
+  keep_variable(sample, symbol, count_scaled) %>%
+  group_by(`Cell type category`) %>% 
+  heatmap(.row = symbol,
+          .column = sample,
+          .value = count_scaled)
+```
+
+
+
+```{r}
+# Deconvolve cell types
+tt_cybersort_1 <- counts %>% 
+  filter(level == 1) %>% 
+  deconvolve_cellularity(sample, symbol, count, action = "get", cores = 2)
+
+tt_cybersort_2 <- counts %>% 
+  filter(level == 2) %>% 
+  deconvolve_cellularity(sample, symbol, count, action = "get", cores = 2)
+
+tt_cybersort_3 <- counts %>% 
+  filter(level == 3) %>% 
+  deconvolve_cellularity(sample, symbol, count, action = "get", cores = 2)
+
+tt_cybersort_4 <- counts %>% 
+  filter(level == 4) %>% 
+  deconvolve_cellularity(sample, symbol, count, action = "get", cores = 2)
+
+tt_cybersort_5 <- counts %>% 
+  filter(level == 5) %>% 
+  deconvolve_cellularity(sample, symbol, count, action = "get", cores = 2)
+```
+
+```{r}
+# differential cell type abundance
+counts %>% 
+  test_differential_cellularity()
+```
+
+```{r}
+
 ```
 
