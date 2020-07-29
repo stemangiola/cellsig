@@ -343,6 +343,9 @@ counts %>%
   test_differential_cellularity()
 ```
 
+
+## After Monday's meeting with Stefano
+
 ```{r}
 # Preprocess counts data and normalisation
 counts_norm <- counts %>% 
