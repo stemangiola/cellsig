@@ -348,15 +348,9 @@ counts %>%
 
 ```{r}
 # Preprocess counts data and normalisation
-counts_norm <- counts %>% 
-  mutate(level = as.factor(level)) %>% 
+counts_norm <- counts %>%
   tidybulk(sample, symbol, count) %>% 
   aggregate_duplicates() %>% 
-  mutate(sample = as.factor(sample),
-         symbol = as.factor(symbol),
-         level = as.factor(level),
-         cell_type = as.factor(cell_type),
-         house_keeping = as.logical(house_keeping)) %>% 
   scale_abundance()
 ```
 
@@ -366,17 +360,23 @@ View(counts_norm)
 
 str(counts_norm)
 
-str(counts)
+str(counts_norm$count_scaled)
 
-levels(counts_norm$level)
 ```
 
 
 ```{r}
+
 counts_imm_epi_de <- counts_norm %>%
+  mutate(count_scaled = as.integer(count_scaled)) %>% 
   filter(level == 1) %>%
   filter(cell_type %in% c("immune_cell", "epithelial")) %>%
-  test_differential_abundance(sample, symbol, count_scaled, ~ cell_type)
+  test_differential_abundance(sample, symbol, count_scaled, ~ cell_type) %>% 
+  filter(FDR < 0.05 & abs(logFC) > 2) %>%
+  nest(data = -symbol) %>%
+  arrange(FDR, desc()) %>%
+  slice(1:10) %>% 
+  unnest()
 ```
 ```{r}
 counts_imm_epi_de %>% 
@@ -402,5 +402,14 @@ volcano_immi_epi <- counts_imm_epi_de %>%
   scale_size_discrete(range = c(0, 2)) +
   xlim(c(-10,10)) +
   theme_bw()
+```
+
+```{r}
+class(counts$cell_type)
+class(counts$level)
+counts %>% 
+  select(cell_type, level) %>% 
+  arrange(level) %>% 
+  mutate(cell_type = )
 ```
 
