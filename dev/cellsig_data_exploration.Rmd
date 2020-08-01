@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r message = FALSE}
 # load libraries
-library(devtools)
+#library(devtools)
 # install_github("jokergoo/ComplexHeatmap")
 # devtools::install_github("stemangiola/tidyHeatmap")
 # install.packages("tidyverse")
@@ -30,6 +30,22 @@ library(GGally)
 load("/stornext/Home/data/allstaff/w/wu.j/Master Project/cellsig/dev/counts.rda")
 ```
 
+```{r}
+tt = 
+  counts %>% 
+  tidybulk(sample, symbol, count) %>%
+  
+  # Group by level because otherwise samples are duplicated
+  nest(data = -level) %>%
+  
+  # Fill missing data. There are many genes that 
+  # are not shared by the majority of samples
+  mutate(data, map(data, ~ .x %>% fill_missing_abundance(fill_with = 0))) %>%
+  
+  # ungroup
+  unnest(data)
+```
+
 ```{r data inspection}
 # data inspection
 head(counts)
@@ -38,7 +54,7 @@ tail(counts)
 
 str(counts)
 
-View(counts)
+#View(counts)
 
 levels(counts$cell_type)
 
@@ -234,14 +250,14 @@ tt_MDS_3 %>%
 ```
 
 ```{r}
-
-tt_MDS_4 %>%  
-  pivot_sample() %>% 
-  ggpairs(columns = 6:9 , aes(colour = cell_type))
-
-tt_MDS_5 %>%  
-  pivot_sample() %>% 
-  ggpairs(columns = 6:9 , aes(colour = cell_type))
+# 
+# tt_MDS_4 %>%  
+#   pivot_sample() %>% 
+#   ggpairs(columns = 6:9 , aes(colour = cell_type))
+# 
+# tt_MDS_5 %>%  
+#   pivot_sample() %>% 
+#   ggpairs(columns = 6:9 , aes(colour = cell_type))
 
 ```
 
