@@ -429,7 +429,11 @@ counts %>%
   mutate(cell_type = )
 ```
 
+====================================================================================================================
+
+
 ## After Stefano's update on 02-08-2020
+
 ```{r}
 # load libraries
 
@@ -481,6 +485,12 @@ tt =
       reduce_dimensions(method="tSNE")
   ))
 ```
+```{r}
+# save tt
+save(tt, file = "tt.RData")
+```
+
+
 
 ```{r}
  # Cluster
@@ -490,103 +500,35 @@ tt %>%
 ```
 
 ```{r}
-# PCA at 5 levels
-tt %>% 
-  filter(level == 1) %>% 
-  unnest(data) %>% 
-  pivot_sample() %>% 
-  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) +
-  geom_point() +
-  theme_bw()
+# PCA function
+plot_pca <- function(input, n) {
+  data %>% 
+    filter(level == n) %>% 
+    unnest(data) %>% 
+    pivot_sample() %>% 
+    ggplot(aes(x = PC1, y = PC2, colour = cell_type)) + 
+    geom_point() +
+    theme_bw()
+}
 
-tt %>% 
-  filter(level == 2) %>% 
-  unnest(data) %>% 
-  pivot_sample() %>% 
-  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) +
-  geom_point() +
-  theme_bw()
+for (i in seq(5)) {
+plot_pca(tt, i)
+}
 
-tt %>% 
-  filter(level == 3) %>% 
-  unnest(data) %>% 
-  pivot_sample() %>% 
-  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) +
-  geom_point() +
-  theme_bw()
-
-tt %>% 
-  filter(level == 4) %>% 
-  unnest(data) %>% 
-  pivot_sample() %>% 
-  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) +
-  geom_point() +
-  theme_bw()
-
-tt %>% 
-  filter(level == 5) %>% 
-  unnest(data) %>% 
-  pivot_sample() %>% 
-  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) +
-  geom_point() +
-  theme_bw()
 ```
 
 
 ```{r}
-# tSNE
-tt %>% 
-  filter(level == 1) %>% 
-  unnest(data) %>% 
-  pivot_sample() %>% 
-  ggplot(aes(x = tSNE1, y = tSNE2, colour = cell_type)) +
-  geom_point() +
-  theme_bw()
+# top 10 differentially expressed genes
 
-tt %>% 
-  filter(level == 2) %>% 
-  unnest(data) %>% 
-  pivot_sample() %>% 
-  ggplot(aes(x = tSNE1, y = tSNE2, colour = cell_type)) +
-  geom_point() +
-  theme_bw()
-
-tt %>% 
-  filter(level == 3) %>% 
-  unnest(data) %>% 
-  pivot_sample() %>% 
-  ggplot(aes(x = tSNE1, y = tSNE2, colour = cell_type)) +
-  geom_point() +
-  theme_bw()
-
-tt %>% 
-  filter(level == 4) %>% 
-  unnest(data) %>% 
-  pivot_sample() %>% 
-  ggplot(aes(x = tSNE1, y = tSNE2, colour = cell_type)) +
-  geom_point() +
-  theme_bw()
-
-tt %>% 
-  filter(level == 5) %>% 
-  unnest(data) %>% 
-  pivot_sample() %>% 
-  ggplot(aes(x = tSNE1, y = tSNE2, colour = cell_type)) +
-  geom_point() +
-  theme_bw()
-```
-
-```{r}
-# pairwise comparison of differentially expressed genes
-counts_imm_epi_de <-
-  tt %>%
-
-  # Investigate one level
+top10_de <- function(input, pair) {
+  input %>% 
+    # Investigate one level
   filter(level==1) %>%
   unnest(data) %>%
 
   # investigate one cell type pair
-  filter(cell_type %in% c("immune_cell", "epithelial")) %>%
+  filter(cell_type %in% pair) %>%
   mutate(cell_type = as.character(cell_type) ) %>%
 
   #test
@@ -601,22 +543,69 @@ counts_imm_epi_de <-
   arrange(logFC %>% desc()) %>%
   slice(1:10) %>%
   unnest()
+}
+
 ```
 
 ```{r}
-top_de_genes <- counts_imm_epi_de %>% 
-  pull(transcript)
+# pairwise comparison of differentially expressed genes
+level1 <-  c("immune_cell", "epithelial", "endothelial","fibroblast")
+pairs <- combn(level1, 2)
 
-volcano_immi_epi <- counts_imm_epi_de %>% 
-  pivot_transcript() %>% 
-  mutate(siginificant = FDR < 0.05, abs(logFC) > 2) %>% 
-  mutate(transcript = ifelse(transcript %in% top_de_genes, transcript, "")) %>% 
-  ggplot(aes(x = log(FC), y = -log(Pvalue), label = transcript)) +
-  geom_point(aes(colour = significant, alpha = significant, size = significant)) +
-  geom_text_repel() +
-  scale_color_manual(values=c("black", "#e11f28")) +
-  scale_size_discrete(range = c(0, 2)) +
-  xlim(c(-10,10)) +
+pair1 <- c("immune_cell", "epithelial")
+pair2 <- c("immune_cell", "endothelial")
+pair3 <- c("immune_cell", "fibroblast")
+pair4 <- c("epithelial", "endothelial")
+pair5 <- c("epithelial", "fibroblast")
+pair6 <- c("endothelial", "fibroblast")
+
+counts_imm_epi_de <- top10_de(tt, pair1)
+counts_imm_endo_de <- top10_de(tt, pair2)
+counts_imm_fib_de <- top10_de(tt, pair3)
+counts_epi_endo_de <- top10_de(tt, pair4)
+counts_epi_fib_de <- top10_de(tt, pair5)
+counts_endo_fib_de <- top10_de(tt, pair6)
+
+```
+
+```{r}
+save(counts_imm_epi_de, file = "counts_imm_epi_de.rda")
+save(counts_imm_endo_de, file = "counts_imm_endo_de.rda")
+save(counts_imm_fib_de, file = "counts_imm_fib_de.rda")
+save(counts_epi_endo_de, file = "counts_epi_endo_de.rda")
+save(counts_epi_fib_de, file = "counts_epi_fib_de.rda")
+save(counts_endo_fib_de, file = "counts_endo_fib_de.rda")
+
+```
+
+
+```{r}
+# Combining all the pairwise gene signatures
+total <- rbind(counts_imm_epi_de, counts_imm_endo_de, counts_imm_fib_de, 
+               counts_epi_endo_de, counts_epi_fib_de, counts_endo_fib_de)
+
+save(total, file = "total.rda")
+```
+
+
+```{r}
+# PCA
+total %>% 
+  unnest(data) %>%
+  pivot_sample(sample) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) + 
+  geom_point() +
+  theme_bw()
+  
+```
+```{r}
+# for comparison
+tt %>% 
+  filter(level == 1) %>% 
+  unnest(data) %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) + 
+  geom_point() +
   theme_bw()
 ```
 
