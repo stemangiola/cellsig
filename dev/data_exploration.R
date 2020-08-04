@@ -47,14 +47,26 @@ counts_imm_epi_de <-
 
   # Investigate one level
   filter(level==1) %>%
-  unnest(data) %>%
 
   # investigate one cell type pair
-  filter(cell_type %in% c("immune_cell", "epithelial")) %>%
-  mutate(cell_type = as.character(cell_type) ) %>%
+  mutate(comparison_data = map(
+    data,
+    ~ .x %>%
+      filter(cell_type %in% c("immune_cell", "epithelial")) %>%
+      mutate(cell_type = as.character(cell_type) )
+    )) %>%
 
-  #test
-  test_differential_abundance( ~ cell_type, sample, symbol, count_scaled) %>%
+  #test. We run on the two populations but we select data for all populations
+  mutate(markers = map(
+    comparison_data,
+    ~ .x %>%
+      test_differential_abundance( ~ cell_type, sample, symbol, count_scaled, action="only")
+    )) %>%
+
+  # Add marker info to original data
+  mutate(data = map2(data, markers, ~ left_join(.x, .y))) %>%
+  select(-comparison_data, - markers) %>%
+  unnest(data) %>%
 
   # Nest
   nest_subset(data = -symbol) %>%
@@ -64,5 +76,5 @@ counts_imm_epi_de <-
   filter(logCPM > mean(logCPM)) %>%
   arrange(logFC %>% desc()) %>%
   slice(1:10) %>%
-  unnest()
+  unnest(data)
 
