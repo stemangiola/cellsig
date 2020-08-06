@@ -93,7 +93,6 @@ counts_imm_epi_naive <-
 
 ######################################################################################################
 
-######################################################################################################
 # cell_sig() extracts top10 differentially expressed genes from different cell type pairs
 
 cell_sig <- function(input, pair) {
