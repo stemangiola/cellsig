@@ -180,19 +180,6 @@ data {
 	int G_to_counts_linear[CL] ;
 	int S_linear[CL] ;
 
-	// MPI
-	int<lower=0> size_counts_idx_lv_MPI[max(shards, 1)];
-	int counts_idx_lv_MPI[shards, max(size_counts_idx_lv_MPI)];
-	int size_counts_G_lv_MPI[max(shards, 1)];
-	int size_counts_S_lv_MPI[max(shards, 1)];
-	int counts_G_lv_MPI[shards,max(size_counts_G_lv_MPI)];
-	int counts_S_lv_MPI[shards,max(size_counts_S_lv_MPI)];
-	int size_G_linear_MPI[max(shards, 1)];
-	int G_linear_MPI[shards,max(size_G_linear_MPI)];
-	int size_counts_G_lv_MPI_non_redundant[max(shards, 1)];
-	int counts_G_lv_MPI_non_redundant[shards, max(size_counts_G_lv_MPI_non_redundant)];
-	int counts_G_lv_MPI_non_redundant_reps[shards, max(size_counts_G_lv_MPI_non_redundant)];
-
 	// Non-centered param
 	real lambda_mu_prior[2];
 	real lambda_sigma_prior[2];
