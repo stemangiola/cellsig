@@ -12,6 +12,7 @@
 #' @importFrom dplyr mutate
 #' @importFrom dplyr filter
 #' @importFrom dplyr mutate_if
+#' @import dplyr
 #'
 #' @importFrom tidyr spread
 #' @importFrom tidyr gather
@@ -19,9 +20,12 @@
 #'
 #' @importFrom tidybayes gather_samples
 #' @importFrom tidybayes median_qi
+#' @import tidybayes
 #'
 #' @importFrom foreach foreach
 #' @importFrom foreach %do%
+#'
+#' @import stringr
 #'
 #' @import data.tree
 #'
@@ -144,22 +148,22 @@ ref_intercept_only = function(reference,
       level,
       sample,
       symbol,
-      `Cell type category`,
+      `cell_type`,
       `count`,
       lambda,
       sigma_raw,
-      `house keeping`
+      `house_keeping`
     ) %>%
 
     # Bug after I deleted FANTOM5 I have to rerun infer NB. Some genes are not in all cell types anynore
     # Other bug
-    filter(`Cell type category` %>% is.na %>% `!`) %>%
+    filter(`cell_type` %>% is.na %>% `!`) %>%
 
     # Check if this is still important
     group_by(level) %>%
     do((.) %>% inner_join(
       (.) %>%
-        distinct(symbol, `Cell type category`) %>%
+        distinct(symbol, `cell_type`) %>%
         count(symbol) %>%
         filter(n == max(n))
     )) %>%
@@ -174,7 +178,7 @@ ref_intercept_only = function(reference,
     # Select cell types in hierarchy
     inner_join(
       tree %>%
-        data.tree::ToDataFrameTree("Cell type category", "C", "C1", "C2", "C3", "C4") %>%
+        data.tree::ToDataFrameTree("cell_type", "C", "C1", "C2", "C3", "C4") %>%
         as_tibble %>%
         select(-1)
 
@@ -191,7 +195,7 @@ ref_intercept_only = function(reference,
     sampling_iterations = sampling_iterations
   )
 
-  res1[[1]] %>% filter(!query) %>% distinct(symbol, `Cell type category`, G, S, sample) %>%
+  res1[[1]] %>% filter(!query) %>% distinct(symbol, `cell_type`, G, S, sample) %>%
 
     # Attach lambda sigma
     left_join(
@@ -216,13 +220,13 @@ ref_intercept_only = function(reference,
     ) %>%
 
     # Replace the category house_keeping
-    mutate(`house keeping` = `Cell type category` == "house_keeping") %>%
-    rename(temp = `Cell type category`) %>%
+    mutate(`house_keeping` = `cell_type` == "house_keeping") %>%
+    rename(temp = `cell_type`) %>%
     left_join(
       (.) %>%
         filter(temp != "house_keeping") %>%
         distinct(sample, S, temp) %>%
-        rename(`Cell type category` = temp)
+        rename(`cell_type` = temp)
     ) %>%
     select(-temp) %>%
 
@@ -276,24 +280,24 @@ run_model_ref = function(tree,
           .$Get("name", filterFun  = isLeaf)
         } %>%
         as_tibble() %>%
-        setNames("Cell type category")
+        setNames("cell_type")
     )
 
-  # Check if there are not house keeping
-  if (reference_filtered %>% filter(`house keeping`) %>% nrow %>% equals(0))
-    stop("No house keeping genes in your reference data frame")
+  # Check if there are not house_keeping
+  if (reference_filtered %>% filter(`house_keeping`) %>% nrow %>% equals(0))
+    stop("No house_keeping genes in your reference data frame")
 
   df = ref_format(reference_filtered) %>% distinct()
 
   G = df %>% filter(!`query`) %>% distinct(G) %>% nrow()
-  GM = df %>% filter(!`house keeping`) %>% distinct(symbol) %>% nrow()
+  GM = df %>% filter(!`house_keeping`) %>% distinct(symbol) %>% nrow()
 
   # For  reference MPI inference
   counts_baseline =
     df %>%
 
-    # Eliminate the query part, not the house keeping of the query
-    filter(!`query` | `house keeping`)  %>%
+    # Eliminate the query part, not the house_keeping of the query
+    filter(!`query` | `house_keeping`)  %>%
 
     format_for_MPI(shards)
 
@@ -528,7 +532,7 @@ ref_format = function(ref) {
 
     # Add marker symbol indeces
     left_join((.) %>%
-                filter(!`house keeping`) %>%
+                filter(!`house_keeping`) %>%
                 distinct(`symbol`) %>%
                 mutate(M = 1:n())) %>%
 
@@ -536,37 +540,37 @@ ref_format = function(ref) {
     arrange(!`query`) %>% # query first
     mutate(S = factor(sample, levels = .$sample %>% unique) %>% as.integer) %>%
 
-    # Add house keeping into Cell type label
-    mutate(`Cell type category` = ifelse(`house keeping`, "house_keeping", `Cell type category`)) %>%
+    # Add house_keeping into Cell type label
+    mutate(`cell_type` = ifelse(`house_keeping`, "house_keeping", `cell_type`)) %>%
 
     # # Still needed? NOT because I have sample, ct unique, no redundancy
     # anti_join(
     # 	(.) %>%
-    # 		filter(`house keeping` & !`query`) %>%
+    # 		filter(`house_keeping` & !`query`) %>%
     # 		distinct(symbol, level) %>%
     # 		group_by(symbol) %>%
     # 		arrange(level) %>%
-    # 		slice(2:max(n(), 2)) %>% # take away house keeping from level 2 above
+    # 		slice(2:max(n(), 2)) %>% # take away house_keeping from level 2 above
     # 		ungroup()
     # ) %>%
 
-  # If house keeping delete level infomation
-  mutate(level = ifelse(`house keeping`, NA, level)) %>%
+  # If house_keeping delete level infomation
+  mutate(level = ifelse(`house_keeping`, NA, level)) %>%
 
     # Create unique symbol ID
-    unite(ct_symbol, c("Cell type category", "symbol"), remove = F) %>%
+    unite(ct_symbol, c("cell_type", "symbol"), remove = F) %>%
 
     # Add gene idx
     left_join(
       (.) %>%
         filter(!`query`) %>%
-        distinct(`Cell type category`, ct_symbol, `house keeping`) %>%
-        arrange(!`house keeping`, ct_symbol) %>% # House keeping first
+        distinct(`cell_type`, ct_symbol, `house_keeping`) %>%
+        arrange(!`house_keeping`, ct_symbol) %>% # house_keeping first
         mutate(G = 1:n())
     ) %>%
     left_join(
       (.) %>%
-        filter(!`house keeping` & !`query`) %>%
+        filter(!`house_keeping` & !`query`) %>%
         distinct(level, symbol) %>%
         arrange(level, symbol) %>%
         mutate(GM = 1:n()) %>%

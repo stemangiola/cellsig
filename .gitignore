@@ -49,3 +49,4 @@ inst/include/stan_meta_header.hpp
 RcppExports.cpp
 dev/*pdf
 dev/tt.rds
+dev/database*

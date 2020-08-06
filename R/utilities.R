@@ -3,18 +3,18 @@
 #' @description create tree object that is in data directory
 #'
 #' @export
-create_tree_object = function(my_ref = ARMET::ARMET_ref) {
+create_tree_object = function(my_ref = cellsig::counts) {
 
 
 
   #yaml:: yaml.load_file("~/PhD/deconvolution/ARMET/data/tree.yaml") %>%
   tree =
-    yaml::yaml.load_file("data/tree.yaml") %>%
+    yaml::yaml.load_file("dev/tree.yaml") %>%
     data.tree::as.Node() %>%
 
     {
 
-      my_ct = my_ref %>% distinct(`Cell type category`) %>% pull(1) %>% as.character
+      my_ct = my_ref %>% distinct(`cell_type`) %>% pull(1) %>% as.character
 
       # Filter if not in reference
       data.tree::Prune(., pruneFun = function(x) ( x$name %in% my_ct ))
@@ -38,18 +38,18 @@ create_tree_object = function(my_ref = ARMET::ARMET_ref) {
       .$Set(C4 = get_idx_level(., 4))
       #		if(max(levels)>1) for(l in 2:max(levels)) { my_c = sprintf("C%s", l); .$Set(	my_c = get_idx_level(.,2)	); . }
 
-      # Set Cell type category label
-      .$Set("Cell type category" = .$Get("name"))
+      # Set cell_type label
+      .$Set("cell_type" = .$Get("name"))
 
       .
 
     }
 
-  save(tree, file="data/tree.rda", compress = "gzip")
+  save(tree, file="data/tree.rda", compress = "xz")
 
-  ancestor_child = tree %>% get_ancestor_child
-
-  save(ancestor_child, file="data/ancestor_child.rda", compress = "gzip")
+  # ancestor_child = tree %>% get_ancestor_child
+  #
+  # save(ancestor_child, file="data/ancestor_child.rda", compress = "gzip")
 }
 
 #' get_idx_level
@@ -134,8 +134,8 @@ format_for_MPI = function(df, shards) {
 filter_house_keeping_query_if_fixed =  function(.data, full_bayesian) {
   .data %>%
 
-    # If full Bayesian false just keep house keeping
-    when(!full_bayesian ~ (.) %>% filter(`house keeping` & `query`), ~ (.))
+    # If full Bayesian false just keep house_keeping
+    when(!full_bayesian ~ (.) %>% filter(`house_keeping` & `query`), ~ (.))
 }
 
 parse_baseline = function(.data, shards_in_levels, lv) {
@@ -144,14 +144,14 @@ parse_baseline = function(.data, shards_in_levels, lv) {
     distinct(
       sample,
       symbol,
-      `Cell type category`,
+      `cell_type`,
       level,
       count,
       counts_idx,
       G,
       GM,
       S,
-      `house keeping`
+      `house_keeping`
     ) %>%
     left_join(tibble(level = lv, shards = shards_in_levels), by = "level") %>%
     format_for_MPI_from_linear()
@@ -184,17 +184,17 @@ format_for_MPI_from_linear = function(df) {
 }
 
 get_ancestor_child = function(tree){
-  tree %>% ToDataFrameTypeColFull %>% distinct(level_1, level_2) %>% setNames(c("ancestor", "Cell type category")) %>%
+  tree %>% ToDataFrameTypeColFull %>% distinct(level_1, level_2) %>% setNames(c("ancestor", "cell_type")) %>%
     bind_rows(
-    tree %>% ToDataFrameTypeColFull %>% distinct(level_2, level_3) %>% setNames(c("ancestor", "Cell type category"))
+    tree %>% ToDataFrameTypeColFull %>% distinct(level_2, level_3) %>% setNames(c("ancestor", "cell_type"))
   ) %>%
     bind_rows(
-      tree %>% ToDataFrameTypeColFull %>% distinct(level_3, level_4) %>% setNames(c("ancestor", "Cell type category"))
+      tree %>% ToDataFrameTypeColFull %>% distinct(level_3, level_4) %>% setNames(c("ancestor", "cell_type"))
     ) %>%
     bind_rows(
-      tree %>% ToDataFrameTypeColFull %>% distinct(level_4, level_5) %>% setNames(c("ancestor", "Cell type category"))
+      tree %>% ToDataFrameTypeColFull %>% distinct(level_4, level_5) %>% setNames(c("ancestor", "cell_type"))
     ) %>%
-    filter(ancestor != `Cell type category`)
+    filter(ancestor != `cell_type`)
 }
 
 #' ToDataFrameTypeColFull
