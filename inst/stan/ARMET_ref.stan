@@ -143,7 +143,7 @@ int[,] get_int_MPI(int[] v, int shards){
 		int size_buffer = get_real_buffer_size(mus_sigmas, threshold);
 		int size_vector = (rows(mus_sigmas)-size_buffer)/2;
 
-		if(min(mus_sigmas[1:(size_vector*2)]) == threshold) print("ERROR! The MPI implmentation is buggy")
+		if(min(mus_sigmas[1:(size_vector*2)]) == threshold) print("ERROR! The MPI implmentation is buggy");
 
 		// Reference / exposure rate
 		lp = neg_binomial_2_log_lpmf(
@@ -177,7 +177,7 @@ data {
 
 	// reference counts
  	int<lower=0> counts_linear[CL] ;
-	int G_to_counts_linear[CL] ;
+	int G_linear[CL] ;
 	int S_linear[CL] ;
 
 	// Non-centered param
@@ -238,8 +238,8 @@ model {
 		lp_reduce_simple ,
 		[sigma_intercept, sigma_slope]', // global parameters
 		get_mu_sigma_vector_MPI(
-			lambda_log[G_to_counts_linear] + exposure_rate[S_linear],
-			sigma_inv_log[G_to_counts_linear],
+			lambda_log[G_linear] + exposure_rate[S_linear],
+			sigma_inv_log[G_linear],
 			shards
 		),
 		real_data,
