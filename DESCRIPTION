@@ -25,6 +25,7 @@ Imports:
     rstantools (>= 2.1.0),
     dplyr,
     tidyr,
+    purrr,
     stringr,
     nanny,
     data.tree,

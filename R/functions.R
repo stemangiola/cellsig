@@ -7,16 +7,9 @@
 #'
 #' @importFrom tibble tibble
 #'
-#' @importFrom dplyr %>%
-#' @importFrom dplyr select
-#' @importFrom dplyr mutate
-#' @importFrom dplyr filter
-#' @importFrom dplyr mutate_if
 #' @import dplyr
-#'
-#' @importFrom tidyr spread
-#' @importFrom tidyr gather
-#' @importFrom tidyr drop_na
+#' @import tidyr 
+#' @import purrr
 #'
 #' @importFrom tidybayes gather_samples
 #' @importFrom tidybayes median_qi
@@ -392,6 +385,7 @@ run_model_ref = function(tree,
 }
 
 #' @importFrom nanny as_matrix
+#' @importFrom tibble rowid_to_column
 #'
 #' @export
 #'

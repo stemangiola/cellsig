@@ -157,8 +157,9 @@ parse_baseline = function(.data, shards_in_levels, lv) {
     format_for_MPI_from_linear()
 }
 
-#' xx
+
 #' @import magrittr
+#' @importFrom tibble rowid_to_column
 format_for_MPI_from_linear = function(df) {
   shards = df %>% arrange(shards %>% desc) %>% slice(1) %>% pull(shards)
   if (shards %>% length %>% equals(0))
