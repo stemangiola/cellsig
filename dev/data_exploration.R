@@ -13,26 +13,29 @@ plan(multiprocess, workers=5)
 # To be loaded after all libraries
 library(tidybulk)
 
-load("/stornext/Home/data/allstaff/w/wu.j/Master Project/cellsig/dev/counts.rda")
 
 tt <- 
-  counts %>%
+  
+  # Load dataset
+  cellsig::counts %>%
   tidybulk(sample, symbol, count) %>%
 
   # Group by level because otherwise samples are duplicated
-  nest(data = -level) 
-
+  nest(data = -level) %>%
+  
+  # Redefine factors inside each level
+  mutate(data = future_map(data, ~ droplevels(.x))) %>%
+  
+  # Fill missing data. There are many genes that
+  # are not shared by the majority of samples
+  mutate(data = future_map(data, ~ fill_missing_abundance(.x, fill_with = 0))) %>%
+  
+  # Scale for future PCA plotting
+  mutate(data = future_map(data, ~ scale_abundance(.x)))
 
 
 tt_naive <-  
   tt %>%
-
-  # Redefine factors inside each level
-  mutate(data = future_map(data, ~ droplevels(.x))) %>%
-
-  # Fill missing data. There are many genes that
-  # are not shared by the majority of samples
-  mutate(data = future_map(data, ~ fill_missing_abundance(.x, fill_with = 0))) %>%
 
   # Scale and reduce dimensions
   mutate(data = future_map(
@@ -48,9 +51,8 @@ tt_naive <-
   mutate(data = future_map(data,~ cluster_elements(.x, method="SNN")))
 
 
-  
 counts_imm_epi_naive <-
-  tt_naive %>%
+  tt %>%
 
   # Investigate one level
   filter(level==1) %>%
@@ -84,13 +86,7 @@ counts_imm_epi_naive <-
   arrange(logFC %>% desc()) %>%
   slice(1:10) %>%
 
-  unnest(data) %>% 
-  
-  # plot PCA
-  pivot_sample(sample) %>% 
-  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) + 
-  geom_point() +
-  theme_bw()
+  unnest(data)
 
 ######################################################################################################
 
