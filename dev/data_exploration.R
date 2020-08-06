@@ -15,12 +15,17 @@ library(tidybulk)
 
 load("/stornext/Home/data/allstaff/w/wu.j/Master Project/cellsig/dev/counts.rda")
 
-tt =
+tt <- 
   counts %>%
   tidybulk(sample, symbol, count) %>%
 
   # Group by level because otherwise samples are duplicated
-  nest(data = -level) %>%
+  nest(data = -level) 
+
+
+
+tt_naive <-  
+  tt %>%
 
   # Redefine factors inside each level
   mutate(data = future_map(data, ~ droplevels(.x))) %>%
@@ -42,8 +47,10 @@ tt =
   # Cluster
   mutate(data = future_map(data,~ cluster_elements(.x, method="SNN")))
 
-counts_imm_epi_de <-
-  tt %>%
+
+  
+counts_imm_epi_naive <-
+  tt_naive %>%
 
   # Investigate one level
   filter(level==1) %>%
@@ -60,7 +67,7 @@ counts_imm_epi_de <-
   mutate(markers = map(
     comparison_data,
     ~ .x %>%
-      test_differential_abundance( ~ cell_type, sample, symbol, count_scaled, action="only")
+      test_differential_abundance( ~ cell_type, action="only")
     )) %>%
 
   # Add marker info to original data
@@ -76,5 +83,80 @@ counts_imm_epi_de <-
   filter(logCPM > mean(logCPM)) %>%
   arrange(logFC %>% desc()) %>%
   slice(1:10) %>%
-  unnest(data)
+
+  unnest(data) %>% 
+  
+  # plot PCA
+  pivot_sample(sample) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) + 
+  geom_point() +
+  theme_bw()
+
+######################################################################################################
+
+# cell_sig() extracts top10 differentially expressed genes from different cell type pairs
+
+cell_sig <- function(input, pair) {
+  
+  input %>%
+    
+    # Investigate one level
+    filter(level==1) %>%
+    
+    # investigate one cell type pair
+    mutate(comparison_data = map(
+      data,
+      ~ .x %>%
+        filter(cell_type %in% pair) %>%
+        mutate(cell_type = as.character(cell_type) )
+    )) %>%
+    
+    #test. We run on the two populations but we select data for all populations
+    mutate(markers = map(
+      comparison_data,
+      ~ .x %>%
+        test_differential_abundance( ~ cell_type, sample, symbol, count, action="only")
+    )) %>%
+    
+    # Add marker info to original data
+    mutate(data = map2(data, markers, ~ left_join(.x, .y))) %>%
+    select(-comparison_data, - markers) %>%
+    unnest(data) %>%
+    
+    # Nest
+    nest_subset(data = -symbol) %>%
+    
+    # Select markers
+    filter(FDR < 0.05 & abs(logFC) > 2) %>%
+    filter(logCPM > mean(logCPM)) %>%
+    arrange(logFC %>% desc()) %>%
+    slice(1:10) %>%
+    unnest(data)
+}
+
+# extract top10 differentially expressed genes from 6 cell type pairs in level 1
+counts_imm_epi_de <- cell_sig(tt, c("immune_cell", "epithelial"))
+counts_imm_endo_de <- cell_sig(tt, c("immune_cell", "endothelial"))
+counts_imm_fib_de <- cell_sig(tt, c("immune_cell", "fibroblast"))
+counts_epi_endo_de <- cell_sig(tt, c("epithelial", "endothelial"))
+counts_epi_fib_de <- cell_sig(tt, c("epithelial", "fibroblast"))
+counts_endo_fib_de <- cell_sig(tt, c("endothelial", "fibroblast"))
+
+# collage all the differentially expressed genes between cell types
+sig_level1 <- bind_rows(counts_imm_epi_de, counts_imm_endo_de, counts_imm_fib_de, 
+               counts_epi_endo_de, counts_epi_fib_de, counts_endo_fib_de) %>%
+  tidybulk(sample, symbol, count) %>% 
+  select(cell_type, sample, symbol, count) %>%
+  
+  # remove duplicate genes that arise during pairwise comparison and reduce dimensions
+  distinct() %>%
+#  scale_abundance() %>% 
+  reduce_dimensions(sample, symbol, count, method = "PCA")
+
+# plot PCA 
+sig_level1 %>% 
+  pivot_sample(sample) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) + 
+  geom_point() +
+  theme_bw()
 
