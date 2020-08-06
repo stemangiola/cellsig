@@ -273,7 +273,8 @@ run_model_ref = function(tree,
           .$Get("name", filterFun  = isLeaf)
         } %>%
         as_tibble() %>%
-        setNames("cell_type")
+        setNames("cell_type"),
+      by = "cell_type"
     )
 
   # Check if there are not house_keeping
@@ -284,43 +285,14 @@ run_model_ref = function(tree,
 
   G = df %>% filter(!`query`) %>% distinct(G) %>% nrow()
   GM = df %>% filter(!`house_keeping`) %>% distinct(symbol) %>% nrow()
-
-  # For  reference MPI inference
-  counts_baseline =
-    df %>%
-
-    # Eliminate the query part, not the house_keeping of the query
-    filter(!`query` | `house_keeping`)  %>%
-
-    format_for_MPI(shards)
-
-  S = counts_baseline %>% distinct(sample) %>% nrow()
-  N = counts_baseline %>% distinct(idx_MPI, `count`, `count MPI row`) %>%  count(idx_MPI) %>% summarise(max(n)) %>% pull(1)
-  M = counts_baseline %>% distinct(start, idx_MPI) %>% count(idx_MPI) %>% pull(n) %>% max
-
-  lambda_log = 	  counts_baseline %>% filter(!query) %>% distinct(G, lambda) %>% arrange(G) %>% pull(lambda)
-  sigma_inv_log = counts_baseline %>% filter(!query) %>% distinct(G, sigma_raw) %>% arrange(G) %>% pull(sigma_raw)
-
-  counts_baseline_to_linear =
-    counts_baseline %>%
-    filter_house_keeping_query_if_fixed(full_bayesian) %>%
-    arrange(G, S) %>%
-    mutate(counts_idx = 1:n()) %>%
-    mutate(S = S %>% as.factor %>% as.integer)
-
-  counts_linear = counts_baseline_to_linear %>%  pull(`count`)
-  G_to_counts_linear = counts_baseline_to_linear %>% pull(G)
-  G_linear = G_to_counts_linear
-  S_linear = counts_baseline_to_linear %>% pull(S)
+  S = df %>% distinct(sample) %>% nrow()
+  counts_linear = df %>%  pull(`count`)
+  G_linear = df %>% pull(G)
+  S_linear = df %>% pull(S)
 
   CL = length(counts_linear)
-  S = counts_baseline_to_linear %>% distinct(S) %>% nrow
+  S = df %>% distinct(S) %>% nrow
 
-
-  MPI_data = get_MPI_df_ref(counts_baseline_to_linear,
-                            counts_baseline,
-                            shards,
-                            lv)
 
   # library(rstan)
   # fileConn<-file("~/.R/Makevars")
@@ -337,18 +309,11 @@ run_model_ref = function(tree,
          # HMC
          sampling(
            stanmodels$ARMET_ref,
-           #rstan::stan_model("~/PhD/deconvolution/ARMET/inst/stan/ARMET_tc_fix_hierarchical.stan"),
+           #rstan::stan_model("inst/stan/ARMET_ref.stan"),
            chains = 3,
            cores = 3,
            iter = iterations,
            warmup = iterations - sampling_iterations,
-           #pars=
-           # c("prop_1", "prop_2", "prop_3", sprintf("prop_%s", letters[1:9])) %>%
-           # c("alpha_1", sprintf("alpha_%s", letters[1:9])) %>%
-           # c("exposure_rate") %>%
-           # c("lambda_UFO") %>%
-           # c("prop_UFO") %>%
-           # c(additional_par_to_save),
            save_warmup = FALSE
          ) %>%
            {
@@ -358,163 +323,15 @@ run_model_ref = function(tree,
 
          vb_iterative(
            stanmodels$ARMET_ref,
-           #rstan::stan_model("~/PhD/deconvolution/ARMET/inst/stan/ARMET_tc_fix_hierarchical.stan"),
+           #rstan::stan_model("inst/stan/ARMET_ref.stan"),
            output_samples = 500,
            iter = 50000,
            tol_rel_obj = 0.005,
-           algorithm = "meanfield",
-           data = MPI_data,
-           # pars = c(
-           # 	"prop_1",
-           # 	"prop_2",
-           # 	"prop_3",
-           # 	"prop_4",
-           # 	"exposure_rate",
-           # 	"lambda_log",
-           # 	"sigma_inv_log",
-           # 	"sigma_intercept_dec"
-           # ),
-           # #,
-           init = function ()
-             list(lambda_log = lambda_log, sigma_inv_log = sigma_inv_log) # runif(G,  lambda_log - 1, lambda_log + 1)	)
+           algorithm = "meanfield"
 
          )
        ))
 
-}
-
-#' @importFrom nanny as_matrix
-#' @importFrom tibble rowid_to_column
-#'
-#' @export
-#'
-get_MPI_df_ref = function(counts_baseline_to_linear,
-                          counts_baseline,
-                          shards_in_levels,
-                          lv) {
-  list(
-    counts_idx_lv_MPI =
-      counts_baseline_to_linear %>%
-      parse_baseline(shards_in_levels, lv)  %>%
-      distinct(idx_MPI, counts_idx, `count MPI row`) %>%
-      spread(idx_MPI,  counts_idx) %>%
-      select(-`count MPI row`) %>%
-      replace(is.na(.),-999 %>% as.integer) %>%
-      as_matrix() %>% t %>% 		as.data.frame,
-
-    size_counts_idx_lv_MPI =
-      counts_baseline_to_linear %>%
-      parse_baseline(shards_in_levels, lv)   %>%
-      distinct(idx_MPI, counts_idx, `count MPI row`) %>%
-      count(idx_MPI) %>%
-      pull(n) %>%
-      when(length(.) == 0 ~ 0, ~ (.)) %>%
-      as.array,
-
-    # Count indexes
-    counts_G_lv_MPI =
-      counts_baseline_to_linear %>%
-      parse_baseline(shards_in_levels, lv)   %>%
-      distinct(idx_MPI, G, `count MPI row`)  %>%
-      spread(idx_MPI,  G) %>%
-      select(-`count MPI row`) %>%
-      replace(is.na(.),-999 %>% as.integer) %>%
-      as_matrix() %>% t %>% 		as.data.frame,
-
-    size_counts_G_lv_MPI =
-      counts_baseline_to_linear %>%
-      parse_baseline(shards_in_levels, lv)   %>%
-      distinct(idx_MPI, G, `count MPI row`)  %>%
-      count(idx_MPI) %>%
-      pull(n) %>%
-      when(length(.) == 0 ~ 0, ~ (.)) %>%
-      as.array,
-
-    counts_G_lv_MPI_non_redundant =
-      counts_baseline_to_linear %>%
-      parse_baseline(shards_in_levels, lv)   %>%
-      distinct(idx_MPI, G)  %>%
-      group_by(idx_MPI) %>% do((.) %>% rowid_to_column("count MPI row")) %>% ungroup() %>%
-      spread(idx_MPI,  G) %>%
-      select(-`count MPI row`) %>%
-      replace(is.na(.),-999 %>% as.integer) %>%
-      as_matrix() %>% t %>% 		as.data.frame,
-
-    size_counts_G_lv_MPI_non_redundant =
-      counts_baseline_to_linear %>%
-      parse_baseline(shards_in_levels, lv)   %>%
-      distinct(idx_MPI, G)  %>%
-      count(idx_MPI) %>%
-      pull(n) %>%
-      when(length(.) == 0 ~ 0, ~ (.)) %>%
-      as.array,
-
-    counts_G_lv_MPI_non_redundant_reps =
-      counts_baseline_to_linear %>%
-      parse_baseline(shards_in_levels, lv)   %>%
-      distinct(idx_MPI, G, `count MPI row`)  %>%
-      left_join((.) %>% count(idx_MPI, G)) %>%
-      distinct(idx_MPI, G, n) %>%
-      group_by(idx_MPI) %>% do((.) %>% rowid_to_column("count MPI row")) %>% ungroup() %>%
-      distinct(idx_MPI, n, `count MPI row`) %>%
-      spread(idx_MPI,  n) %>%
-      select(-`count MPI row`) %>%
-      replace(is.na(.),-999 %>% as.integer) %>%
-      as_matrix() %>% t %>% 		as.data.frame,
-
-    # Count indexes
-    counts_S_lv_MPI =
-      counts_baseline_to_linear %>%
-      parse_baseline(shards_in_levels, lv) %>%
-      distinct(idx_MPI, S, `count MPI row`)  %>%
-      spread(idx_MPI,  S) %>%
-      select(-`count MPI row`) %>%
-      replace(is.na(.),-999 %>% as.integer) %>%
-      as_matrix() %>% t %>% 		as.data.frame,
-
-    size_counts_S_lv_MPI =
-      counts_baseline_to_linear %>%
-      parse_baseline(shards_in_levels, lv) %>%
-      distinct(idx_MPI, S, `count MPI row`)   %>%
-      count(idx_MPI) %>%
-      pull(n) %>%
-      when(length(.) == 0 ~ 0, ~ (.)) %>%
-      as.array,
-
-
-    G_linear_MPI =
-      counts_baseline %>% filter(level == lv) %>%
-
-      # I have fixed this for right order
-      select(level, G, GM, sprintf("C%s", lv)) %>%
-      distinct() %>%
-      arrange(GM,!!as.symbol(sprintf("C%s", lv))) %>%
-
-      #distinct(G, GM, C, level) %>%
-      left_join(tibble(level = lv, shards = shards_in_levels)) %>%
-      format_for_MPI_from_linear_dec(lv) %>%
-      distinct(idx_MPI, G, `count MPI row`) %>%
-      spread(idx_MPI,  G) %>%
-      select(-`count MPI row`) %>%
-      replace(is.na(.),-999 %>% as.integer) %>%
-      as_matrix() %>% t %>% 		as.data.frame,
-
-    size_G_linear_MPI =
-      counts_baseline %>% filter(level == lv) %>%
-      # I have fixed this for right order
-      select(level, G, GM, sprintf("C%s", lv)) %>%
-      distinct() %>%
-      arrange(GM,!!as.symbol(sprintf("C%s", lv))) %>%
-
-      #distinct(G, GM, C, level) %>%
-      left_join(tibble(level = lv, shards = shards_in_levels)) %>%
-      format_for_MPI_from_linear_dec(lv) %>%
-      distinct(idx_MPI, G, `count MPI row`)   %>%
-      count(idx_MPI) %>%
-      pull(n) %>%
-      when(length(.) == 0 ~ 0, ~ (.)) %>%
-      as.array
-  )
 }
 
 #' @export
@@ -527,7 +344,8 @@ ref_format = function(ref) {
     left_join((.) %>%
                 filter(!`house_keeping`) %>%
                 distinct(`symbol`) %>%
-                mutate(M = 1:n())) %>%
+                mutate(M = 1:n()),
+              by = "symbol") %>%
 
     # Add sample indeces
     arrange(!`query`) %>% # query first
@@ -559,7 +377,8 @@ ref_format = function(ref) {
         filter(!`query`) %>%
         distinct(`cell_type`, ct_symbol, `house_keeping`) %>%
         arrange(!`house_keeping`, ct_symbol) %>% # house_keeping first
-        mutate(G = 1:n())
+        mutate(G = 1:n()),
+      by = c("ct_symbol", "cell_type", "house_keeping")
     ) %>%
     left_join(
       (.) %>%
@@ -567,7 +386,8 @@ ref_format = function(ref) {
         distinct(level, symbol) %>%
         arrange(level, symbol) %>%
         mutate(GM = 1:n()) %>%
-        select(-level)
+        select(-level),
+      by = "symbol"
     )
 
 }
