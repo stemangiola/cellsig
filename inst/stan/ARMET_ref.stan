@@ -201,9 +201,7 @@ data {
 
 }
 transformed data{
-
 	real real_data[shards, 0];
-	real real_data2[shards, 0];
 
 }
 parameters {
@@ -229,6 +227,7 @@ transformed parameters{
 
 	vector[S] exposure_rate = append_row(exposure_rate_minus_1, -sum(exposure_rate_minus_1));
 
+
 }
 model {
 
@@ -242,7 +241,7 @@ model {
   sigma_sigma ~ normal(0,2);
 
 	// Exposure
-	exposure_rate_minus_1 ~ normal(0,1);
+	exposure_rate_minus_1 ~ normal(0,2);
 
 	// Means overdispersion reference
 	lambda_log ~ skew_normal(lambda_mu, exp(lambda_sigma), lambda_skew);
