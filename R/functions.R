@@ -342,7 +342,6 @@ run_model_ref = function(tree,
            cores = 3,
            iter = iterations,
            warmup = iterations - sampling_iterations,
-           data = MPI_data,
            #pars=
            # c("prop_1", "prop_2", "prop_3", sprintf("prop_%s", letters[1:9])) %>%
            # c("alpha_1", sprintf("alpha_%s", letters[1:9])) %>%
