@@ -522,6 +522,7 @@ plot_pca(tt, i)
 # top 10 differentially expressed genes
 
 top10_de <- function(input, pair) {
+  
   input %>% 
     # Investigate one level
   filter(level==1) %>%
@@ -543,6 +544,7 @@ top10_de <- function(input, pair) {
   arrange(logFC %>% desc()) %>%
   slice(1:10) %>%
   unnest()
+  
 }
 
 ```
