@@ -1,5 +1,5 @@
-# devtools::github_install("stemangiola/nanny@convert-to-S3")
-# devtools::github_install("stemangiola/tidybulk@dev")
+# devtools::install_github("stemangiola/nanny@convert-to-S3")
+# devtools::install_github("stemangiola/tidybulk@dev")
 
 library(tidyverse)
 library(plotly)
@@ -13,11 +13,12 @@ plan(multiprocess, workers=5)
 # To be loaded after all libraries
 library(tidybulk)
 
+load("data/counts.rda")
 
 tt <- 
   
   # Load dataset
-  cellsig::counts %>%
+  counts %>%
   tidybulk(sample, symbol, count) %>%
 
   # Group by level because otherwise samples are duplicated
@@ -142,12 +143,11 @@ counts_endo_fib_de <- cell_sig(tt, c("endothelial", "fibroblast"))
 sig_level1 <- bind_rows(counts_imm_epi_de, counts_imm_endo_de, counts_imm_fib_de, 
                counts_epi_endo_de, counts_epi_fib_de, counts_endo_fib_de) %>%
   tidybulk(sample, symbol, count) %>% 
-  select(cell_type, sample, symbol, count) %>%
+  select(sample, symbol, count, count_scaled, cell_type) %>%
   
   # remove duplicate genes that arise during pairwise comparison and reduce dimensions
   distinct() %>%
-#  scale_abundance() %>% 
-  reduce_dimensions(sample, symbol, count, method = "PCA")
+  reduce_dimensions(sample, symbol, count_scaled,  method = "PCA")
 
 # plot PCA 
 sig_level1 %>% 
