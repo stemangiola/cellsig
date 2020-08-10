@@ -163,3 +163,12 @@ sig_level1 %>%
   geom_point() +
   theme_bw()
 
+
+# Compare marker gene counts distribution
+sig_level1 %>% 
+  ggplot(aes(x = cell_type, y = log(count_scaled + 1), colour = cell_type)) +
+  geom_boxplot() +
+  geom_jitter(aes(alpha=0.01)) +
+  facet_wrap(~symbol) +
+  theme(axis.text.x = element_text(angle = 45))
+
