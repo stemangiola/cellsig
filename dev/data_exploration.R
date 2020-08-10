@@ -124,7 +124,7 @@ cell_sig <- function(input, pair) {
     nest_subset(data = -symbol) %>%
     
     # Select markers
-    filter(FDR < 0.05 & abs(logFC) > 2) %>%
+    filter(FDR < 0.05 & logFC > 2) %>%
     filter(logCPM > mean(logCPM)) %>%
     arrange(logFC %>% desc()) %>%
     slice(1:10) %>%
@@ -141,11 +141,19 @@ counts_epi_endo_de <- cell_sig(tt, c("epithelial", "endothelial"))
 counts_epi_fib_de <- cell_sig(tt, c("epithelial", "fibroblast"))
 counts_endo_fib_de <- cell_sig(tt, c("endothelial", "fibroblast"))
 
-
+# permutation
+counts_epi_imm_de <- cell_sig(tt, c("epithelial", "immune_cell"))
+counts_endo_imm_de <- cell_sig(tt, c("endothelial", "immune_cell"))
+counts_fib_imm_de <- cell_sig(tt, c("fibroblast", "immune_cell"))
+counts_endo_epi_de <- cell_sig(tt, c("endothelial", "epithelial"))
+counts_fib_epi_de <- cell_sig(tt, c("fibroblast", "epithelial"))
+counts_fib_endo_de <- cell_sig(tt, c("fibroblast", "endothelial"))
 
 # collage all the differentially expressed genes between cell types
 sig_level1 <- bind_rows(counts_imm_epi_de, counts_imm_endo_de, counts_imm_fib_de, 
-               counts_epi_endo_de, counts_epi_fib_de, counts_endo_fib_de) %>%
+               counts_epi_endo_de, counts_epi_fib_de, counts_endo_fib_de,
+               counts_epi_imm_de, counts_endo_imm_de, counts_fib_imm_de,
+               counts_endo_epi_de, counts_fib_epi_de, counts_fib_endo_de) %>%
   tidybulk(sample, symbol, count_scaled) %>% 
   select(sample, symbol, count_scaled, cell_type) %>%
   
@@ -172,3 +180,9 @@ sig_level1 %>%
   facet_wrap(~symbol) +
   theme(axis.text.x = element_text(angle = 45))
 
+# marker gene boxplot between endothelial and epithelial cells
+counts_epi_endo_de %>% 
+  ggplot(aes(x = symbol, y = log(count_scaled + 1), colour = cell_type)) +
+  geom_boxplot() +
+  geom_point(aes(alpha = 0.01)) +
+  theme(axis.text.x = element_text(angle = 45))
