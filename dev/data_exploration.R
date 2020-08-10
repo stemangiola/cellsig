@@ -51,7 +51,7 @@ tt_naive <-
   mutate(data = future_map(data,~ cluster_elements(.x, method="SNN")))
 
 
-counts_imm_epi_naive <-
+counts_endo_epi_naive <-
   tt %>%
 
   # Investigate one level
@@ -61,7 +61,7 @@ counts_imm_epi_naive <-
   mutate(comparison_data = map(
     data,
     ~ .x %>%
-      filter(cell_type %in% c("immune_cell", "epithelial")) %>%
+      filter(cell_type %in% c("endothelial", "epithelial")) %>%
       mutate(cell_type = as.character(cell_type) )
     )) %>%
 
@@ -69,24 +69,57 @@ counts_imm_epi_naive <-
   mutate(markers = map(
     comparison_data,
     ~ .x %>%
-      test_differential_abundance( ~ cell_type, action="only")
-    )) %>%
+      
+      # Differential transcription
+      test_differential_abundance(
+        ~ 0 + cell_type, 
+        .contrasts = c(
+          "cell_typeendothelial - cell_typeepithelial", 
+          "cell_typeepithelial - cell_typeendothelial"
+        ),
+        action="only"
+      ) 
+    
+  )) %>%
+  
+  # Select rank from each contrast
+  mutate(markers = map(
+    markers, ~ .x %>%
+      
+      # Group by contrast. Comparisons both ways.
+      # This results in for example
+      #
+      # A tibble: 1 x 2
+      # `cell_typeendothelial - cell_typeepithelial` `cell_typeepithelial - cell_typeendothelial`
+      # <list>                                       <list>                        
+      # 
+      pivot_longer(
+        cols = contains("___"),
+        names_to = c("stats", "contrast"), 
+        values_to = ".value", 
+        names_sep="___"
+      ) %>% 
+      
+      # Markers selection
+      nest(stat_df = -contrast) %>%
+      
+      # Reshape inside each contrast
+      mutate(stat_df = map(stat_df, ~.x %>% pivot_wider(names_from = stats, values_from = .value))) %>%
+      
+      # Rank
+      mutate(stat_df = map(stat_df, ~.x %>%
+                             filter(FDR < 0.05 & abs(logFC) > 2) %>%
+                             filter(logCPM > mean(logCPM)) %>%
+                             arrange(logFC %>% desc()) %>%
+                             slice(1:10)        
+      )) %>%
+      unnest(stat_df)
+  )) %>%
 
   # Add marker info to original data
-  mutate(data = map2(data, markers, ~ left_join(.x, .y))) %>%
-  select(-comparison_data, - markers) %>%
-  unnest(data) %>%
-
-  # Nest
-  nest_subset(data = -symbol) %>%
-
-  # Select markers
-  filter(FDR < 0.05 & abs(logFC) > 2) %>%
-  filter(logCPM > mean(logCPM)) %>%
-  arrange(logFC %>% desc()) %>%
-  slice(1:10) %>%
-
-  unnest(data)
+  mutate(markers = map2(markers, data, ~ left_join(.x, .y))) %>%
+  select(-comparison_data, - data) %>%
+  unnest(markers) 
 
 ######################################################################################################
 
