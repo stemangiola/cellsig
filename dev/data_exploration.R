@@ -36,7 +36,7 @@ tt <-
   mutate(data = future_map(data, ~ fill_missing_abundance(.x, fill_with = 0))) %>%
   
   # Scale for future PCA plotting
-  mutate(data = future_map(data, ~ scale_abundance(.x)))
+  mutate(data = future_map(data, ~ .x %>% identify_abundant() %>% scale_abundance()))
 
 # No markers
 tt_naive <-  
