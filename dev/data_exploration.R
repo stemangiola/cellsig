@@ -22,7 +22,7 @@ load("data/counts.rda")
 tt <- 
   
   # Load dataset
-  counts %>%
+  cellsig::counts %>%
   tidybulk(sample, symbol, count) %>%
 
   # Group by level because otherwise samples are duplicated
@@ -36,7 +36,11 @@ tt <-
   mutate(data = future_map(data, ~ fill_missing_abundance(.x, fill_with = 0))) %>%
   
   # Scale for future PCA plotting
-  mutate(data = future_map(data, ~ .x %>% identify_abundant() %>% scale_abundance()))
+  mutate(data = future_map(
+    data, ~ .x %>% 
+       identify_abundant(factor_of_interest = cell_type) %>% 
+       scale_abundance()
+  ))
 
 # No markers
 tt_naive <-  
