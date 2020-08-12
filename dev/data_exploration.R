@@ -1,5 +1,5 @@
-# devtools::github_install("stemangiola/nanny@convert-to-S3")
-# devtools::github_install("stemangiola/tidybulk@dev")
+# devtools::install_github("stemangiola/nanny@convert-to-S3")
+# devtools::install_github("stemangiola/tidybulk@dev")
 
 library(tidyverse)
 library(plotly)
@@ -13,7 +13,12 @@ plan(multiprocess, workers=5)
 # To be loaded after all libraries
 library(tidybulk)
 
+load("data/counts.rda")
 
+
+
+
+# Setup data frame
 tt <- 
   
   # Load dataset
@@ -31,9 +36,13 @@ tt <-
   mutate(data = future_map(data, ~ fill_missing_abundance(.x, fill_with = 0))) %>%
   
   # Scale for future PCA plotting
-  mutate(data = future_map(data, ~ scale_abundance(.x)))
+  mutate(data = future_map(
+    data, ~ .x %>% 
+       identify_abundant(factor_of_interest = cell_type) %>% 
+       scale_abundance()
+  ))
 
-
+# No markers
 tt_naive <-  
   tt %>%
 
@@ -51,108 +60,98 @@ tt_naive <-
   mutate(data = future_map(data,~ cluster_elements(.x, method="SNN")))
 
 
-counts_imm_epi_naive <-
+# Functions
+get_constrasts_from_df = function(.data){
+  .data %>% 
+    
+    distinct(cell_type) %>% 
+    
+    # Permute
+    mutate(cell_type2 = cell_type) %>% 
+    expand(cell_type, cell_type2) %>% 
+    filter(cell_type != cell_type2) %>% 
+    
+    # Create contrasts
+    mutate(contrast = sprintf("cell_type%s - cell_type%s", cell_type, cell_type2)) %>%
+    pull(contrast)
+  
+}
+
+select_markers_for_each_contrast = function(.data){
+  .data %>%
+    
+    # Group by contrast. Comparisons both ways.
+    pivot_longer(
+      cols = contains("___"),
+      names_to = c("stats", "contrast"), 
+      values_to = ".value", 
+      names_sep="___"
+    ) %>% 
+    
+    # Markers selection
+    nest(stat_df = -contrast) %>%
+    
+    # Reshape inside each contrast
+    mutate(stat_df = map(stat_df, ~.x %>% pivot_wider(names_from = stats, values_from = .value))) %>%
+    
+    # Rank
+    mutate(stat_df = map(stat_df, ~.x %>%
+                           filter(FDR < 0.05 & abs(logFC) > 2) %>%
+                           filter(logCPM > mean(logCPM)) %>%
+                           arrange(logFC %>% desc()) %>%
+                           slice(1:10)        
+    )) %>%
+    unnest(stat_df)
+}
+
+# Level 1
+all_contrasts <-
   tt %>%
 
   # Investigate one level
   filter(level==1) %>%
 
-  # investigate one cell type pair
-  mutate(comparison_data = map(
-    data,
-    ~ .x %>%
-      filter(cell_type %in% c("immune_cell", "epithelial")) %>%
-      mutate(cell_type = as.character(cell_type) )
-    )) %>%
-
-  #test. We run on the two populations but we select data for all populations
+  # Differential transcription
   mutate(markers = map(
-    comparison_data,
-    ~ .x %>%
-      test_differential_abundance( ~ cell_type, action="only")
-    )) %>%
+    data,
+    ~ test_differential_abundance(.x,
+        ~ 0 + cell_type, 
+        .contrasts = get_constrasts_from_df(.x),
+        action="only"
+      ) 
+    
+  )) %>%
+  
+  # Select rank from each contrast
+  mutate(markers = map( markers, ~ .x %>% select_markers_for_each_contrast)) %>%
 
   # Add marker info to original data
-  mutate(data = map2(data, markers, ~ left_join(.x, .y))) %>%
-  select(-comparison_data, - markers) %>%
-  unnest(data) %>%
-
-  # Nest
-  nest_subset(data = -symbol) %>%
-
-  # Select markers
-  filter(FDR < 0.05 & abs(logFC) > 2) %>%
-  filter(logCPM > mean(logCPM)) %>%
-  arrange(logFC %>% desc()) %>%
-  slice(1:10) %>%
-
-  unnest(data)
-
-######################################################################################################
-
-# cell_sig() extracts top10 differentially expressed genes from different cell type pairs
-
-cell_sig <- function(input, pair) {
+  mutate(markers = map2(markers, data, ~ left_join(.x, .y))) %>%
+  select(markers) %>%
+  unnest(markers) %>%
   
-  input %>%
-    
-    # Investigate one level
-    filter(level==1) %>%
-    
-    # investigate one cell type pair
-    mutate(comparison_data = map(
-      data,
-      ~ .x %>%
-        filter(cell_type %in% pair) %>%
-        mutate(cell_type = as.character(cell_type) )
-    )) %>%
-    
-    #test. We run on the two populations but we select data for all populations
-    mutate(markers = map(
-      comparison_data,
-      ~ .x %>%
-        test_differential_abundance( ~ cell_type, sample, symbol, count, action="only")
-    )) %>%
-    
-    # Add marker info to original data
-    mutate(data = map2(data, markers, ~ left_join(.x, .y))) %>%
-    select(-comparison_data, - markers) %>%
-    unnest(data) %>%
-    
-    # Nest
-    nest_subset(data = -symbol) %>%
-    
-    # Select markers
-    filter(FDR < 0.05 & abs(logFC) > 2) %>%
-    filter(logCPM > mean(logCPM)) %>%
-    arrange(logFC %>% desc()) %>%
-    slice(1:10) %>%
-    unnest(data)
-}
-
-# extract top10 differentially expressed genes from 6 cell type pairs in level 1
-counts_imm_epi_de <- cell_sig(tt, c("immune_cell", "epithelial"))
-counts_imm_endo_de <- cell_sig(tt, c("immune_cell", "endothelial"))
-counts_imm_fib_de <- cell_sig(tt, c("immune_cell", "fibroblast"))
-counts_epi_endo_de <- cell_sig(tt, c("epithelial", "endothelial"))
-counts_epi_fib_de <- cell_sig(tt, c("epithelial", "fibroblast"))
-counts_endo_fib_de <- cell_sig(tt, c("endothelial", "fibroblast"))
-
-# collage all the differentially expressed genes between cell types
-sig_level1 <- bind_rows(counts_imm_epi_de, counts_imm_endo_de, counts_imm_fib_de, 
-               counts_epi_endo_de, counts_epi_fib_de, counts_endo_fib_de) %>%
-  tidybulk(sample, symbol, count) %>% 
-  select(cell_type, sample, symbol, count) %>%
+  # make contrasts pretty
+  mutate(contrast_pretty = str_replace(contrast, "cell_type", "") %>% str_replace("cell_type", "")) 
   
-  # remove duplicate genes that arise during pairwise comparison and reduce dimensions
-  distinct() %>%
-#  scale_abundance() %>% 
-  reduce_dimensions(sample, symbol, count, method = "PCA")
 
-# plot PCA 
-sig_level1 %>% 
-  pivot_sample(sample) %>% 
+# Plot Markers
+all_contrasts %>% 
+  ggplot(aes(cell_type, count_scaled + 1, color=contrast_pretty)) + 
+  geom_point(size = 0.5) + 
+  facet_wrap(~contrast_pretty + symbol, scale="free_y") + 
+  scale_y_log10() +
+  theme_bw() +
+  theme(
+    text = element_text(size=6), 
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)
+  ) 
+
+# Plot PCA
+all_contrasts %>%
+  distinct(sample, symbol, count_scaled,cell_type) %>%
+  nanny::reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p) %>%
   ggplot(aes(x = PC1, y = PC2, colour = cell_type)) + 
   geom_point() +
   theme_bw()
+
 
