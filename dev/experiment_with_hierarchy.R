@@ -14,8 +14,8 @@ parameters{
   real mu_mu;
   real<lower=0> mu_sigma;
   
-  real<lower=0> sigma_mu;
-  real<lower=0> sigma_sigma;
+ // real<lower=0> sigma_mu;
+ // real<lower=0> sigma_sigma;
   
   vector<offset=mu_mu, multiplier=mu_sigma>[K] mu;
   vector<lower=0>[K] sigma;
@@ -26,10 +26,12 @@ model{
 y ~ normal(mu[idx], sigma[idx]);
 
 mu ~ normal(mu_mu, mu_sigma);
-sigma~ normal(sigma_mu, sigma_sigma);
+//sigma~ normal(sigma_mu, sigma_sigma);
 
-sigma_sigma ~ student_t(3, 0, 5);
+//sigma_sigma ~ student_t(3, 0, 5);
+//mu_sigma ~ student_t(3, 0, 5);
 mu_sigma ~ student_t(3, 0, 5);
+mu_sigma ~ std_normal();
 }
 "
 my_mod = stan_model(model_code = mod)
@@ -100,3 +102,34 @@ fit =
   
 
 summary(fit)
+
+
+
+tt %>% 
+  filter(level==4) %>% 
+  unnest(data) %>% 
+  filter(grepl("CD8", cell_type)) %>%
+  droplevels() %>%
+  mutate_if(is.character, as.factor) %>%
+  
+  mutate(S = as.integer(sample), G = as.integer(symbol), C = as.integer(cell_type)) %>%
+  
+  # Create matrix
+  nanny::nest_subset(count_df = -sample) %>%
+  mutate(prop=1) %>%
+  pivot_wider(names_from = cell_type, values_from=prop, names_prefix ="ct___") %>%
+  mutate(across(matches("ct___"),  replace_na, 0)) %>%
+  
+  {
+    stan(file = "inst/stan/hierarchical.stan",
+      data = list(
+        G = dplyr::slice(., 1) %>% pull(count_df) %>% .[[1]] %>% distinct(symbol) %>% nrow,
+        S = distinct(., sample) %>% nrow,
+        CL = unnest(., count_df) %>% nrow(),
+        count_linear = unnest(., count_df) %>% arrange(G, S) %>% pull(count_scaled),
+        X = select(., contains("ct___")) %>% nanny::as_matrix(),
+        C = distinct(., C) %>% nrow
+      )
+    )
+  }
+
