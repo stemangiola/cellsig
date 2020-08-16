@@ -1,6 +1,6 @@
-functions{
-  vector pcoga_approx(vector x, vector shape, vector rate);
-}
+// functions{
+//   vector pcoga_approx(vector x, vector shape, vector rate);
+// }
 data {
   
 	// Reference matrix inference
@@ -23,14 +23,14 @@ data {
 	// vector[CL] exposure_rate;
 
 }
-transformed data{
-  vector[3] x = [1,1,1]';
-  vector[3] shape = [1,2,3]';
-  vector[3] rate = [3,2,1]';
-  
-  print(pcoga_approx(x, shape, rate));
-  
-}
+// transformed data{
+//   vector[3] x = [1,1,1]';
+//   vector[3] shape = [1,2,3]';
+//   vector[3] rate = [3,2,1]';
+//   
+//   print(pcoga_approx(x, shape, rate));
+//   
+// }
 parameters {
 
 // 	// Global properties
