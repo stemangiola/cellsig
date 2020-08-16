@@ -117,6 +117,9 @@ neg_binomial_sum_moments = function( mus, phis) {
 neg_binomial_sum_moments(mu, sigma)
            
 
+
+x <- mix_df$mix_gamma_draw
+
 LL = function(a1, a2, a3, b1, b2, b3){
   -sum(
     log(
@@ -125,7 +128,6 @@ LL = function(a1, a2, a3, b1, b2, b3){
   )
 }
 
-x <- mix_df$mix_gamma_draw
 
 mle(
   minuslogl = LL, 

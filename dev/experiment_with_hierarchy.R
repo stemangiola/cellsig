@@ -105,7 +105,8 @@ summary(fit)
 
 
 
-tt %>% 
+fit = 
+  tt %>% 
   filter(level==4) %>% 
   unnest(data) %>% 
   filter(grepl("CD8", cell_type)) %>%
@@ -119,17 +120,28 @@ tt %>%
   mutate(prop=1) %>%
   pivot_wider(names_from = cell_type, values_from=prop, names_prefix ="ct___") %>%
   mutate(across(matches("ct___"),  replace_na, 0)) %>%
+  mutate(ct___background = 0) %>%
+  
+  # Subset genes
+  mutate(count_df = map(count_df, ~.x %>% dplyr::slice(1:10))) %>%
   
   {
-    stan(file = "inst/stan/hierarchical.stan",
+    stan(
+      file = "inst/stan/hierarchical.stan",
       data = list(
         G = dplyr::slice(., 1) %>% pull(count_df) %>% .[[1]] %>% distinct(symbol) %>% nrow,
         S = distinct(., sample) %>% nrow,
         CL = unnest(., count_df) %>% nrow(),
-        count_linear = unnest(., count_df) %>% arrange(G, S) %>% pull(count_scaled),
-        X = select(., contains("ct___")) %>% nanny::as_matrix(),
-        C = distinct(., C) %>% nrow
-      )
+        counts_linear = unnest(., count_df) %>% arrange(G, S) %>% pull(count_scaled) %>% as.integer,
+        prop_template = select(., contains("ct___")) %>% nanny::as_matrix(),
+        C = distinct(., C) %>% nrow,
+        lambda_mu_prior = c(6.2, 1),
+        lambda_sigma_prior =  c(log(3.3) , 1),
+        lambda_skew_prior =  c(-2.7, 1),
+        sigma_intercept_prior = c(1.9 , 0.1)
+      ),iter = 400, warmup = 350, cores=4
+      
     )
   }
+traceplot(fit)
 
