@@ -78,61 +78,56 @@ mix_df =
 
 
 
-
-
  gamlss::fitDist(as.integer(mix_df$mix), k = 2, type = "realplus", trace = FALSE, try.gamlss = TRUE)
 
 
- 
-sum_NB = function(lambda_mat, sigma_mat, prop_mat){
-   
-  lambda_sum = prop_mat %*% lambda_mat; 
-   sigma_sum =                        
-   (lambda_sum^2) /
-     (
-       (prop_mat) %*%
-         (
-           (lambda_mat^2) /
-             sigma_mat
-         )
-     ) ;
-   
-  c(lambda_sum, sigma_sum)
-  }
-  
-sum_NB(matrix(mu), matrix(sigma), matrix(prop, nrow = 1))
-
-neg_binomial_sum_moments = function( mus, phis) {
-  mu_approx = sum(mus)
-  
-  list(
-    mu_approx = mu_approx,
-    phi_approx = (mu_approx^2) / sum( (mus^2) / phis )
-  )
- 
-  
-
-}
-
-neg_binomial_sum_moments(mu, sigma)
            
 
-
 x <- mix_df$mix_gamma_draw
+
+LL_simple = function(a1, a2, a3, b1, b2, b3){
+  
+  s1 = 1/(b1/100)
+  s2 = 1/(b2/100)
+  s3 = 1/(b3/100)
+  
+  
+  mu = sum(c(a1*s1, a2*s2, a3*s3))
+  var =  sum(c(a1*(s1^2), a2*(s2^2), a3*(s3^2)))
+  
+  
+  -sum(dgamma(x, shape = mu^2/var, scale = var/mu, log = TRUE))
+  
+}
+
+library(coga)
+stats4::mle(
+  minuslogl = LL_simple, 
+  start = list(a1 = 4, a2 = 8, a3 =6, b1 = 10, b2 =4, b3 = 2),
+  lower = c( 0.00001, 0.00001, 0.00001, 0.00001, 0.00001, 0.00001),
+  upper = c(Inf, Inf, Inf, Inf, Inf, Inf),
+  method = "L-BFGS-B"
+)
+
+
 
 LL = function(a1, a2, a3, b1, b2, b3){
   -sum(
     log(
-    .Call("_coga_dcoga_approx", PACKAGE = "coga", x, c(a1, a2, a3), c(b1, b2, b3)/100)
+      .Call("_coga_dcoga_approx", PACKAGE = "coga", x, c(a1, a2, a3), c(b1, b2, b3)/100)
     )
   )
 }
 
-
-mle(
+stats4::mle(
   minuslogl = LL, 
-  start = list(a1 = 4, a2 = 8, a3 =6, b1 = 20, b2 =4, b3 = 0.6),
+  start = list(a1 = 4, a2 = 8, a3 =6, b1 = 10, b2 =4, b3 = 2),
   lower = c( 0, 0, 0, 0, 0, 0),
   upper = c(Inf, Inf, Inf, Inf, Inf, Inf),
   method = "L-BFGS-B"
 )
+
+# > alpha
+# [1] 4.000000 8.000000 6.666667
+# > beta
+# [1] 0.200000000 0.040000000 0.006666667
