@@ -1,18 +1,16 @@
 functions{
-  vector gamma_2_convoluted(vector mu, vector phi){
+  vector gamma_convoluted(vector shape, vector scale){
     
 
-    return([sum(mu), sum(phi)]');
     
-  }
-  
-  real gamma_2_lpdf(vector y, real mu, real phi){
+    real mu = sum(shape .* scale);
+    real phi =  sum(shape .* square(scale));
     
-     real alpha = mu .* mu / phi; 
-     real beta = mu / phi;
-     
-     return( gamma_lpdf(y | alpha, beta) );
-  
+    real shape_sum = mu^2/phi;
+    real scale_sum =  phi/mu;
+
+    return([shape_sum, scale_sum]');
+    
   }
 }
 data {
@@ -22,26 +20,26 @@ data {
 	int K;
 
   vector[N] gamma_mix;
+  vector<lower=0>[K] shape;
 
 }
 parameters {
 
-  vector[K] log_mu;
-  vector<lower=0>[K] phi;
+
+  vector<lower=0>[K] rate;
 
 
 }
 
 model {
 
-  vector[2] mu_phi = gamma_2_convoluted(exp(log_mu), exp(log_mu) + (square(exp(log_mu)) ./ phi));
-  log_mu ~ student_t(3,0,2.5);
-  phi ~ student_t(3,0,2.5);
+  vector[2] shape_scale = gamma_convoluted(shape, 1.0 ./ (rate/100));
+  shape ~ normal(0,2.5);
+  rate ~ normal(0,2.5);
   
-  print(mu_phi);
+  // print(shape, rate);
   // print(shape_rate);
-  //gamma_mix ~ gamma_2(exp(log_mu[1]), exp(log_mu[1]) + (exp(log_mu[1])^2/phi[1]) );
-  gamma_mix ~ gamma_2(mu_phi[1], mu_phi[2]);
+  gamma_mix ~ gamma(shape_scale[1], 1.0 ./shape_scale[2]);
 
 }
 
