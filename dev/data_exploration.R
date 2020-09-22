@@ -96,7 +96,7 @@ select_markers_for_each_contrast = function(.data){
     
     # Rank
     mutate(stat_df = map(stat_df, ~.x %>%
-                           filter(FDR < 0.05 & abs(logFC) > 2) %>%
+                           filter(FDR < 0.05 & logFC > 2) %>%
                            filter(logCPM > mean(logCPM)) %>%
                            arrange(logFC %>% desc()) %>%
                            slice(1:10)        
@@ -123,7 +123,7 @@ all_contrasts <-
   )) %>%
   
   # Select rank from each contrast
-  mutate(markers = map( markers, ~ .x %>% select_markers_for_each_contrast)) %>%
+  mutate(markers                = map( markers               , ~ .x %>% select_markers_for_each_contrast)) %>%
 
   # Add marker info to original data
   mutate(markers = map2(markers, data, ~ left_join(.x, .y))) %>%
