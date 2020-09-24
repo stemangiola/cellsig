@@ -119,10 +119,16 @@ select_markers_for_each_contrast = function(.data, contrast_size){
 select_markers_for_each_cell_type <- function(.data, sig_size) {
   .data %>%
     # split the contrast column into two so as to group all the contrasts into 4 groups based on cell_type
-    separate(col = contrast, into = c("contrast", "contrast2"), sep = "-", remove = T) %>% 
+    separate(col = contrast, into = c("contrast1", "contrast2"), sep = "-", remove = F) %>% 
     
     # remove white spaces before names, make contrast easy to operate on
-    mutate(across(c("contrast", "contrast2"), ~ trimws(.x))) %>% 
+    mutate(across(c("contrast1", "contrast2"), ~ trimws(.x))) %>% 
+    
+    group_by(contrast) %>%
+    arrange( logFC %>% desc) %>%
+    slice(1:sig_size) 
+  %>%
+    
     
     # group by cell_type, which is in the contrast column
     nest(stat_df = -contrast) %>%
@@ -135,9 +141,9 @@ select_markers_for_each_cell_type <- function(.data, sig_size) {
     # remove any duplicate genes within one cell_type that from different contrasts
     mutate(stat_df = map(stat_df, ~ .x %>% dplyr::distinct(symbol, .keep_all = T))) %>% 
     
-    mutate(stat_df = map(stat_df, ~ .x %>% slice(1:sig_size))) %>% 
+    # mutate(stat_df = map(stat_df, ~ .x %>% slice(1:sig_size))) %>% 
     
-    # mutate(stat_df = map(stat_df, ~ .x %>% nest(stat_df2 = -contrast2))) %>% 
+    mutate(stat_df = map(stat_df, ~ .x %>% nest(stat_df2 = -contrast2))) %>% 
     
     
     unnest(stat_df)
