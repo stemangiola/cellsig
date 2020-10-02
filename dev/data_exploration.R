@@ -1,12 +1,14 @@
 devtools::install_github("stemangiola/nanny@convert-to-S3", force = TRUE)
 devtools::install_github("stemangiola/tidybulk@dev", force = TRUE)
 
+
 library(tidyverse)
 library(plotly)
 library(nanny)
 library(ggrepel)
 library(GGally)
 library(tidyHeatmap)
+library(future)
 library(furrr)
 plan(multiprocess, workers=5)
 
@@ -16,9 +18,9 @@ library(cluster)
 library(proxy)
 library(factoextra)
 library(stringr)
+library(limma)
 
 load("data/counts.rda")
-
 
 
 
@@ -26,42 +28,44 @@ load("data/counts.rda")
 tt <- 
   
   # Load dataset
-  cellsig::counts %>%
+  counts %>%
   tidybulk(sample, symbol, count) %>%
 
   # Group by level because otherwise samples are duplicated
   nest(data = -level) %>%
   
   # Redefine factors inside each level
-  mutate(data = future_map(data, ~ droplevels(.x))) %>%
+  mutate(data = map(data, ~ droplevels(.x))) %>%
   
   # Fill missing data. There are many genes that
   # are not shared by the majority of samples
-  mutate(data = future_map(data, ~ fill_missing_abundance(.x, fill_with = 0))) %>%
+  mutate(data = map(data, ~ fill_missing_abundance(.x, fill_with = 0))) %>%
   
   # Scale for future PCA plotting
-  mutate(data = future_map(
+  mutate(data = map(
     data, ~ .x %>% 
        identify_abundant(factor_of_interest = cell_type) %>% 
-       scale_abundance()
-  ))
+       scale_abundance() 
+    ))
+
+
 
 # No markers
 tt_naive <-  
   tt %>%
 
   # Scale and reduce dimensions
-  mutate(data = future_map(
+  mutate(data = map(
     data,
     ~ .x %>%
       scale_abundance() %>%
+      reduce_dimensions(method="PCA") %>% 
       reduce_dimensions(method="MDS") %>%
-      reduce_dimensions(method="PCA") %>%
       reduce_dimensions(method="tSNE")
   )) %>%
 
   # Cluster
-  mutate(data = future_map(data, ~ cluster_elements(.x, method="SNN")))
+  mutate(data = map(data, ~ cluster_elements(.x, method="SNN")))
 
 
 # For debugging you have 2 options
@@ -73,7 +77,7 @@ tt_naive <-
 
 # Functions
 ## 1
-get_constrasts_from_df = function(.data){
+get_contrasts_from_df = function(.data){
   .data %>% 
     
     distinct(cell_type) %>% 
@@ -89,8 +93,34 @@ get_constrasts_from_df = function(.data){
   
 }
 
+vec <- tt %>% 
+  filter(level == 1) %>% 
+  unnest(data) %>% 
+  distinct(cell_type) %>% 
+  pull() 
+
+tt %>% 
+  filter(level == 1) %>% 
+  unnest(data) %>%
+  test_differential_abundance(
+    ~ 0 + cell_type,
+    .contrasts  = c(
+      "cell_typeendothelial - 1/3 * cell_typeepithelial + 1/3 * cell_typefibroblast + 1/3 * cell_typeimmune_cell",
+      "cell_typeepithelial - 1/3 * cell_typeendothelial + 1/3 * cell_typefibroblast + 1/3 * cell_typeimmune_cell",
+      "cell_typefibroblast - 1/3 cell_typeendothelial + 1/3 * cell_typeepithelial + 1/3 * cell_typeimmune_cell",
+      "cell_typeimmune_cell - 1/3 cell_typeendothelial + 1/3 * cell_typeepithelial + 1/3 * cell_typefibroblast "
+    ), 
+    action="get"
+  ) %>%
+
+  pivot_longer() %>%
+  nest()nest %>%
+  
+
+
+
 ## 2
-select_markers_for_each_contrast = function(.data, contrast_size){
+select_markers_for_each_contrast = function(.data, sig_size){
   .data %>%
     
     # Group by contrast. Comparisons both ways.
@@ -112,46 +142,27 @@ select_markers_for_each_contrast = function(.data, contrast_size){
                            filter(FDR < 0.05 & logFC > 2) %>%
                            filter(logCPM > mean(logCPM)) %>%
                            arrange(logFC %>% desc()) %>%
-                           slice(1:contrast_size)     
+                           slice(1:sig_size)
+                           
     )) %>%
     unnest(stat_df)
-}
-
-
-
-# 3
-select_markers_for_each_cell_type <- function(.data, sig_size) {
-  .data %>%
-    # split the contrast column into two so as to group all the contrasts into 4 groups based on cell_type
-    separate(col = contrast, into = c("contrast1", "contrast2"), sep = "-", remove = F) %>% 
     
-    # remove white spaces before names, make contrast easy to operate on
-    mutate(across(c("contrast1", "contrast2"), ~ trimws(.x))) %>% 
-    
-    group_by(contrast) %>%
-    arrange( logFC %>% desc) %>%
-    slice(1:sig_size) 
-  %>%
-    
-    
-    # group by cell_type, which is in the contrast column
-    nest(stat_df = -contrast) %>%
-    
-    # mutate(dup = map(stat_df, ~ .x %>% duplicated(symbol))) %>% 
+    # # remove potential replicated genes
     # 
-    # mutate(stat_df = map(stat_df, ~ x. %>% subset(dup == T))) %>% 
+    # # split the contrast column into two so as to group all the contrasts into 4 groups based on cell_type
+    # separate(col = contrast, into = c("contrast1", "contrast2"), sep = "-", remove = F) %>%
+    # 
+    # # remove white spaces before names, make contrast easy to operate on
+    # mutate(across(c("contrast1", "contrast2"), ~ trimws(.x))) %>%
+    # 
+    # nest(stat_df = -contrast1) %>%
+    # 
+    # mutate(stat_df = map(stat_df, ~ .x %>% dplyr::distinct(symbol, .keep_all = T))) %>%
+    # 
+    # unnest(stat_df)
     
-    
-    # remove any duplicate genes within one cell_type that from different contrasts
-    mutate(stat_df = map(stat_df, ~ .x %>% dplyr::distinct(symbol, .keep_all = T))) %>% 
-    
-    # mutate(stat_df = map(stat_df, ~ .x %>% slice(1:sig_size))) %>% 
-    
-    mutate(stat_df = map(stat_df, ~ .x %>% nest(stat_df2 = -contrast2))) %>% 
-    
-    
-    unnest(stat_df)
 }
+
 
 
 ## 4
@@ -166,17 +177,16 @@ contrast <- function(tt){
       data,
       ~ test_differential_abundance(.x,
                                     ~ 0 + cell_type, 
-                                    .contrasts = get_constrasts_from_df(.x),
+                                    .contrasts = get_contrasts_from_df(.x),
                                     action="only") 
-                        )
-          ) %>%
+          )) %>%
     
 
     # Select rank from each contrast
-    mutate(markers = map(markers, ~ select_markers_for_each_contrast(.x, contrast_size))) %>%
+    mutate(markers = map(markers, ~ select_markers_for_each_contrast(.x, sig_size))) %>%
     
     # Select markers from each cell type
-    mutate(markers = map(markers, ~ select_markers_for_each_cell_type(.x, sig_size))) %>% 
+    # mutate(markers = map(markers, ~ select_markers_for_each_cell_type(.x, sig_size))) %>% 
     
     # Add original data info to markers
     mutate(markers = map2(markers, data, ~ left_join(.x, .y))) %>%
@@ -187,13 +197,14 @@ contrast <- function(tt){
     mutate(contrast_pretty = str_replace(contrast, "cell_type", "") %>% str_replace("cell_type", ""))
 }
 
-## 4 calculate the area of confidence ellipses and the sum of their areas
+
+## 5 calculate the area of confidence ellipses and the sum of their areas
 
 ellip_area <- function(all_contrasts){
   # reduce dimension
   all_contrasts %>% 
     distinct(sample, symbol, count_scaled, cell_type) %>%
-    nanny::reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p) %>% 
+    reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p) %>% 
     
     # remove non-numerical data to form a numerical dataframe
     select(-sample) %>% 
@@ -211,29 +222,32 @@ ellip_area <- function(all_contrasts){
     mutate(area = map(eigval, ~ sqrt(.x * qchisq(0.95, 2)))) %>% # unnest(area)
     
     # below is the actual area 
-    mutate(area = map(area, ~ prod(.x)*pi)) %>% # unnest(area)
+    mutate(area = map_dbl(area, ~ prod(.x)*pi)) %>% # unnest(area)
     
     # log10 transformation to make values bigger
-    mutate(area = map_dbl(area, ~ 1/-log10(.x))) %>% 
+    # mutate(area = map_dbl(area, ~ 1/-log10(.x))) %>% 
     
     # summation of areas across all cell types
-    pluck("area") %>% 
+    select(area) %>% 
     sum()
 }
 
 
 # Ellipse area==================================================================================================
-n = 20
-area_sum <- 1: (contrast_size-1)
 
-for (i in 1: (contrast_size-1)) {
-  sig_size = i + 1
- area_sum[i] <- tt %>% 
-   contrast() %>% 
-   ellip_area()
+sig_size <- 20
+
+
+area_sum <- 1: sig_size
+
+for (i in 1: sig_size) {
+  sig_size = i
+  area_sum[i] <- tt %>% 
+    contrast() %>% 
+    ellip_area()
 }
 
-tb <- tibble(size = 2: contrast_size, total_area = area_sum)
+tb <- tibble(size = 1: sig_size, total_area = area_sum)
 ggplot(tb, aes(size, total_area)) +
   geom_line() +
   geom_point()
@@ -243,8 +257,8 @@ which.min(area_sum)  # contrast_size=17 gives the minimum area_sum;
 # sig_size=19 gives the minimum: 1.881965
 min(area_sum)
 
-contrast_size = 17
-contrast_size = 20
+sig_size = 17
+sig_size = 20
 sig_size = 19
 
 # Silhouette analysis=============================================================================
@@ -264,22 +278,22 @@ sil_data <- fviz_silhouette(sil)
 # find the average silhouette width (or score) for all data points
 sil_score <- sil_data$data$sil_width %>% mean()
 
-sil_scores <- 1:n
+sil_scores <- 1:sig_size
 
 # identify samples that have negative silhouette values
 neg_sil_index <- which(sil[, "sil_width"] < 0)
 neg_sil_index
 sil[neg_sil_index, , drop = FALSE]
 
-contrast_size = 60
+sig_size = 60
 
-for (i in 1: (contrast_size-1)){
-  sig_size = i + 1
+for (i in 1: sig_size){
+  sig_size = i
   all_contrasts <- contrast(tt)
   
   PCA_level1 <- all_contrasts %>% 
     distinct(sample, symbol, count_scaled, cell_type) %>%
-    nanny::reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p)
+    reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p)
   
   distance <- PCA_level1 %>% 
     select(contains("PC")) %>% 
@@ -291,13 +305,13 @@ for (i in 1: (contrast_size-1)){
 }
 
 # convert scores from ggplot2 object into a vector
-scores <- 1: (contrast_size-1)
+scores <- 1: sig_size
 
-for (i in 1:(contrast_size-1)){
+for (i in 1: sig_size){
   scores[i] <- sil_scores[[i]]
 }
 
-tb2 <- tibble(size = 2:contrast_size, scores = scores )
+tb2 <- tibble(size = 1 :sig_size, scores = scores )
 ggplot(tb2, aes(size, scores)) +
   geom_line() +
   geom_point()
@@ -337,7 +351,7 @@ all_contrasts <- contrast(tt)
 
 PCA_level1 <- all_contrasts %>%
   distinct(sample, symbol, count_scaled, cell_type) %>%
-  nanny::reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p)
+  reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p)
 
 PCA_level1
 
@@ -372,4 +386,45 @@ sil <- function(.data) {
   ggplot() +
   geom_point(aes(x= PC1, y= PC2, color=cell_type)) 
 
-  mutate(a_dis = map_dbl(data, ~ sqrt(.x$PC1 - .x$x_center)^2 + (.x$PC2 - .x$y_center)^2)) %>% 
+  mutate(a_dis = map_dbl(data, ~ sqrt(.x$PC1 - .x$x_center)^2 + (.x$PC2 - .x$y_center)^2))
+  
+  # 3
+  select_markers_for_each_cell_type <- function(.data, sig_size) {
+    .data %>%
+      # split the contrast column into two so as to group all the contrasts into 4 groups based on cell_type
+      separate(col = contrast, into = c("contrast1", "contrast2"), sep = "-", remove = F) %>% 
+      
+      # remove white spaces before names, make contrast easy to operate on
+      mutate(across(c("contrast1", "contrast2"), ~ trimws(.x))) %>% 
+      
+      group_by(contrast) %>%
+      arrange( logFC %>% desc) %>%
+      slice(1:sig_size) 
+    %>%
+      
+      
+      # group by cell_type, which is in the contrast column
+      # nest(stat_df = -contrast) %>%
+      group_by(contrast1) %>% 
+      dplyr::distinct(symbol, .keep_all = T) %>% 
+      group_by(contrast2) %>% 
+      arrange(logFC %>% desc) %>% 
+      slice(1:sig_size) %>% 
+      
+      
+      # mutate(dup = map(stat_df, ~ .x %>% duplicated(symbol))) %>% 
+      # 
+      # mutate(stat_df = map(stat_df, ~ x. %>% subset(dup == T))) %>% 
+      
+      
+      # remove any duplicate genes within one cell_type that from different contrasts
+      mutate(stat_df = map(stat_df, ~ .x %>% dplyr::distinct(symbol, .keep_all = T))) %>% 
+      
+      # mutate(stat_df = map(stat_df, ~ .x %>% slice(1:sig_size))) %>% 
+      
+      mutate(stat_df = map(stat_df, ~ .x %>% nest(stat_df2 = -contrast2))) %>% 
+      
+      
+      unnest(stat_df)
+  }
+  
