@@ -20,72 +20,54 @@ library(factoextra)
 library(stringr)
 library(limma)
 
-# load("dev/orig_counts.rda")
-load("data/counts.rda")
+# Load data========================================================================================================
 
-str(counts)
+load("data/counts.rda")
+new_counts <- counts
+
+load("dev/orig_counts.rda")
+orig_counts <- counts
+
+rm(counts)
+
+# Literal parameters===============================================================================================
 
 LEVEL = 1
 
-# Setup data frame
-tt <- 
+SIG_SIZE
+
+# Functions=========================================================================================================
+
+## 1 preprocess data
+
+preprocess <- function(counts){
   
-  # Load dataset
+  # convert to tidybulk object
   counts %>%
-  tidybulk(sample, symbol, count) %>%
-  
-  # Group by level because otherwise samples are duplicated
-  nest(data = -level) %>%
-  
-  # Redefine factors inside each level
-  mutate(data = map(data, ~ droplevels(.x))) %>%
-  
-  # Fill missing data. There are many genes that
-  # are not shared by the majority of samples
-  mutate(data = map(data, ~ fill_missing_abundance(.x, fill_with = 0))) %>%
-  
-  # Scale for future PCA plotting
-  mutate(data = map(
-    data, ~ .x %>% 
-      identify_abundant(factor_of_interest = cell_type) %>% 
-      scale_abundance() 
-  ))
-
-# Inspect cell types on level 1
-
-tt %>% filter(level==LEVEL) %>% unnest(data) %>% select(cell_type) %>% distinct()
-
-tt %>% filter(level==LEVEL) %>% unnest(data)
+    tidybulk(sample, symbol, count) %>%
+    
+    # Group by level because otherwise samples are duplicated
+    nest(data = -level) %>%
+    
+    # Redefine factors inside each level
+    mutate(data = map(data, ~ droplevels(.x))) %>%
+    
+    # Fill missing data. There are many genes that
+    # are not shared by the majority of samples
+    mutate(data = map(data, ~ fill_missing_abundance(.x, fill_with = 0))) %>%
+    
+    # Scale for future PCA plotting
+    mutate(data = map(
+      data, ~ .x %>% 
+        identify_abundant(factor_of_interest = cell_type) %>% 
+        scale_abundance() 
+    ))
+}
 
 
-# No markers
-tt_naive <-  
-  tt %>%
-  
-  # Scale and reduce dimensions
-  mutate(data = map(
-    data,
-    ~ .x %>%
-      identify_abundant(factor_of_interest = cell_type) %>% 
-      scale_abundance() %>%
-      reduce_dimensions(method="PCA") %>% 
-      reduce_dimensions(method="MDS") %>%
-      reduce_dimensions(method="tSNE")
-  )) %>%
-  
-  # Cluster
-  mutate(data = map(data, ~ cluster_elements(.x, method="SNN")))
+## 2 contrast functions
 
-
-# For debugging you have 2 options
-## call debugonce(get_constrasts_from_df), run the function that calls this function, which is constrast(tt), 
-## when get_constrasts_from_df is called, you can just run any line to see the output
-## insert "browser()" inside the function, load the function, run the function
-
-
-
-# Functions
-## 1
+### 2.1 pairwise comparisons
 get_contrasts_from_df = function(.data){
   .data %>% 
     
@@ -102,79 +84,96 @@ get_contrasts_from_df = function(.data){
   
 }
 
-vec <- tt %>% 
-  filter(level == LEVEL) %>% 
-  unnest(data) %>% 
-  distinct(cell_type) %>% 
-  pull() 
+### 2.2 create a contrast vector for limma::makeContrasts() or tidybulk::test_differential abundance()
 
-tt %>% 
-  filter(level == LEVEL) %>% 
-  unnest(data) %>%
-  test_differential_abundance(
-    ~ 0 + cell_type,
-    .contrasts  = c(
-      "cell_typeendothelial - 1/3 * cell_typeepithelial + 1/3 * cell_typefibroblast + 1/3 * cell_typeimmune_cell",
-      "cell_typeepithelial - 1/3 * cell_typeendothelial + 1/3 * cell_typefibroblast + 1/3 * cell_typeimmune_cell",
-      "cell_typefibroblast - 1/3 cell_typeendothelial + 1/3 * cell_typeepithelial + 1/3 * cell_typeimmune_cell",
-      "cell_typeimmune_cell - 1/3 cell_typeendothelial + 1/3 * cell_typeepithelial + 1/3 * cell_typefibroblast "
-    ), 
-    action="get"
-  ) %>%
+make_contrasts <- function(tt, LEVEL){
   
-  pivot_longer() %>%
-  nest()nest %>%
+  prefix = "cell_type"
   
+  # find all cell types
+  cell_types <- tt %>% 
+    filter(level == LEVEL) %>% 
+    unnest(data) %>% 
+    distinct(cell_type) %>% 
+    pull() 
   
+  # format cell_types with prefix
+  cell_types <- paste(prefix, cell_types, sep="")
   
+  # initialise a vector called contrasts
+  contrasts <- 1: length(cell_types)
   
-  ## 2
-  select_markers_for_each_contrast = function(.data, sig_size){
-    .data %>%
-      
-      # Group by contrast. Comparisons both ways.
-      pivot_longer(
-        cols = contains("___"),
-        names_to = c("stats", "contrast"), 
-        values_to = ".value", 
-        names_sep="___"
-      ) %>% 
-      
-      # Markers selection
-      nest(stat_df = -contrast) %>%
-      
-      # Reshape inside each contrast
-      mutate(stat_df = map(stat_df, ~.x %>% pivot_wider(names_from = stats, values_from = .value))) %>%
-      
-      # Rank
-      mutate(stat_df = map(stat_df, ~.x %>%
-                             filter(FDR < 0.05 & logFC > 2) %>%
-                             filter(logCPM > mean(logCPM)) %>%
-                             arrange(logFC %>% desc()) %>%
-                             slice(1:sig_size)
-                           
-      )) %>%
-      unnest(stat_df)
-    
+  # create all contrasts and store them in contrasts
+  for(i in 1: length(cell_types) ){
+    background = paste(cell_types[-i], collapse = "+")
+    divisor = length(cell_types[-i])
+    contrasts[i] <- sprintf("%s-(%s)/%s", cell_types[i], background, divisor)
   }
+  
+  return(contrasts)
+}
+
+### 2.3 contrast with no average background
+
+make_contrasts2 <- function(tt, LEVEL){
+  
+  prefix = "cell_type"
+  
+  # find all cell types
+  cell_types <- tt %>% 
+    filter(level == LEVEL) %>% 
+    unnest(data) %>% 
+    distinct(cell_type) %>% 
+    pull() 
+  
+  # format cell_types with prefix
+  cell_types <- paste(prefix, cell_types, sep="")
+  
+  # initialise a vector called contrasts
+  contrasts <- 1: length(cell_types)
+  
+  # create all contrasts and store them in contrasts
+  for(i in 1: length(cell_types) ){
+    background = paste(cell_types[-i], collapse = "+")
+    contrasts[i] <- sprintf("%s-(%s)", cell_types[i], background)
+  }
+  
+  return(contrasts)
+}
 
 
+## 3 marker selection
+
+select_markers_for_each_contrast = function(.data, sig_size){
+  .data %>%
+    
+    # Group by contrast. Comparisons both ways.
+    pivot_longer(
+      cols = contains("___"),
+      names_to = c("stats", "contrast"), 
+      values_to = ".value", 
+      names_sep="___"
+    ) %>% 
+    
+    # Markers selection
+    nest(stat_df = -contrast) %>%
+    
+    # Reshape inside each contrast
+    mutate(stat_df = map(stat_df, ~.x %>% pivot_wider(names_from = stats, values_from = .value))) %>%
+    
+    # Rank
+    mutate(stat_df = map(stat_df, ~.x %>%
+                           filter(FDR < 0.05 & logFC > 2) %>%
+                           filter(logCPM > mean(logCPM)) %>%
+                           arrange(logFC %>% desc()) %>%
+                           slice(1:sig_size)
+                         
+    )) %>%
+    unnest(stat_df)
+  
+}
 
 ## 4
-
-contrast11 <- c(
-  "cell_typeendothelial - (cell_typeepithelial + cell_typefibroblast + cell_typeimmune_cell)/3",
-  "cell_typeepithelial - (cell_typeendothelial + cell_typefibroblast + cell_typeimmune_cell)/3",
-  "cell_typefibroblast - (cell_typeendothelial + cell_typeepithelial + cell_typeimmune_cell)/3",
-  "cell_typeimmune_cell - (cell_typeendothelial + cell_typeepithelial + cell_typefibroblast)/3"
-)
-
-contrast12 <-  c(
-  "cell_typeendothelial - (cell_typeepithelial + cell_typefibroblast + cell_typeimmune_cell)",
-  "cell_typeepithelial - (cell_typeendothelial + cell_typefibroblast + cell_typeimmune_cell)",
-  "cell_typefibroblast - (cell_typeendothelial + cell_typeepithelial + cell_typeimmune_cell)",
-  "cell_typeimmune_cell - (cell_typeendothelial + cell_typeepithelial + cell_typefibroblast)"
-)
 
 contrast <- function(tt, LEVEL){
   tt %>%
@@ -187,10 +186,9 @@ contrast <- function(tt, LEVEL){
       data,
       ~ test_differential_abundance(.x,
                                     ~ 0 + cell_type, 
-                                    .contrasts = contrast11,
+                                    .contrasts = make_contrasts(tt, LEVEL),
                                     action="only") 
     )) %>%
-    
     
     # Select rank from each contrast
     mutate(markers = map(markers, ~ select_markers_for_each_contrast(.x, sig_size))) %>%
@@ -225,6 +223,10 @@ ellip_area <- function(all_contrasts){
     # nest by cell_type so as to calculate ellipse area for each cell type
     nest(PC = -cell_type) %>% # pluck("PC", 1) %>% select(contains('PC')) %>% cov()
     
+    # # alternatively normalise PC values within clusters to standardise the variability within clusters contributed by sample size
+    # mutate(PC = map_depth(PC, 2, ~ (.x - mean(.x))/sd(.x) )) %>%
+    # mutate(PC = map(PC, ~ as_tibble(.x))) %>%
+    
     # obtain covariance matrix for each cell type
     mutate(cov = map(PC, ~ cov(.x))) %>% # pluck("cov", 1)
     
@@ -234,33 +236,80 @@ ellip_area <- function(all_contrasts){
     # transformation
     mutate(area = map(eigval, ~ sqrt(.x * qchisq(0.95, 2)))) %>% # unnest(area)
     
-    # below is the actual area 
+    # below is the actual area for each ellipse
     mutate(area = map_dbl(area, ~ prod(.x)*pi)) %>% # unnest(area)
     
-    # log10 transformation to make values bigger
-    # mutate(area = map_dbl(area, ~ 1/ log10(.x))) %>% 
+    # # calculate the mean area score
+    # pull(area) %>% 
+    # 
+    # mean()
     
-    # summation of areas across all cell types
-    select(area) %>% 
+    # collect size of each cluster as factors for weights
+    mutate(c_size = map_int(PC, ~ nrow(.x))) %>%
+    
+    # weight each area by the inverse of its cluster size
+    mutate(weighted_area = map2_dbl(area, c_size, ~ .x / .y)) %>%
+    
+    # calculated the weighted sum of ellipse areas for clusters
+    pull(weighted_area) %>%
+    
     sum()
 }
 
+# For debugging you have 2 options
+## call debugonce(get_constrasts_from_df), run the function that calls this function, which is constrast(tt), 
+## when get_constrasts_from_df is called, you can just run any line to see the output
+## insert "browser()" inside the function, load the function, run the function
 
-# Ellipse area==================================================================================================
+# Analysis===============================================================================================
 
-sig_size = 60
+# 1 Setup data frame, pre-processing data================================================================
 
-# for single sig_size calculation
+tt <- preprocess(orig_counts)
+
+# 2 Inspect cell types on level 1========================================================================
+
+tt %>% filter(level==LEVEL) %>% unnest(data) %>% select(cell_type) %>% distinct()
+
+tt %>% filter(level==LEVEL) %>% unnest(data)
+
+# 3 No selection of markers==================================================================================
+tt_naive <-  
+  tt %>%
+  
+  # Scale and reduce dimensions
+  mutate(data = map(
+    data,
+    ~ .x %>%
+      identify_abundant(factor_of_interest = cell_type) %>% 
+      scale_abundance() %>%
+      reduce_dimensions(method="PCA") %>% 
+      reduce_dimensions(method="MDS") %>%
+      reduce_dimensions(method="tSNE")
+  )) %>%
+  
+  # Cluster
+  mutate(data = map(data, ~ cluster_elements(.x, method="SNN")))
+
+# 4 Ellipse area==================================================================================================
+
+# 4.1 Single sig_size calculation
+
+sig_size <- 60
+
 tt %>% 
   contrast(., LEVEL) %>% 
   ellip_area()
 
-# for serial sig_size calculation
+# 4.2 Serial sig_size calculation
+
+sig_size <- 60
 
 area_sum <- 1: sig_size
 
 for (i in 1: sig_size) {
   sig_size = i
+  print(sig_size)
   area_sum[i] <- tt %>% 
     contrast(., LEVEL) %>% 
     ellip_area()
@@ -283,9 +332,16 @@ sig_size <- 57
 sig_size <- 60
 sig_size <- 34
 
-# Silhouette analysis=============================================================================
+# 5 Silhouette analysis===============================================================================
 
-# for single sig_size calculation
+## 5.1 Single sig_size calculation
+sig_size <- 50
+
+all_contrasts <- contrast(tt, LEVEL)
+
+PCA_level1 <- all_contrasts %>% 
+  distinct(sample, symbol, count_scaled, cell_type) %>%
+  reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p)
 
 # calculate the dissimilarity matrix
 distance <- PCA_level1 %>%
@@ -294,13 +350,20 @@ distance <- PCA_level1 %>%
 
 # calculate silhouette score for each data point
 sil <- silhouette(as.numeric(PCA_level1$cell_type), distance)
-summary(sil)
+sil_info <- summary(sil)
+
+# find the average silhouette width (or score) for all data points
+avg_score <- sil_info$avg.width
+avg_score
+
+clus_size <- sil_info$clus.sizes
+clus_avg_widths <- sil_info$clus.avg.widths
+sum(clus_avg_widths/clus_size)
 
 # plot all silhouette scores and store the data in sil_data
 sil_data <- fviz_silhouette(sil)
-
-# find the average silhouette width (or score) for all data points
-sil_score <- sil_data$data$sil_width %>% mean()
+# visualise
+sil_data
 
 
 # identify samples that have negative silhouette values
@@ -308,14 +371,15 @@ neg_sil_index <- which(sil[, "sil_width"] < 0)
 neg_sil_index
 sil[neg_sil_index, , drop = FALSE]
 
-# for serial sig_size calculation
+## 5.2 Serial sig_size calculation
 
-sig_size = 60
+sig_size <- 60
 
-scores <- 1:sig_size
+sil_scores <- 1:sig_size
 
 for (i in 1: sig_size){
   sig_size = i
+  print(sig_size)
   all_contrasts <- contrast(tt, LEVEL)
   
   PCA_level1 <- all_contrasts %>% 
@@ -327,15 +391,8 @@ for (i in 1: sig_size){
     dist()
   
   sil <- silhouette(as.numeric(PCA_level1$cell_type), distance)
-  sil_data <- fviz_silhouette(sil)
-  scores[i] <- sil_data$data$sil_width %>% mean()
-}
-
-# convert scores from ggplot2 object into a vector
-sil_scores <- 1: sig_size
-
-for (i in 1: sig_size){
-  sil_scores[i] <- scores[[i]]
+  sil_info <- summary(sil)
+  sil_scores[i] <- sil_info$avg.width
 }
 
 tb2 <- tibble(size = 1 :sig_size, sil_scores = sil_scores )
@@ -354,8 +411,10 @@ sig_size <- 30
 sig_size <- 50
 sig_size <- 31
 
-# Plots==============================================================================================
-## Plot Markers
+# 6 Plots==============================================================================================
+
+## 6.1 Plot Markers
+
 all_contrasts %>% 
   ggplot(aes(cell_type, count_scaled + 1, color=contrast_pretty)) + 
   geom_point(size = 0.5) + 
@@ -368,14 +427,25 @@ all_contrasts %>%
   ) 
 
 
-## Plot PCA
+## 6.2 Plot PCA
 
 all_contrasts <- contrast(tt, LEVEL)
 
 
 PCA_level1 <- all_contrasts %>%
   distinct(sample, symbol, count_scaled, cell_type) %>%
-  reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p)
+  reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p) # %>% 
+  
+  # plot PCA for PC values normalised within clusters
+  # group_by(cell_type) %>% 
+  # mutate(across(c("PC1", "PC2"), ~ (.x - mean(.x))/sd(.x) ))
+  
+  # plot PCA for PC values normalised globally
+  # mutate(across(c("PC1", "PC2"), ~ (.x - mean(.x))/sd(.x) )) %>% 
+  
+  # plot PCA for PC values normalised first globally then within clusters
+  # group_by(cell_type) %>%
+  # mutate(across(c("PC1", "PC2"), ~ (.x - mean(.x))/sd(.x) ))
 
 PCA_level1
 
@@ -390,11 +460,10 @@ PCA1
 PCA1 %>% ggplotly(tooltip = c("label", "cell_type"))
 
 
-# Incorrect====================================================================================================
+# 7 Unused Materials====================================================================================================
 nest(data = -cell_type) %>%
   mutate(x_center = map_dbl(data, ~ mean(.x$PC1) )) %>%
   mutate(y_center = map_dbl(data, ~ mean(.x$PC2) )) %>%
-  
   
   unnest(data)
 
