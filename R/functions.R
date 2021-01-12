@@ -579,4 +579,54 @@ ref_format = function(ref) {
 
 }
 
+#' @export
+ToDataFrameTypeColFull = function(tree, fill = T, ...) {
+  t = tree %>% data.tree::Clone()
+  
+  tree_df = 
+    1:(t %$% Get("level") %>% max) %>%
+    map_dfr(
+      ~ data.tree::Clone(t) %>%
+        {
+          data.tree::Prune(., function(x)
+            x$level <= .x +1)
+          .
+        } %>%
+        data.tree::ToDataFrameTypeCol() %>%
+        as_tibble
+      
+    ) %>%
+    distinct() 
+  
+  tree_df_filled = 
+    tree_df %>%
+    
+    purrr::when(
+      1 & ("level_2" %in% colnames(.)) ~ mutate(., level_2 = ifelse(level_2 %>% is.na, level_1, level_2)),
+      TRUE ~ (.)
+    ) %>%
+    purrr::when(
+      1 & ("level_3" %in% colnames(.)) ~ mutate(., level_3 = ifelse(level_3 %>% is.na, level_2, level_3)),
+      TRUE ~ (.)
+    ) %>%
+    purrr::when(
+      1 & ("level_4" %in% colnames(.)) ~ mutate(., level_4 = ifelse(level_4 %>% is.na, level_3, level_4)),
+      TRUE ~ (.)
+    ) %>%
+    purrr::when(
+      1 & ("level_5" %in% colnames(.)) ~ mutate(., level_5 = ifelse(level_5 %>% is.na, level_4, level_5)),
+      TRUE ~ (.)
+    ) %>%
+    purrr::when(
+      1 & ("level_6" %in% colnames(.)) ~ mutate(., level_6 = ifelse(level_6 %>% is.na, level_5, level_6)),
+      TRUE ~ (.)
+    ) %>%
+    dplyr::select(..., everything())
+  
+  tree_df %>%
+    select(-1) %>%
+    setNames(tree_df %>% colnames %>% .[-ncol(tree_df)]) %>%
+    mutate(cell_type = tree_df_filled %>% pull(ncol(tree_df)))
+  
+}
 
