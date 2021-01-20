@@ -2,6 +2,7 @@ library(tidyverse)
 library(cellsig)
 
 counts_first_db_raw = readRDS("dev/counts_first_db_raw.rds")
+load("dev/counts_second_db_raw.rda")
 counts_second_db_raw = new_data %>% select(sample, symbol, count, dataset, cell_type)
 
 counts = 
@@ -21,8 +22,15 @@ counts =
   mutate_if(is.character, as.factor) %>% 
   droplevels %>% 
   mutate(count = count %>% as.integer) %>%
-  select(-ensembl_gene_id)
+  
+  # Filter only symbol existing
+  filter(symbol %>% is.na %>% `!`) %>%
 
+  # Aggregate
+  aggregate_duplicates(sample, symbol, count) %>%
+  
+  select(-ensembl_gene_id, -`merged transcripts`) 
+  
 save(counts, file="data/counts.rda", compress = "xz")
 
   # filter(cell_type %>% is.na %>% `!`) %>%
@@ -228,37 +236,37 @@ library(ttBulk)
 
 
 
-raw_df = readRDS("../../ARMET_dev/dev/counts_infer_NB.rds")
-
-sample_ct = 
-  raw_df %>%
-  distinct(sample, cell_type, level) %>%
-  filter(cell_type != "house_keeping")
-
-raw_df_ct = 
-  raw_df %>%
-  mutate(house_keeping = cell_type == "house_keeping" ) %>%
-  select(-cell_type) %>%
-  left_join(sample_ct) %>%
-  mutate(symbol = gsub("house_keeping_", "", symbol))
-
-counts = 
-  raw_df_ct %>%
-  select(
-    database = `Data base`,
-    sample, 
-    level, 
-    cell_type = cell_type, 
-    cell_type_formatted =  `Cell type formatted`,
-    cell_tyoe_original = `Cell type`,
-    symbol,
-    count,
-    house_keeping
-  ) %>%
-  mutate_if(is.character, as.factor)
-
-
-save(counts, file="data/counts.rda", compress = "xz")
+# raw_df = readRDS("../../ARMET_dev/dev/counts_infer_NB.rds")
+# 
+# sample_ct = 
+#   raw_df %>%
+#   distinct(sample, cell_type, level) %>%
+#   filter(cell_type != "house_keeping")
+# 
+# raw_df_ct = 
+#   raw_df %>%
+#   mutate(house_keeping = cell_type == "house_keeping" ) %>%
+#   select(-cell_type) %>%
+#   left_join(sample_ct) %>%
+#   mutate(symbol = gsub("house_keeping_", "", symbol))
+# 
+# counts = 
+#   raw_df_ct %>%
+#   select(
+#     database = `Data base`,
+#     sample, 
+#     level, 
+#     cell_type = cell_type, 
+#     cell_type_formatted =  `Cell type formatted`,
+#     cell_tyoe_original = `Cell type`,
+#     symbol,
+#     count,
+#     house_keeping
+#   ) %>%
+#   mutate_if(is.character, as.factor)
+# 
+# 
+# save(counts, file="data/counts.rda", compress = "xz")
 
 
 
