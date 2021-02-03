@@ -12,28 +12,28 @@ library(tidyverse)
 library(tidybulk)
 library(ggplot2)
 
-# load("/stornext/Home/data/allstaff/w/wu.j/Master Project/cellsig/dev/counts.rda")
-# 
-# processed <- counts %>%
-#     select(-cell_type) %>%
-#     pivot_longer(contains("level"), names_to="level", values_to="cell_type") %>%
-#     filter(is.na(cell_type)==F & is.na(symbol)==F) %>%
-#     tidybulk(sample, symbol, count) %>%
-#     nest(data = -level) %>%
-#     mutate(data = map(data, ~ droplevels(.x))) %>%
-#     # mutate(data = map(data, ~aggregate_duplicates(.x))) %>%
-#     # mutate(data = map(data, ~ fill_missing_abundance(.x, fill_with = 0))) %>%
-#     mutate(data = map(
-#         data, ~ .x %>%
-#             identify_abundant(factor_of_interest = cell_type) %>%
-#             scale_abundance(sample, symbol, count)
-#     ))
-# 
-# geneNames <- counts %>%
-#     select(symbol) %>%
-#     filter(is.na(symbol)==F) %>%
-#     distinct() %>%
-#     pull()
+load("/stornext/Home/data/allstaff/w/wu.j/Master Project/cellsig/dev/counts.rda")
+
+processed <- counts %>%
+     select(-cell_type) %>%
+     pivot_longer(contains("level"), names_to="level", values_to="cell_type") %>%
+     filter(is.na(cell_type)==F & is.na(symbol)==F) %>%
+     tidybulk(sample, symbol, count) %>%
+     nest(data = -level) %>%
+     mutate(data = map(data, ~ droplevels(.x))) %>%
+     # mutate(data = map(data, ~aggregate_duplicates(.x))) %>%
+     # mutate(data = map(data, ~ fill_missing_abundance(.x, fill_with = 0))) %>%
+     mutate(data = map(
+         data, ~ .x %>%
+             identify_abundant(factor_of_interest = cell_type) %>%
+             scale_abundance(sample, symbol, count)
+     ))
+
+geneNames <- counts %>%
+    select(symbol) %>%
+    filter(is.na(symbol)==F) %>%
+    distinct() %>%
+    pull()
 
 
 # Define UI for application that draws a histogram

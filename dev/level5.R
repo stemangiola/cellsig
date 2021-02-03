@@ -20,9 +20,9 @@ library(stringr)
 
 # Load data=================================================================================================
 
-load("database/orig_counts.rda")
+# load("dev/database/orig_counts.rda")
 
-load("database/new_data.RData")
+load("/stornext/Home/data/allstaff/w/wu.j/Master Project/cellsig/dev/counts.rda")
 
 # Literal parameters========================================================================================
 
@@ -32,37 +32,51 @@ LEVEL = "level_5"
 
 ## 1 preprocess data
 
+### 1.1 string manipulation that converts level of interest (e.g "level_5") to its ancestor level (e.g "level_4")
+pre <- function(.level) {
+  .level %>% 
+    str_split("_") %>% 
+    {as.numeric(.[[1]][2])-1} %>% 
+    paste("level", ., sep = "_")
+}
 
-preprocess <- function(.data) {
-  # Load dataset
-  .data %>%
+### 1.2 preprocess
+
+preprocess <- function(.data, LEVEL) {
     
-    # Remove entries with NA in gene symbol
-    filter(symbol %>% is.na %>% `!`) %>% 
+    # load data
+    .data %>%
     
     tidybulk(sample, symbol, count) %>%
     
-    # Group by level because otherwise samples are duplicated
-    nest(data = -level) %>%
-    # filter(level ==3) %>%
+    # filter for the cell types of interest for gene marker selection
+    filter(is.na(!!as.symbol(LEVEL))==F) %>%
     
-    # Redefine factors inside each level
-    mutate(data = map(data, ~ droplevels(.x))) %>%
+    # Imputation of missing data within each level_5
+    # impute_missing_abundance(~ !!as.symbol(LEVEL)) %>%
     
-    # Remove redundancy
-    mutate(data = map(data, ~aggregate_duplicates(.x))) %>% 
+    # Group by ancestor
+    nest(data = - !!as.symbol(pre(LEVEL))) %>%
     
-    # Fill missing data. There are many genes that are not shared by the majority of samples
-    mutate(data = map(data, ~ fill_missing_abundance(.x, fill_with = 0))) %>%
-    
-    
-    # Scale for future PCA plotting
+    # Eliminate genes that are present in some but all cell types
+    # (can be still present in a subset of samples from each cell-type)
     mutate(data = map(
-      data, ~ .x %>% 
-        identify_abundant(factor_of_interest = cell_type) %>%
-        scale_abundance() 
+      data,
+      ~ .x %>%
+        nest(data = -c(symbol, !!as.symbol(LEVEL))) %>%
+        add_count(symbol) %>%
+        filter(n == max(n)) %>%
+        unnest(data)
+    )) %>%
+    
+    # Imputation of missing data within each level_5
+    mutate(data = map(data, ~ .x %>% impute_missing_abundance(~ !!as.symbol(LEVEL)))) %>%
+    
+    # scale count for further analysis
+    mutate(data=map(data, ~ .x %>%
+                      identify_abundant(factor_of_interest = !!as.symbol(LEVEL)) %>%
+                      scale_abundance()
     ))
-  
 }
   
   
@@ -70,45 +84,35 @@ preprocess <- function(.data) {
 ## 2 contrast functions
 
 ### 2.1 pairwise comparisons
-get_contrasts_from_df = function(.data){
+get_contrasts_from_df = function(.data, LEVEL){
+  
   .data %>% 
-    mutate(cell_type=as.character(cell_type)) %>% 
-    distinct(cell_type) %>% 
+    distinct(!!as.symbol(LEVEL)) %>% 
+    mutate(!!as.symbol(LEVEL) := paste0(LEVEL, !!as.symbol(LEVEL))) %>% 
     
     # Permute
-    mutate(cell_type2 = cell_type) %>% 
-    expand(cell_type, cell_type2) %>% 
-    filter(cell_type != cell_type2) %>% 
+    mutate(cell_type2 := !!as.symbol(LEVEL)) %>% 
+    expand(!!as.symbol(LEVEL), cell_type2) %>% 
+    filter(!!as.symbol(LEVEL) != cell_type2) %>% 
     
     # Create contrasts
-    mutate(contrast = sprintf("cell_type%s - cell_type%s", cell_type, cell_type2)) %>%
+    mutate(contrast = sprintf("%s - %s", !!as.symbol(LEVEL), cell_type2)) %>%
     pull(contrast)
   
 }
 
 ### 2.2 create a contrast vector for limma::makeContrasts() or tidybulk::test_differential abundance()
 
-predecessor <- LEVEL %>% str_split("_") %>% {as.numeric(.[[1]][2])-1} %>% paste("level", ., sep = "_")
-
-tt %>% pull(predecessor) %>% as.vector()
-
-x <- tt %>% 
-  # mutate(contrast=map(data, ~.x %>% get_contrasts_from_df)) %>% 
-  mutate(all_contrast=map(data, ~contrast(.x, sig_size)))
-  
-
-make_contrasts <- function(.data){
-  
-  prefix = "cell_type"
+make_contrasts <- function(.data, LEVEL){
   
   # find all cell types
   cell_types <- .data %>% 
-    distinct(cell_type) %>% 
+    distinct(!!as.symbol(LEVEL)) %>% 
     pull() %>% 
     as.vector()
   
   # format cell_types with prefix
-  cell_types <- paste0(prefix, cell_types)
+  cell_types <- paste0(LEVEL, cell_types)
   
   # initialise a vector called contrasts
   contrasts <- 1: length(cell_types)
@@ -126,18 +130,16 @@ make_contrasts <- function(.data){
 
 ### 2.3 contrast with no average background
 
-make_contrasts2 <- function(.data){
-  
-  prefix = "cell_type"
+make_contrasts2 <- function(.data, LEVEL){
   
   # find all cell types
   cell_types <- .data %>% 
-    distinct(cell_type) %>% 
+    distinct(!!as.symbol(LEVEL)) %>% 
     pull() %>% 
     as.vector()
   
   # format cell_types with prefix
-  cell_types <- paste0(prefix, cell_types)
+  cell_types <- paste0(LEVEL, cell_types)
   
   # initialise a vector called contrasts
   contrasts <- 1: length(cell_types)
@@ -151,10 +153,10 @@ make_contrasts2 <- function(.data){
   return(contrasts)
 }
 
-## 3 marker selection
+## 3 marker ranking & selection
 
-select_markers_for_each_contrast = function(.data, sig_size){
-  .data %>%
+select_markers_for_each_contrast = function(.markers, sig_size){
+  .markers %>%
     
     # Group by contrast. Comparisons both ways.
     pivot_longer(
@@ -164,7 +166,7 @@ select_markers_for_each_contrast = function(.data, sig_size){
       names_sep="___"
     ) %>% 
     
-    # Markers selection
+    # Markers selection within each pair of contrast
     nest(stat_df = -contrast) %>%
     
     # Reshape inside each contrast
@@ -182,60 +184,56 @@ select_markers_for_each_contrast = function(.data, sig_size){
     unnest(stat_df)
 }
 
+## 4 marker collection for each contrast
 
-## 4
-
-contrast <- function(tt, sig_size){
+contrast <- function(tt, LEVEL, sig_size){
   tt %>%
-    mutate(data=map(data, ~ .x %>% aggregate_duplicates(sample, symbol, count))) %>% 
     
     # Differential transcription
     mutate(markers = map(
       data,
       ~ test_differential_abundance(.x,
-                                    ~ 0 + cell_type, 
-                                    sample,
-                                    symbol,
-                                    count,
-                                    .contrasts = get_contrasts_from_df(.x),
+                                    ~ 0 + !!as.symbol(LEVEL), 
+                                    .contrasts = make_contrasts(.x, LEVEL),
                                     action="only") 
     )) %>%
     
-    # Select rank from each contrast
+    # Select markers from each contrast by rank of stats
     mutate(markers = map(markers, ~ select_markers_for_each_contrast(.x, sig_size))) %>%
     
-    # Add original data info to markers
+    # Add original data info to the markers selected
     mutate(markers = map2(markers, data, ~ left_join(.x, .y))) %>%
-    select(markers) %>%
+    select(!!as.symbol(pre(LEVEL)), markers) %>%
     unnest(markers) %>%
     
     # make contrasts pretty
-    mutate(contrast_pretty = str_replace(contrast, "cell_type", "") %>% str_replace("cell_type", ""))
+    mutate(contrast_pretty = str_replace(contrast, LEVEL, "") %>% str_replace(LEVEL, ""))
 }
 
 
 ## 5 calculate the area of confidence ellipses and the sum of their areas
-PCA_level5
 
-ellip_area <- function(all_contrasts){
-  # reduce dimension
-  PCA <- all_contrasts %>% 
-    distinct(sample, symbol, count_scaled, cell_type) %>%
-    reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="add", transform = log1p)
+ellip_area <- function(.markers, LEVEL){
   
+  # reduce dimension
+  PCA <- .markers %>%
+    distinct(sample, symbol, count_scaled, !!as.symbol(LEVEL)) %>% 
+    reduce_dimensions(sample, symbol, count_scaled, method = "PCA", action = "add", transform = log1p)
+  
+  # number of unique symbols for each cell type
   real_size <- PCA %>% 
-    nest(data = -cell_type) %>% 
-    mutate(real_size = map_int(data, ~ n_distinct(.x$symbol)))
+    nest(data=-!!as.symbol(LEVEL)) %>% 
+    mutate(real_size=map_int(data, ~ n_distinct(.x$symbol)))
   
   area <- PCA %>%   
     # remove non-numerical data to form a numerical data frame
-    select(cell_type, PC1, PC2) %>%
+    select(!!as.symbol(LEVEL), PC1, PC2) %>%
     
     # normalize principle component values
     mutate(across(c("PC1", "PC2"), ~ .x %>% scale())) %>% 
     
     # nest by cell_type so as to calculate ellipse area for each cell type
-    nest(PC = -cell_type) %>% 
+    nest(PC = - !!as.symbol(LEVEL)) %>% 
     
     # obtain covariance matrix for each cell type
     mutate(cov = map(PC, ~ cov(.x))) %>% 
@@ -244,7 +242,7 @@ ellip_area <- function(all_contrasts){
     mutate(eigval = map(cov, ~ eigen(.x)$values)) %>% 
     
     # transformation
-    mutate(area = map(eigval, ~ sqrt(.x * qchisq(0.95, 2)))) %>% # unnest(area)
+    mutate(area = map(eigval, ~ sqrt(.x * qchisq(0.95, 2)))) %>%
     
     # below is the actual area for each ellipse
     mutate(area = map_dbl(area, ~ prod(.x)*pi)) %>% 
@@ -259,68 +257,87 @@ ellip_area <- function(all_contrasts){
   
 }
 
+## 5.2 
+area_df_func <- function(.area_df, LEVEL){
+  .area_df %>% 
+    nest(markers = - !!as.symbol(pre(LEVEL))) %>% 
+    mutate(ellip = map(markers, ~ .x %>% ellip_area(LEVEL)))
+}
+
+## 6 Silhoette function
+sil_func <- function(.sil_df, LEVEL){
+  .sil_df %>% 
+    nest(markers = - !!as.symbol(pre(LEVEL))) %>% 
+    mutate(pca = map(markers, ~ .x %>% 
+                       distinct(sample, symbol, count_scaled, !!as.symbol(LEVEL)))) %>% 
+    mutate(pca = map(pca, ~ .x %>% 
+                       reduce_dimensions(sample, symbol, count_scaled,
+                                         method = "PCA",
+                                         action = "add",
+                                         transform = log1p)
+    )) %>% 
+    # mutate(pca_norm = pca) %>% 
+    # mutate(pca_norm = map(pca_norm, ~ .x %>% 
+    #                         mutate(across(c("PC1", "PC2"), scale) ))) %>%
+    
+    # calculate the dissimilarity matrix with PC values
+    mutate(distance = map(pca, ~ .x %>% 
+                            select(contains("PC")) %>% 
+                            dist()
+    )) %>% 
+    
+    # calculate silhouette score
+    mutate(sil = map2(pca, distance, 
+                      ~ silhouette(as.numeric(as.factor(`$`(.x, !!as.symbol(LEVEL)))), .y)
+    )) %>% 
+    mutate(sil_info = map(sil, ~ .x %>% summary())) %>% 
+    mutate(sil_score = map(sil_info, ~ .x %>% `$`(avg.width))) %>% 
+    mutate(sil_score = unlist(sil_score)) %>% 
+    mutate(real_size=map_int(pca, ~ n_distinct(.x$symbol) ))
+  
+}
+
 # Analysis=========================================================================================================
 
 # 1 Setup data frame & preprocessing==============================================================================
 
-tt <- 
+tt <-
   
-  # Load dataset
+  # load data
   counts %>%
-  
-  # Remove entries with NA in gene symbol
-  filter(symbol %>% is.na %>% `!`) %>% 
   
   tidybulk(sample, symbol, count) %>%
   
-  # Group by level because otherwise samples are duplicated
-  nest(data = -level) %>%
-  # filter(level ==3) %>%
+  # filter for the cell types of interest for gene marker selection
+  filter(is.na(!!as.symbol(LEVEL))==F) %>%
   
-  # Redefine factors inside each level
-  mutate(data = map(data, ~ droplevels(.x))) %>%
+  # Imputation of missing data within each level_5
+  # impute_missing_abundance(~ !!as.symbol(LEVEL)) %>%
   
-  # Remove redundancy
-  mutate(data = map(data, ~aggregate_duplicates(.x))) %>% 
+  # Group by ancestor
+  nest(data = - !!as.symbol(pre(LEVEL))) %>%
   
-  # Fill missing data. There are many genes that are not shared by the majority of samples
-  mutate(data = map(data, ~ fill_missing_abundance(.x, fill_with = 0))) %>%
-  
-
-  # Scale for future PCA plotting
+  # Eliminate genes that are present in some but all cell types
+  # (can be still present in a subset of samples from each cell-type)
   mutate(data = map(
-    data, ~ .x %>% 
-      identify_abundant(factor_of_interest = cell_type) %>%
-      scale_abundance() 
+    data,
+    ~ .x %>%
+      nest(data = -c(symbol, !!as.symbol(LEVEL))) %>%
+      add_count(symbol) %>%
+      filter(n == max(n)) %>%
+      unnest(data)
+  )) %>%
+  
+  # Imputation of missing data within each level_5
+  mutate(data = map(data, ~ .x %>% impute_missing_abundance(~ !!as.symbol(LEVEL)))) %>%
+
+  # scale count for further analysis
+  mutate(data=map(data, ~ .x %>%
+                    identify_abundant(factor_of_interest = !!as.symbol(LEVEL)) %>%
+                    scale_abundance()
   ))
 
-
-counts %>% filter(level_2 %>% is.na() %>% `!`) %>% nest(data = -level_1)
-
-counts %>% filter(level_3 %>% is.na() %>% `!`) %>% nest(data = -level_2)
-
-counts %>% filter(level_4 %>% is.na() %>% `!`) %>% nest(data = -level_3)
-
-tt <- counts %>% filter(level_5 %>% is.na() %>% `!`) %>% nest(data = -level_4)
-
-# 2 Inspect cell types on level 2=================================================================================
-tt %>% filter(level==LEVEL) %>% unnest(data) %>% select(cell_type) %>% distinct()
-
-tt %>% filter(level==LEVEL) %>% unnest(data)
-
-# check how many genes there are for each cell type
-tt %>% filter(level == LEVEL) %>% unnest(data) %>% group_by(cell_type) %>% select(symbol) %>% count()
-
-sig_size <- 60
-
-all_contrasts <- contrast(tt, LEVEL)
-
-all_contrasts %>% group_by(cell_type) %>% select(symbol) %>% count()
-
-all_contrasts %>% group_by(contrast) %>% select(symbol) %>% count()
-
-all_contrasts %>% group_by(contrast, cell_type) %>% select(symbol) %>% count()
-
+# 2 No hierachy + mean contrast on level 5================================================================================
 
 # 3 No selection of markers========================================================================================
 tt_naive <-  
@@ -338,13 +355,26 @@ tt_naive <-
 # # Cluster
 # mutate(data = map(data, ~ cluster_elements(.x, method="SNN")))
 
-PCA_naive <- tt_naive %>% 
-  ggplot(aes(x = PC1, y = PC2, colour = cell_type, label = sample)) + 
+PCA_naive_tCD4_memory <- tt_naive %>% 
+  pluck("data", 1) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
   geom_point() +
   stat_ellipse(type = 't')+
   theme_bw()
 
-PCA_naive
+PCA_naive_tCD8_memory <- tt_naive %>% 
+  pluck("data", 2) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
+  geom_point() +
+  stat_ellipse(type = 't')+
+  theme_bw()
+
+PCA_naive_t_helper <- tt_naive %>% 
+  pluck("data", 3) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
+  geom_point() +
+  stat_ellipse(type = 't')+
+  theme_bw()
 
 # 4 Ellipse area==================================================================================================
 
@@ -353,38 +383,73 @@ sig_size <- 20
 
 tt %>% 
   contrast(LEVEL, sig_size) %>% 
-  ellip_area()
+  nest(markers = - !!as.symbol(pre(LEVEL))) %>% 
+  mutate(ellip = map(markers, ~ .x %>% ellip_area(LEVEL)))
 
 ## 4.2 Serial sig_size calculation
 
 sig_size <- 20
 
 # create a tibble that stores the confidence ellipse area output for each signature size
-area_tb <- tibble(sig_size = 1:sig_size) %>%
-  # slice(1:3) %>% 
-  mutate(area_df = map(
-    sig_size, ~ contrast(tt, LEVEL, .x) %>% ellip_area()
-  ))
+area_tb <- 
+  tibble(sig_size = 1:sig_size) %>%
+  # slice(1) %>%
+  mutate(area_df = map(sig_size, ~ contrast(tt, LEVEL, .x))) %>% 
+  mutate(area_df = map(area_df, ~ area_df_func(.x, LEVEL)))
+  
 
 # rescale areas and plot total areas vs the total number of markers selected from cell types in a level
-area_tb %>% 
+area_data <- area_tb %>% 
+  
   unnest(area_df) %>% 
-  nest(cell_data = -cell_type) %>% 
+  unnest(ellip) %>% 
+  
+  # nest by ancestor cell type to rescale area for all sig_sizes
+  nest(cell_data = - !!as.symbol(pre(LEVEL))) %>% 
   mutate(cell_data = map(cell_data, ~ .x %>% mutate(rescaled_area = area %>% scale(center = F)))) %>% 
   unnest(cell_data) %>%
-  # select(real_size) %>% 
-  # max()
-  group_by(real_size) %>% 
-  summarise(stded_sum=sum(area, na.rm = T), 
-            wted_sum = sum(weighted_area, na.rm = T), 
-            rescaled_sum= sum(rescaled_area, na.rm = T)) %>% 
-  pivot_longer(c(stded_sum, wted_sum, rescaled_sum), names_to='area_type', values_to="area_value") %>% 
+ 
+  # nest by ancestor cell type to summarise areas for each real_size/sig_size
+  nest(cell_data = - !!as.symbol(pre(LEVEL))) %>% 
+  mutate(plot_data = map(cell_data, ~ .x %>% 
+                           group_by(real_size) %>%
+                           summarise(sig_size,
+                                     stded_sum=sum(area, na.rm = T), 
+                                     wted_sum = sum(weighted_area, na.rm = T), 
+                                     rescaled_sum= sum(rescaled_area, na.rm = T)) %>% 
+                           pivot_longer(ends_with("sum"), names_to='area_type', values_to="area_value")
+                           ))
+  
+tCD4_memory_elli <- area_data %>% 
+  pluck("plot_data", 1) %>% 
+  ggplot(aes(real_size, area_value, colour=area_type)) + 
+  geom_line() +
+  geom_point() +
+  # scale_x_continuous(sec.axis = sec_axis(as.factor())) +
+  # facet_grid(rows = vars(area_type), scales = "free_y")
+  facet_wrap(~ area_type, scales = "free_y")
+
+sig_size <- 4
+
+tCD8_memory_elli <- area_data %>% 
+  pluck("plot_data", 2) %>% 
   ggplot(aes(real_size, area_value, colour=area_type)) + 
   geom_line() +
   geom_point() +
   # facet_grid(rows = vars(area_type), scales = "free_y")
   facet_wrap(~ area_type, scales = "free_y")
 
+sig_size <- 5
+
+t_helper_elli <- area_data %>% 
+  pluck("plot_data", 3) %>% 
+  ggplot(aes(real_size, area_value, colour=area_type)) + 
+  geom_line() +
+  geom_point() +
+  # facet_grid(rows = vars(area_type), scales = "free_y")
+  facet_wrap(~ area_type, scales = "free_y")
+
+sig_size <- 3
 
 # %>% 
 # group_by %>% 
@@ -429,67 +494,77 @@ sig_size <- 39
 # 5 Silhouette analysis=============================================================================
 
 ## 5.1 Single sig_size calculation
+
 sig_size <- 11
 
-all_contrasts <- contrast(tt, LEVEL, sig_size)
-
-PCA_level5 <- all_contrasts %>% 
-  distinct(sample, symbol, count_scaled, cell_type) %>%
-  reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p)
-
-# calculate the dissimilarity matrix
-distance <- PCA_level5 %>%
-  select(contains("PC")) %>% 
-  dist()
-
-# calculate silhouette score for each data point
-sil <- silhouette(as.numeric(PCA_level5$cell_type), distance)
-sil_info <- summary(sil)
-
-# find the average silhouette width (or score) for all data points
-avg_score <- sil_info$avg.width
-avg_score
-
-clus_size <- sil_info$clus.sizes
-clus_avg_widths <- sil_info$clus.avg.widths
-sum(clus_avg_widths/clus_size)
-
-# plot all silhouette scores and store the data in sil_data
-sil_data <- fviz_silhouette(sil)
-# visualise
-sil_data
-
-
-# identify samples that have negative silhouette values
-neg_sil_index <- which(sil[, "sil_width"] < 0)
-neg_sil_index
-sil[neg_sil_index, , drop = FALSE]
+tt %>%
+  
+  # select markers and nest by ancestor cell type
+  contrast(LEVEL, sig_size) %>%
+  nest(markers = - !!as.symbol(pre(LEVEL))) %>% 
+ 
+   # reduce dimensions
+  mutate(pca = map(markers, ~ .x %>% 
+                     distinct(sample, symbol, count_scaled, !!as.symbol(LEVEL)))) %>% 
+  mutate(pca = map(pca, ~ .x %>% 
+                     reduce_dimensions(
+                       sample, symbol, count_scaled, 
+                       method = "PCA", 
+                       action="add", 
+                       transform = log1p))) %>% 
+  
+  # calculate the dissimilarity matrix with PC values
+  mutate(distance = map(pca, ~ .x %>% 
+                          select(contains("PC")) %>% 
+                          dist()
+                        )) %>% 
+  
+  # calculate silouette score
+  mutate(sil = map2(pca, distance, 
+                    ~ silhouette(as.numeric(as.factor(`$`(.x, !!as.symbol(LEVEL)))), .y)
+                    )) %>% 
+  mutate(sil_info = map(sil, ~ .x %>% summary())) %>% 
+  mutate(sil_score = map(sil_info, ~ .x %>% `$`(avg.width)))
 
 ## 5.2 serial sig_size calculation
 
 sig_size <- 20
 
-sil_scores <- 1:sig_size
+sil_tb <- 
+  tibble(sig_size = 1:sig_size) %>% 
+  # slice(1) %>% 
+  mutate(sil_df = map(sig_size, ~ contrast(tt, LEVEL, .x))) %>% 
+  mutate(sil_df = map(sil_df, ~.x %>% sil_func(LEVEL)))
+ 
 
-sil_tb <- tibble(sig_size=1:sig_size) %>% 
-  slice(1) %>% 
-  mutate(PCA = map(sig_size, ~ contrast(tt, LEVEL, .x) %>% 
-                           distinct(sample, symbol, count_scaled, cell_type) %>%
-                           reduce_dimensions(sample, symbol, count_scaled, method = "PCA", action="add", transform = log1p)
-                         )) %>% 
-  sil_tb %>% 
-  mutate(real_size=map_int(PCA, ~.x %>% n_distinct(symbol) )) %>%
-  
-  sil_tb %>% 
-  mutate(distance=map(PCA, ~ .x %>% select(contains("PC")) %>% dist())) %>% 
-  mutate(sil_score=map2(PCA, distance, ~ silhouette(as.numeric(as.factor(.x$cell_type)), .y))) %>%
-  mutate(avg_width = map(sil_score, ~ .x %>% summary() %>% `$`(avg_width))) %>%
-  pull(...)
+sil_data <- sil_tb %>% 
+  unnest(sil_df) %>% 
+  nest(plot_data = - !!as.symbol(pre(LEVEL)))
+                           
+tCD4_memory_sil <- sil_data %>%
+  pluck("plot_data", 1) %>% 
+  ggplot(aes(real_size, sil_score)) +
+  geom_line() +
+  geom_point()
 
-%>% 
-           summary() %>% 
-           `$`(avg_width))
+sig_size <- 4
 
+tCD8_memory_sil <- sil_data %>%
+  pluck("plot_data", 2) %>% 
+  ggplot(aes(real_size, sil_score)) +
+  geom_line() +
+  geom_point()
+
+sig_size <- 1
+
+
+t_helper_sil <- sil_data %>%
+  pluck("plot_data", 3) %>% 
+  ggplot(aes(real_size, sil_score)) +
+  geom_line() +
+  geom_point()
+
+sig_size <- 3
 
 for (i in 1:sig_size){
   sig_size = i
@@ -533,10 +608,12 @@ sig_size <- 43
 # 6 Plots==============================================================================================
 ## 6.1 Plot Markers
 all_contrasts %>% 
+  nest(markers= - !!as.symbol(pre(LEVEL))) %>%
+  pluck("markers", 3) %>% 
   tidyr::nest(data = -c(contrast, symbol)) %>%
   slice(1:20) %>%
   unnest(data) %>%
-  ggplot(aes(cell_type, count_scaled + 1, color=contrast_pretty)) + 
+  ggplot(aes(!!as.symbol(LEVEL), count_scaled + 1, color=contrast_pretty)) + 
   geom_point(size = 0.5) + 
   facet_wrap(~contrast_pretty + symbol, scale="free_y") + 
   scale_y_log10() +
@@ -549,12 +626,18 @@ all_contrasts %>%
 
 ## 6.2 Plot PCA
 
-all_contrasts <- contrast(tt, LEVEL, sig_size)
-
-
-PCA_level5 <- all_contrasts %>%
-  distinct(sample, symbol, count_scaled, cell_type) %>%
-  reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p)
+PCA_level5 <- tt %>%
+  contrast(LEVEL, sig_size) %>% 
+  nest(markers= - !!as.symbol(pre(LEVEL))) %>% 
+  mutate(pca = map(markers, ~ .x %>% 
+                     distinct(sample, symbol, count_scaled, !!as.symbol(LEVEL)))) %>% 
+  mutate(pca = map(pca, ~ .x %>% 
+                     reduce_dimensions(
+                       sample, symbol, count_scaled, 
+                       method = "PCA", 
+                       action="add", 
+                       transform = log1p)))
+  
 
 # plot PCA for PC values normalised within clusters
 # group_by(cell_type) %>% 
@@ -567,18 +650,63 @@ PCA_level5 <- all_contrasts %>%
 # group_by(cell_type) %>%
 # mutate(across(c("PC1", "PC2"), ~ (.x - mean(.x))/sd(.x) ))
 
-PCA_level5
+sig_size <- 4
 
-PCA5 <- PCA_level5 %>% 
-  ggplot(aes(x = PC1, y = PC2, colour = cell_type, label = sample)) + 
+PCA5_tCD4_memory <- PCA_level5 %>% 
+  pluck("pca", 1) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
   geom_point() +
   stat_ellipse(type = 't')+
   theme_bw()
 
-PCA5
+sig_size <- 5
 
-PCA5 %>% ggplotly(tooltip = c("label", "cell_type"))
+PCA5_tCD8_memory <- PCA_level5 %>% 
+  pluck("pca", 2) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
+  geom_point() +
+  stat_ellipse(type = 't')+
+  theme_bw()
 
+sig_size <- 3
+
+PCA5_t_helper <- PCA_level5 %>% 
+  pluck("pca", 3) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
+  geom_point() +
+  stat_ellipse(type = 't')+
+  theme_bw()
+
+PCA5_tCD4_memory %>% ggplotly(tooltip = c("label", LEVEL))
+PCA5_tCD8_memory %>% ggplotly(tooltip = c("label", LEVEL))
+PCA5_t_helper %>% ggplotly(tooltip = c("label", LEVEL))
+
+sig_size <- 4
+
+PCA5_tCD4_memory_sil <- PCA_level5 %>% 
+  pluck("pca", 1) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
+  geom_point() +
+  stat_ellipse(type = 't')+
+  theme_bw()
+
+sig_size <- 1
+
+PCA5_tCD8_memory_sil <- PCA_level5 %>% 
+  pluck("pca", 2) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
+  geom_point() +
+  stat_ellipse(type = 't')+
+  theme_bw()
+
+sig_size <- 3
+
+PCA5_t_helper_sil <- PCA_level5 %>% 
+  pluck("pca", 3) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
+  geom_point() +
+  stat_ellipse(type = 't')+
+  theme_bw()
 
 # 7 Unused Materials====================================================================================================
 nest(data = -cell_type) %>%
@@ -649,3 +777,31 @@ select_markers_for_each_cell_type <- function(.data, sig_size) {
 # # calculate the mean area score
 # pull(area) %>% 
 # mean()
+
+# how to use silhoette function and its output details
+# calculate the dissimilarity matrix with PC values
+distance <- PCA_level5 %>%
+  select(contains("PC")) %>% 
+  dist()
+
+# calculate silhouette score for each data point
+sil <- silhouette(as.numeric(PCA_level5$cell_type), distance)
+sil_info <- summary(sil)
+
+# find the average silhouette width (or score) for all data points
+avg_score <- sil_info$avg.width
+avg_score
+
+clus_size <- sil_info$clus.sizes
+clus_avg_widths <- sil_info$clus.avg.widths
+sum(clus_avg_widths/clus_size)
+
+# plot all silhouette scores and store the data in sil_data
+sil_data <- fviz_silhouette(sil)
+# visualise
+sil_data
+
+# identify samples that have negative silhouette values
+neg_sil_index <- which(sil[, "sil_width"] < 0)
+neg_sil_index
+sil[neg_sil_index, , drop = FALSE]
