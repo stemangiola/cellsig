@@ -273,8 +273,8 @@ area_df_func <- function(.area_df, LEVEL){
 ## 6 Silhouette score calculation for a series of sig_sizes
 sil_func <- function(.sil_df, LEVEL){
   .sil_df %>%
-    nest(markers = - !!as.symbol(pre(LEVEL))) %>%
-    mutate(pca = map(markers, ~ .x %>%
+    nest(pca = - !!as.symbol(pre(LEVEL))) %>%
+    mutate(pca = map(pca, ~ .x %>%
                        distinct(sample, symbol, count_scaled, !!as.symbol(LEVEL)))) %>%
     mutate(pca = map(pca, ~ .x %>%
                        reduce_dimensions(sample, symbol, count_scaled,

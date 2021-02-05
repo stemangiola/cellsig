@@ -177,8 +177,8 @@ area_df_func0 <- function(.area_df, cell_type){
 ## 2.5 Silhouette function
 sil_func0 <- function(.sil_df, cell_type){
   .sil_df %>% 
-    nest(markers = - level_0) %>% 
-    mutate(pca = map(markers, ~ .x %>% 
+    nest(pca = - level_0) %>% 
+    mutate(pca = map(pca, ~ .x %>% 
                        distinct(sample, symbol, count_scaled, cell_type))) %>% 
     mutate(pca = map(pca, ~ .x %>% 
                        reduce_dimensions(sample, symbol, count_scaled,
@@ -186,9 +186,6 @@ sil_func0 <- function(.sil_df, cell_type){
                                          action = "add",
                                          transform = log1p)
     )) %>% 
-    # mutate(pca_norm = pca) %>% 
-    # mutate(pca_norm = map(pca_norm, ~ .x %>% 
-    #                         mutate(across(c("PC1", "PC2"), scale) ))) %>%
     
     # calculate the dissimilarity matrix with PC values
     mutate(distance = map(pca, ~ .x %>% 

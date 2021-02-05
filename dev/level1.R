@@ -509,9 +509,6 @@ preprocess <- function(.data, LEVEL) {
   # load data
   .data %>%
     
-    # create an ancestor node for cell types on level_1
-    mutate(level_0 = "cell") %>% 
-    
     tidybulk(sample, symbol, count) %>%
     
     # filter for the cell types of interest for gene marker selection
@@ -768,7 +765,10 @@ sil_func <- function(.sil_df, LEVEL){
 ```{r preprocess, message=F, warning = FALSE}
 # 1 Setup data frame & preprocessing
 
-tt <- preprocess(counts, LEVEL)
+tt <- counts
+  # create an ancestor node for cell types on level_1
+  mutate(level_0 = "cell") %>% 
+  preprocess(LEVEL)
 
 ```
 
