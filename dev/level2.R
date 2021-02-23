@@ -1,4 +1,3 @@
-#==========================================================================================
 devtools::install_github("stemangiola/nanny@convert-to-S3", force = TRUE)
 devtools::install_github("stemangiola/tidybulk@dev", force = TRUE)
 
@@ -19,25 +18,24 @@ library(cluster)
 library(proxy)
 library(factoextra)
 library(stringr)
-library(limma)
 
-# Load data========================================================================================================
+# Load data=================================================================================================
 
 load("data/counts.rda")
 new_counts <- counts
 
-load("dev/orig_counts.rda")
+load("orig_counts.rda")
 orig_counts <- counts
 
 rm(counts)
 
-# Literal parameters===============================================================================================
+# Literal parameters========================================================================================
 
-LEVEL = 1
+LEVEL = 2
 
 SIG_SIZE
 
-# Functions=========================================================================================================
+# Functions=================================================================================================
 
 ## 1 preprocess data
 
@@ -170,13 +168,13 @@ select_markers_for_each_contrast = function(.data, sig_size){
                            slice(1:sig_size)
                          
     )) %>%
+    
     unnest(stat_df)
-  
 }
 
 ## 4
 
-contrast <- function(tt, LEVEL){
+contrast <- function(tt, LEVEL, sig_size){
   tt %>%
     
     # Investigate one level
@@ -194,9 +192,6 @@ contrast <- function(tt, LEVEL){
     # Select rank from each contrast
     mutate(markers = map(markers, ~ select_markers_for_each_contrast(.x, sig_size))) %>%
     
-    # Select markers from each cell type
-    # mutate(markers = map(markers, ~ select_markers_for_each_cell_type(.x, sig_size))) %>% 
-    
     # Add original data info to markers
     mutate(markers = map2(markers, data, ~ left_join(.x, .y))) %>%
     select(markers) %>%
@@ -208,53 +203,48 @@ contrast <- function(tt, LEVEL){
 
 
 ## 5 calculate the area of confidence ellipses and the sum of their areas
+PCA_level1
 
 ellip_area <- function(all_contrasts){
   # reduce dimension
-  all_contrasts %>% 
+  PCA <- all_contrasts %>% 
     distinct(sample, symbol, count_scaled, cell_type) %>%
-    reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p) %>% 
-    
+    reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="add", transform = log1p)
+  
+  real_size <- PCA %>% 
+    nest(data = -cell_type) %>% 
+    mutate(real_size = map_int(data, ~ n_distinct(.x$symbol)))
+  
+  area <- PCA %>%   
     # remove non-numerical data to form a numerical dataframe
-    select(-sample) %>% 
+    select(cell_type, PC1, PC2) %>%
     
     # normalise principle component values
-    mutate(across(c("PC1", "PC2"), ~ (.x - mean(.x))/sd(.x) )) %>% 
+    mutate(across(c("PC1", "PC2"), ~ .x %>% scale())) %>% 
     
     # nest by cell_type so as to calculate ellipse area for each cell type
-    nest(PC = -cell_type) %>% # pluck("PC", 1) %>% select(contains('PC')) %>% cov()
-    
-    # # alternatively normalise PC values within clusters to standardise the variability within clusters contributed by sample size
-    # mutate(PC = map_depth(PC, 2, ~ (.x - mean(.x))/sd(.x) )) %>%
-    # mutate(PC = map(PC, ~ as_tibble(.x))) %>%
+    nest(PC = -cell_type) %>% 
     
     # obtain covariance matrix for each cell type
-    mutate(cov = map(PC, ~ cov(.x))) %>% # pluck("cov", 1)
+    mutate(cov = map(PC, ~ cov(.x))) %>% 
     
     # calculate the eigenvalues for the covariance matrix of each cell type
-    mutate(eigval = map(cov, ~ eigen(.x)$values)) %>% # pluck("eigval", 1)
+    mutate(eigval = map(cov, ~ eigen(.x)$values)) %>% 
     
     # transformation
     mutate(area = map(eigval, ~ sqrt(.x * qchisq(0.95, 2)))) %>% # unnest(area)
     
     # below is the actual area for each ellipse
-    mutate(area = map_dbl(area, ~ prod(.x)*pi)) %>% # unnest(area)
-    
-    # # calculate the mean area score
-    # pull(area) %>% 
-    # 
-    # mean()
+    mutate(area = map_dbl(area, ~ prod(.x)*pi)) %>% 
     
     # collect size of each cluster as factors for weights
-    mutate(c_size = map_int(PC, ~ nrow(.x))) %>%
-    
+    mutate(cluster_size = map_int(PC, ~ nrow(.x))) %>%
+
     # weight each area by the inverse of its cluster size
-    mutate(weighted_area = map2_dbl(area, c_size, ~ .x / .y)) %>%
-    
-    # calculated the weighted sum of ellipse areas for clusters
-    pull(weighted_area) %>%
-    
-    sum()
+    mutate(weighted_area = map2_dbl(area, cluster_size, ~ .x / .y))
+  
+  left_join(area, real_size)
+
 }
 
 # For debugging you have 2 options
@@ -262,19 +252,31 @@ ellip_area <- function(all_contrasts){
 ## when get_constrasts_from_df is called, you can just run any line to see the output
 ## insert "browser()" inside the function, load the function, run the function
 
-# Analysis===============================================================================================
+# Analysis=========================================================================================================
 
-# 1 Setup data frame, pre-processing data================================================================
-
+# 1 Setup data frame & preprocessing==============================================================================
 tt <- preprocess(orig_counts)
 
-# 2 Inspect cell types on level 1========================================================================
 
+# 2 Inspect cell types on level 2=================================================================================
 tt %>% filter(level==LEVEL) %>% unnest(data) %>% select(cell_type) %>% distinct()
 
 tt %>% filter(level==LEVEL) %>% unnest(data)
 
-# 3 No selection of markers==================================================================================
+# check how many genes there are for each cell type
+tt %>% filter(level == LEVEL) %>% unnest(data) %>% group_by(cell_type) %>% select(symbol) %>% count()
+
+sig_size <- 60
+
+all_contrasts <- contrast(tt, LEVEL)
+
+all_contrasts %>% group_by(cell_type) %>% select(symbol) %>% count()
+
+all_contrasts %>% group_by(contrast) %>% select(symbol) %>% count()
+
+all_contrasts %>% group_by(contrast, cell_type) %>% select(symbol) %>% count()
+
+# 3 No selection of markers========================================================================================
 tt_naive <-  
   tt %>%
   
@@ -282,38 +284,78 @@ tt_naive <-
   mutate(data = map(
     data,
     ~ .x %>%
-      identify_abundant(factor_of_interest = cell_type) %>% 
-      scale_abundance() %>%
+      # identify_abundant(factor_of_interest = cell_type) %>% 
+      # scale_abundance() %>%
       reduce_dimensions(method="PCA") %>% 
       reduce_dimensions(method="MDS") %>%
       reduce_dimensions(method="tSNE")
-  )) %>%
-  
-  # Cluster
-  mutate(data = map(data, ~ cluster_elements(.x, method="SNN")))
+  )) 
+  # %>% 
+  # # Cluster
+  # mutate(data = map(data, ~ cluster_elements(.x, method="SNN")))
+
+PCA_naive <- tt_naive %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = cell_type, label = sample)) + 
+  geom_point() +
+  stat_ellipse(type = 't')+
+  theme_bw()
+
+PCA_naive
 
 # 4 Ellipse area==================================================================================================
 
-# 4.1 Single sig_size calculation
-
+## 4.1 Single sig_size calculation
 sig_size <- 60
 
 tt %>% 
   contrast(., LEVEL) %>% 
   ellip_area()
 
-# 4.2 Serial sig_size calculation
+## 4.2 Serial sig_size calculation
 
 sig_size <- 60
+
+# create a tibble that stores the confidence ellipse area output for each signature size
+area_tb <- tibble(sig_size = 1:sig_size) %>%
+  # slice(1:3) %>% 
+  mutate(area_df = map(
+    sig_size, ~ contrast(tt, LEVEL, .x) %>% ellip_area()
+  ))
+
+# rescale areas and plot total areas vs the total number of markers selected from cell types in a level
+area_tb %>% 
+  unnest(area_df) %>% 
+  nest(cell_data = -cell_type) %>% 
+  mutate(cell_data = map(cell_data, ~ .x %>% mutate(rescaled_area = area %>% scale(center = F)))) %>% 
+  unnest(cell_data) %>%
+  # select(real_size) %>% 
+  # max()
+  group_by(real_size) %>% 
+  summarise(stded_sum=sum(area, na.rm = T), 
+            wted_sum = sum(weighted_area, na.rm = T), 
+            rescaled_sum= sum(rescaled_area, na.rm = T)) %>% 
+  pivot_longer(c(stded_sum, wted_sum, rescaled_sum), names_to='area_type', values_to="area_value") %>% 
+  ggplot(aes(real_size, area_value, colour=area_type)) + 
+  geom_line() +
+  # facet_grid(rows = vars(area_type), scales = "free_y")
+  facet_wrap(~ area_type, scales = "free_y")
+
+
+# %>% 
+# group_by %>% 
+# make_the_sum %>% 
+# select_only_columns_of_interest %>%
+# pivot_longer(areas, names_to area_type, area_value) %>% 
+# ggplot(aes(real_size, area_value, color = area_type)) + geom_line()
 
 area_sum <- 1: sig_size
 
 for (i in 1: sig_size) {
-  sig_size = i
+  sig_size <- i
   print(sig_size)
   area_sum[i] <- tt %>% 
-    contrast(., LEVEL) %>% 
-    ellip_area()
+  contrast(., LEVEL) %>% 
+  ellip_area()
 }
 
 tb <- tibble(size = 1: sig_size, total_area = area_sum)
@@ -323,34 +365,40 @@ ggplot(tb, aes(size, total_area)) +
 
 which.min(area_sum)
 
-# when using get_contrasts_from_df(), sig_size = 57 gives the minimum total_area: 4.364;
-# when using contrast1, sig_size = 60 gives the minimum total_area: 6.005;
-# when using contrast2, sig_size = 34 gives the minimum total_area: 5.570 (NaN for sig_size = 1 !)
-
 min(area_sum)
 
-sig_size <- 57
-sig_size <- 60
-sig_size <- 34
+# when using get_contrasts_from_df(), sig_size = 44 gives the minimum total_area: 8.840;
 
-# 5 Silhouette analysis===============================================================================
+# when using contrast1, sig_size = 27  gives the minimum total_area: 8.713; 
+# (when using contrast1, weighted sum of area, sig_size = 58 gives the minimum:0.2029, but 58 out of range? 
+# the PCA plots 336 most variable genes, which is when sig_size = 56.
+# second minimum when sig_size <- 28, gives 0.204)
+
+# when using contrast2, sig_size = 39  gives the minimum total_area: 8.014
+
+sig_size <- 44
+sig_size <- 27
+sig_size <- 58
+sig_size <- 39
+
+# 5 Silhouette analysis=============================================================================
 
 ## 5.1 Single sig_size calculation
-sig_size <- 50
+sig_size <- 11
 
-all_contrasts <- contrast(tt, LEVEL)
+all_contrasts <- contrast(tt, LEVEL, sig_size)
 
-PCA_level1 <- all_contrasts %>% 
+PCA_level2 <- all_contrasts %>% 
   distinct(sample, symbol, count_scaled, cell_type) %>%
   reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p)
 
 # calculate the dissimilarity matrix
-distance <- PCA_level1 %>%
+distance <- PCA_level2 %>%
   select(contains("PC")) %>% 
   dist()
 
 # calculate silhouette score for each data point
-sil <- silhouette(as.numeric(PCA_level1$cell_type), distance)
+sil <- silhouette(as.numeric(PCA_level2$cell_type), distance)
 sil_info <- summary(sil)
 
 # find the average silhouette width (or score) for all data points
@@ -372,7 +420,7 @@ neg_sil_index <- which(sil[, "sil_width"] < 0)
 neg_sil_index
 sil[neg_sil_index, , drop = FALSE]
 
-## 5.2 Serial sig_size calculation
+## 5.2 serial sig_size calculation
 
 sig_size <- 60
 
@@ -381,17 +429,17 @@ sil_scores <- 1:sig_size
 for (i in 1: sig_size){
   sig_size = i
   print(sig_size)
-  all_contrasts <- contrast(tt, LEVEL)
+  all_contrasts <- contrast(tt, LEVEL, sig_size)
   
-  PCA_level1 <- all_contrasts %>% 
+  PCA_level2 <- all_contrasts %>% 
     distinct(sample, symbol, count_scaled, cell_type) %>%
     reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p)
   
-  distance <- PCA_level1 %>% 
+  distance <- PCA_level2 %>% 
     select(contains("PC")) %>% 
     dist()
   
-  sil <- silhouette(as.numeric(PCA_level1$cell_type), distance)
+  sil <- silhouette(as.numeric(PCA_level2$cell_type), distance)
   sil_info <- summary(sil)
   sil_scores[i] <- sil_info$avg.width
 }
@@ -404,18 +452,17 @@ ggplot(tb2, aes(size, sil_scores)) +
 max(sil_scores)
 which.max(sil_scores) 
 
-# when using get_contrasts_from_df(), sig_size = 30 gives maximum silhouette score: 0.729; 
-# when using contrast1, sig_size = 50 gives maximum silhouette score: 0.706
-# when using contrast2, sig_size = 31 gives maximum silhouette score: 0.678
+# when using get_contrasts_from_df(), sig_size = 48 gives maximum silhouette score: 0.349; 
+# when using contrast1, sig_size = 5 gives maximum silhouette score: 0.335 (try sig_size=7, 58) 
+# when using contrast2, sig_size = 43 gives maximum silhouette score: 0.358
 
-sig_size <- 30
-sig_size <- 50
-sig_size <- 31
+sig_size <- 48
+sig_size <- 5
+sig_size <- 43
+
 
 # 6 Plots==============================================================================================
-
 ## 6.1 Plot Markers
-
 all_contrasts %>% 
   ggplot(aes(cell_type, count_scaled + 1, color=contrast_pretty)) + 
   geom_point(size = 0.5) + 
@@ -429,14 +476,14 @@ all_contrasts %>%
 
 
 ## 6.2 Plot PCA
+ 
+all_contrasts <- contrast(tt, LEVEL, sig_size)
 
-all_contrasts <- contrast(tt, LEVEL)
 
-
-PCA_level1 <- all_contrasts %>%
+PCA_level2 <- all_contrasts %>%
   distinct(sample, symbol, count_scaled, cell_type) %>%
   reduce_dimensions(sample, symbol, count_scaled,  method = "PCA", action="get", transform = log1p) # %>% 
-  
+
   # plot PCA for PC values normalised within clusters
   # group_by(cell_type) %>% 
   # mutate(across(c("PC1", "PC2"), ~ (.x - mean(.x))/sd(.x) ))
@@ -448,23 +495,22 @@ PCA_level1 <- all_contrasts %>%
   # group_by(cell_type) %>%
   # mutate(across(c("PC1", "PC2"), ~ (.x - mean(.x))/sd(.x) ))
 
-PCA_level1
+PCA_level2
 
-PCA1 <- PCA_level1 %>% 
+PCA2 <- PCA_level2 %>% 
   ggplot(aes(x = PC1, y = PC2, colour = cell_type, label = sample)) + 
   geom_point() +
   stat_ellipse(type = 't')+
   theme_bw()
 
-PCA1
+PCA2
 
-PCA1 %>% ggplotly(tooltip = c("label", "cell_type"))
-
-
-# 7 new ====================================================================================================
+PCA2 %>% ggplotly(tooltip = c("label", "cell_type"))
 
 
-```{r library, message = FALSE}
+# 7 NEW ====================================================================================================
+
+
 # Load libraries
 library(tidyverse)
 library(plotly)
@@ -475,18 +521,17 @@ library(cluster)
 library(proxy)
 library(factoextra)
 library(stringr)
-```
 
 
-```{r data}
+
+
 # Load data
 load("/stornext/Home/data/allstaff/w/wu.j/Master Project/cellsig/dev/counts.rda")
-```
 
-```{r literal}
+
+
 # select level of interest
-LEVEL = "level_1"
-```
+LEVEL = "level_2"
 
 
 
@@ -736,9 +781,6 @@ sil_func <- function(.sil_df, LEVEL){
                                          action = "add",
                                          transform = log1p)
     )) %>%
-    # mutate(pca_norm = pca) %>%
-    # mutate(pca_norm = map(pca_norm, ~ .x %>%
-    #                         mutate(across(c("PC1", "PC2"), scale) ))) %>%
     
     # calculate the dissimilarity matrix with PC values
     mutate(distance = map(pca, ~ .x %>%
@@ -750,9 +792,9 @@ sil_func <- function(.sil_df, LEVEL){
     mutate(sil = map2(pca, distance,
                       ~ silhouette(as.numeric(as.factor(`$`(.x, !!as.symbol(LEVEL)))), .y)
     )) %>%
-    mutate(sil_info = map(sil, ~ .x %>% summary())) %>%
-    mutate(sil_score = map(sil_info, ~ .x %>% `$`(avg.width))) %>%
-    mutate(sil_score = unlist(sil_score)) %>%
+    mutate(sil = map(sil, ~ .x %>% summary())) %>%
+    mutate(sil = map(sil, ~ .x %>% `$`(avg.width))) %>%
+    mutate(sil = unlist(sil)) %>%
     mutate(real_size=map_int(pca, ~ n_distinct(.x$symbol) ))
   
 }
@@ -762,19 +804,15 @@ sil_func <- function(.sil_df, LEVEL){
 # 1 Pre-analysis
 
 ## 1.1 Preprocess data
-```{r preprocess, message=F, warning = FALSE}
+
 # 1 Setup data frame & preprocessing
 
-tt <- counts
-  # create an ancestor node for cell types on level_1
-  mutate(level_0 = "cell") %>% 
-  preprocess(LEVEL)
+tt <- preprocess(counts, LEVEL)
 
-```
 
 ```{r cell_types, message=F, warning=F}
 
-# View cell types on ancestor level
+# View cell types on level_1
 tt %>% 
   unnest(data) %>% 
   select(!!as.symbol(pre(LEVEL))) %>% 
@@ -800,22 +838,23 @@ tt_naive <-
 
 ```
 
-```{r PCA_cell, message=F}
-PCA_cell <- tt_naive %>% 
+
+PCA_naive_immune <- tt_naive %>% 
   pluck("data", 1) %>% 
   ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
   geom_point() +
   stat_ellipse(type = 't')+
   theme_bw()
 
-PCA_cell
-```
+PCA_naive_immune
+
+
 
 # 2 Hierarchy + Pairwise Analysis
 
 ## 2.1 Ellipse Area Analysis
 
-
+```{r ellipse, message=F, results = FALSE, warning = FALSE,}
 sig_size <- 20
 
 # create a tibble that stores the confidence ellipse area output for each signature size
@@ -847,14 +886,14 @@ area_data <- area_tb %>%
                            pivot_longer(ends_with("sum"), names_to='area_type', values_to="area_value")
   ))
 
+```
 
+### 2.1.1 Signature size selection & PCA plot for immune cell
 
-### 2.1.1 Signature size selection & PCA plot for cell
-
-# Signature size selection plot for cell:
+Signature size selection plot for immune cell:
   
-
-cell_elli <- area_data %>% 
+  ```{r immune_elli, warning=F, message=F}
+immune_elli <- area_data %>% 
   pluck("plot_data", 1) %>% 
   ggplot(aes(real_size, area_value, colour=area_type)) + 
   geom_line() +
@@ -863,16 +902,16 @@ cell_elli <- area_data %>%
   # facet_grid(rows = vars(area_type), scales = "free_y")
   facet_wrap(~ area_type, scales = "free_y")
 
-cell_elli
+immune_elli
+```
 
 
-
-The elbow point indicates optimal sig_size is $7$. PCA at sig_size = $7$: 
+The elbow point indicates optimal sig_size is $5$. PCA at sig_size = $5$: 
   
+  ```{r PCA2_immune_elli, message=F, warning = FALSE}
+sig_size <- 5
 
-sig_size <- 7
-
-PCA_level1 <- tt %>% 
+PCA_level2 <- tt %>% 
   contrast(LEVEL, sig_size) %>%
   nest(markers= - !!as.symbol(pre(LEVEL))) %>% 
   mutate(pca = map(markers, ~ .x %>% 
@@ -884,20 +923,20 @@ PCA_level1 <- tt %>%
                        action="add", 
                        transform = log1p)))
 
-PCA1_cell_elli <- PCA_level1 %>% 
+PCA2_immune_elli <- PCA_level2 %>% 
   pluck("pca", 1) %>% 
   ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
   geom_point() +
   stat_ellipse(type = 't')+
   theme_bw()
 
-PCA1_cell_elli
-
+PCA2_immune_elli
+```
 
 ## 2.2 Silhouette Analysis
 
 
-sig_size <- 20
+sig_size <- 10
 
 sil_tb <-
   tibble(sig_size = 1:sig_size) %>%
@@ -912,28 +951,27 @@ sil_data <- sil_tb %>%
 
 
 
+### 2.2.1 Signature size selection & PCA plot for immune cell
 
-### 2.2.1 Signature size selection & PCA plot for cell
-
-Signature size selection plot for cell:
+Signature size selection plot for immune cell:
   
-  ```{r cell_sil, message=F}
-cell_sil <- sil_data %>%
+  ```{r immune_sil, warning=F, message=F}
+immune_sil <- sil_data %>%
   pluck("plot_data", 1) %>% 
   ggplot(aes(real_size, sil_score)) +
   geom_line() +
   geom_point()
 
-cell_sil
+immune_sil
 ```
 
 
 The peak is reached when sig_size = $4$. PCA at sig_size = $4$:
   
-  ```{r PCA5_tCD4_memory_sil, message=F, warning = FALSE}
+  ```{r PCA2_immune_sil, message=F, warning = FALSE}
 sig_size <- 14
 
-PCA_level1 <- tt %>% 
+PCA_level2 <- tt %>% 
   contrast(LEVEL, sig_size) %>%
   nest(markers= - !!as.symbol(pre(LEVEL))) %>% 
   mutate(pca = map(markers, ~ .x %>% 
@@ -945,14 +983,14 @@ PCA_level1 <- tt %>%
                        action="add", 
                        transform = log1p)))
 
-PCA1_cell_sil <- PCA_level1 %>% 
+PCA2_immune_sil <- PCA_level2 %>% 
   pluck("pca", 1) %>% 
   ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
   geom_point() +
   stat_ellipse(type = 't')+
   theme_bw()
 
-PCA1_cell_sil
+PCA2_immune_sil
 
 ```
 
@@ -1020,12 +1058,12 @@ area_data <- area_tb %>%
 
 ```
 
-### 3.1.1 Signature size selection & PCA plot for cell
+### 3.1.1 Signature size selection & PCA plot for immune cell
 
-Signature size selection plot for t_CD4_memory cell:
+Signature size selection plot for immune cell:
   
-  ```{r cell_elli_3.1.1, message=F}
-cell_elli <- area_data %>% 
+  ```{r immune_elli_3.1.1, message=F}
+immune_elli <- area_data %>% 
   pluck("plot_data", 1) %>% 
   ggplot(aes(real_size, area_value, colour=area_type)) + 
   geom_line() +
@@ -1034,16 +1072,16 @@ cell_elli <- area_data %>%
   # facet_grid(rows = vars(area_type), scales = "free_y")
   facet_wrap(~ area_type, scales = "free_y")
 
-cell_elli
+immune
 ```
 
 
 The elbow point indicates optimal sig_size is $4$. PCA at sig_size = $4$: 
   
-  ```{r PCA5_tCD4_memory_3.1.1, warning = FALSE, message=F}
+  ```{r PCA2_immune_3.1.1, warning = FALSE, message=F}
 sig_size <- 4
 
-PCA_level1 <- tt %>% 
+PCA_level2 <- tt %>% 
   contrast(LEVEL, sig_size) %>%
   nest(markers= - !!as.symbol(pre(LEVEL))) %>% 
   mutate(pca = map(markers, ~ .x %>% 
@@ -1055,20 +1093,20 @@ PCA_level1 <- tt %>%
                        action="add", 
                        transform = log1p)))
 
-PCA1_cell_elli <- PCA_level5 %>% 
+PCA2_immune_elli <- PCA_level2 %>% 
   pluck("pca", 1) %>% 
   ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
   geom_point() +
   stat_ellipse(type = 't')+
   theme_bw()
 
-PCA1_cell_elli
+PCA2_immune_elli
 ```
 
 ## 3.2 Silhouette Analysis
 
 ```{r silhouette_3.2, warning = FALSE, message=F}
-sig_size <- 20
+sig_size <- 30
 
 sil_tb <-
   tibble(sig_size = 1:sig_size) %>%
@@ -1084,26 +1122,27 @@ sil_data <- sil_tb %>%
 ```
 
 
-### 3.2.1 Signature size selection & PCA plot for cell
+### 3.2.1 Signature size selection & PCA plot for immune cell
 
-Signature size selection plot for t_CD4_memory cell:
+Signature size selection plot for immune cell:
   
-  ```{r cell_sil_3.2.1, warning = FALSE, message=F}
-cell_sil <- sil_data %>%
+  ```{r immune_sil_3.2.1, warning = FALSE, message=F}
+immune_sil <- sil_data %>%
   pluck("plot_data", 1) %>% 
   ggplot(aes(real_size, sil_score)) +
   geom_line() +
   geom_point()
 
-cell_sil
+immune_sil
 ```
+
 
 The peak is reached when sig_size = $4$. PCA at sig_size = $4$:
   
-  ```{r PCA1_cell_sil_3.2.1, warning = FALSE, message=F}
+  ```{r PCA5_tCD4_memory_sil_3.2.1, warning = FALSE, message=F}
 sig_size <- 14
 
-PCA_level1 <- tt %>% 
+PCA_level2 <- tt %>% 
   contrast(LEVEL, sig_size) %>%
   nest(markers= - !!as.symbol(pre(LEVEL))) %>% 
   mutate(pca = map(markers, ~ .x %>% 
@@ -1115,16 +1154,13 @@ PCA_level1 <- tt %>%
                        action="add", 
                        transform = log1p)))
 
-PCA1_cell_sil <- PCA_level5 %>% 
+PCA2_immune_sil <- PCA_level2 %>% 
   pluck("pca", 1) %>% 
   ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
   geom_point() +
   stat_ellipse(type = 't')+
   theme_bw()
 
-PCA1_cell_sil
+PCA2_immune_sil
 
 ```
-
-
-
