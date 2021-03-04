@@ -122,8 +122,8 @@ ciber_pca <- ciber_sil %>%
   ggplot(aes(x = PC1, y = PC2, colour = cell_type, label = sample)) +
   geom_point() +
   # stat_ellipse(type = 't') +
-  theme_bw(
-    title = "ciber_pca",
+  ggtitle("ciber_pca") +
+  theme(
     plot.title = element_text(hjust=0.5) )
 
 ciber_pca
