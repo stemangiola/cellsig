@@ -4,7 +4,12 @@
 \alias{ref_intercept_only}
 \title{ref_intercept_only}
 \usage{
-ref_intercept_only(reference, level, cores = 8, approximate_posterior = F)
+ref_intercept_only(
+  reference,
+  sample_abundance_multiplier,
+  cores = 8,
+  approximate_posterior = F
+)
 }
 \arguments{
 \item{mix}{A matrix}

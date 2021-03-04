@@ -143,7 +143,7 @@ int[,] get_int_MPI(int[] v, int shards){
 		int size_buffer = get_real_buffer_size(mus_sigmas, threshold);
 		int size_vector = (rows(mus_sigmas)-size_buffer)/2;
 
-		if(min(mus_sigmas[1:(size_vector*2)]) == threshold) print("ERROR! The MPI implmentation is buggy")
+		if(min(mus_sigmas[1:(size_vector*2)]) == threshold) print("ERROR! The MPI implmentation is buggy");
 
 		// Reference / exposure rate
 		lp = neg_binomial_2_log_lpmf(
@@ -178,26 +178,15 @@ data {
 	// reference counts
  	int<lower=0> counts_linear[CL] ;
 	int G_to_counts_linear[CL] ;
-	int S_linear[CL] ;
-
-	// MPI
-	int<lower=0> size_counts_idx_lv_MPI[max(shards, 1)];
-	int counts_idx_lv_MPI[shards, max(size_counts_idx_lv_MPI)];
-	int size_counts_G_lv_MPI[max(shards, 1)];
-	int size_counts_S_lv_MPI[max(shards, 1)];
-	int counts_G_lv_MPI[shards,max(size_counts_G_lv_MPI)];
-	int counts_S_lv_MPI[shards,max(size_counts_S_lv_MPI)];
-	int size_G_linear_MPI[max(shards, 1)];
-	int G_linear_MPI[shards,max(size_G_linear_MPI)];
-	int size_counts_G_lv_MPI_non_redundant[max(shards, 1)];
-	int counts_G_lv_MPI_non_redundant[shards, max(size_counts_G_lv_MPI_non_redundant)];
-	int counts_G_lv_MPI_non_redundant_reps[shards, max(size_counts_G_lv_MPI_non_redundant)];
 
 	// Non-centered param
 	real lambda_mu_prior[2];
 	real lambda_sigma_prior[2];
 	real lambda_skew_prior[2];
 	real sigma_intercept_prior[2];
+	
+	// Exposure
+	vector[CL] exposure_rate;
 
 }
 transformed data{
@@ -209,7 +198,7 @@ parameters {
 	// Global properties
 	real<offset=lambda_mu_prior[1],multiplier=lambda_mu_prior[2]>lambda_mu;
   real<offset=lambda_sigma_prior[1],multiplier=lambda_sigma_prior[2]> lambda_sigma;
-  real<offset=lambda_skew_prior[1],multiplier=lambda_skew_prior[2]> lambda_skew;
+  real<upper=0> lambda_skew;
 
 	// Sigma
 	real<upper=0> sigma_slope;
@@ -219,14 +208,6 @@ parameters {
   // Local properties of the data
   vector[G] lambda_log;
   vector[G] sigma_inv_log;
-  vector[S-1] exposure_rate_minus_1;
-
-
-}
-transformed parameters{
-
-	vector[S] exposure_rate = append_row(exposure_rate_minus_1, -sum(exposure_rate_minus_1));
-
 
 }
 model {
@@ -241,22 +222,31 @@ model {
   sigma_sigma ~ normal(0,2);
 
 	// Exposure
-	exposure_rate_minus_1 ~ normal(0,2);
+	// exposure_rate_minus_1 ~ normal(0,2);
 
 	// Means overdispersion reference
 	lambda_log ~ skew_normal(lambda_mu, exp(lambda_sigma), lambda_skew);
 	sigma_inv_log ~ normal(sigma_slope * lambda_log + sigma_intercept, sigma_sigma);
-
-	target += sum(map_rect(
-		lp_reduce_simple ,
-		[sigma_intercept, sigma_slope]', // global parameters
-		get_mu_sigma_vector_MPI(
-			lambda_log[G_to_counts_linear] + exposure_rate[S_linear],
-			sigma_inv_log[G_to_counts_linear],
-			shards
-		),
-		real_data,
-		get_int_MPI( counts_linear, shards)
-	));
+  
+  // If I have 1 shard
+  if(shards==1)
+    	counts_linear ~ neg_binomial_2_log_lpmf(
+			lambda_log[G_to_counts_linear] + exposure_rate,
+			1.0 ./ exp( sigma_inv_log[G_to_counts_linear] )
+		);
+		
+	// If I have more shards use MPI
+	else
+  	target += sum(map_rect(
+  		lp_reduce_simple ,
+  		[sigma_intercept, sigma_slope]', // global parameters
+  		get_mu_sigma_vector_MPI(
+  			lambda_log[G_to_counts_linear] + exposure_rate,
+  			sigma_inv_log[G_to_counts_linear],
+  			shards
+  		),
+  		real_data,
+  		get_int_MPI( counts_linear, shards)
+  	));
 
 }
