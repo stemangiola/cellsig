@@ -45,7 +45,7 @@ mean_contrast0 <- function(.data){
   for(i in 1:length(cell_types) ){
     background = paste(cell_types[-i], collapse = "+")
     divisor = length(cell_types[-i])
-    contrasts[i] <- sprintf("%s-(%s)/%s", cell_types[i], background, divisor)
+    contrasts[i] <- sprintf("%s - (%s)/%s", cell_types[i], background, divisor)
   }
   
   return(contrasts)

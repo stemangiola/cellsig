@@ -8,6 +8,7 @@
 #
 
 library(shiny)
+library(DT)
 library(tidyverse)
 library(tidybulk)
 library(ggplot2)
@@ -15,9 +16,23 @@ library(plotly)
 
 load("/stornext/Home/data/allstaff/w/wu.j/Master Project/cellsig/dev/counts.rda")
 
+# Functions
+
 format_name <- function(.method) {
     paste("markers", .method, sep = "_")
 }
+
+cell_sig_select <- function(.markers) {
+    .markers %>% 
+        # obtain cell types in a node and nest by it to extract signatures for all cell types
+        mutate(cell_type = str_extract(contrast_pretty, "([a-z]|\\_)+(?=\\s)")) %>% 
+        nest(signature = - cell_type) %>% 
+        mutate(signature = map(signature, ~ .x %>% 
+                                   pull(symbol) %>% 
+                                   unique()
+        ))
+}
+
 
 # Obsolete
 # processed <- counts %>% 
@@ -35,8 +50,12 @@ format_name <- function(.method) {
 #              ))
 
 processed <- counts %>% 
+    
+    # filling all the NAs in level_*
     pivot_longer(contains("level_"), names_to = "level", values_to="cell_type2") %>% 
     mutate(cell_type2 = ifelse(is.na(cell_type2), cell_type, cell_type2)) %>% 
+    
+    # process to scale abundance
     filter(is.na(cell_type2)==F & is.na(symbol)==F) %>%
     tidybulk(sample, symbol, count) %>%
     nest(data = -level) %>%
@@ -55,35 +74,83 @@ geneNames <- counts %>%
     distinct() %>%
     pull()
 
-
-tt_all <- tibble(level = 1:5) %>% 
-    mutate(level = paste("level", level, sep = "_")) %>% 
+tt_all <- tibble(level = 1:5) %>%
+    # slice(1) %>%
+    mutate(level = paste("level", level, sep = "_")) %>%
     
     # preprocess data
-    mutate(tt = map(level, ~ counts %>% 
-                        mutate(level_0 = "cell") %>% 
-                        preprocess(.x))) %>% 
+    mutate(tt = map(level, ~ counts %>%
+                        mutate(level_0 = "cell") %>%
+                        preprocess(.x)))
+
+contrast_all <- tt_all %>% 
     
     # generate contrast by pairwise comparison
     mutate(contrast_PW = map2(tt, level, ~ contrast_PW(.x, .y) )) %>% 
     
     # generate contrast by mean contrast method
-    mutate(contrast_MC = map2(tt, level, ~ contrast_MC(.x, .y) ))
+    mutate(contrast_MC = map2(tt, level, ~ contrast_MC(.x, .y) )) 
 
 
 ## Identify optimal signature sizes for each cell type (of the ancestor nodes)
-optim_sig_PW <- c(44, 17, 60, 5, 1, 4, 15, 1, 1, 6, 0, 3, 4, 1, 3)
-optim_sig_MC <- c(60, 41, 29, 31, 1, 4, 15, 1, 1, 6, 0, 3, 4, 1, 2)
+opPCA_sig_PW <- c(44, 17, 60, 5, 1, 4, 15, 1, 1, 6, 0, 3, 4, 1, 3)#[1]
+opPCA_sig_MC <- c(60, 41, 29, 31, 1, 4, 15, 1, 1, 6, 0, 3, 4, 1, 2)#[1]
 
 ## create a collection of all signature genes from each node at each level
-markers_collect <- tt_all %>% 
+sig_collect <- contrast_all %>% 
+    
+    # reveal all nodes as the signature selection has a specific size for each node
     unnest(tt) %>% 
-    mutate(optim_sig_PW = optim_sig_PW) %>% 
-    mutate(optim_sig_MC = optim_sig_MC) %>% 
-    # nest(tt = -c(level, contrast_PW, contrast_MC, optim_sig_PW, optim_sig_MC)) %>% 
-    mutate(markers_PW = pmap(list(contrast_PW, level, optim_sig_PW), ~ sig_select(..1, ..2, ..3))) %>% 
-    mutate(markers_MC = pmap(list(contrast_MC, level, optim_sig_MC), ~ sig_select(..1, ..2, ..3))) %>% 
-    select(-c(level_0, level_1, level_2, level_3, level_4, data))
+    mutate(ancestor_type = select(., contains("level_")) %>% 
+               pivot_longer(contains("level_"), values_to="cell_type") %>% 
+               drop_na() %>% 
+               pull(cell_type) ) %>% 
+    select(-contains("level_")) %>% 
+    
+    # select the actual contrast data that corresponds to the ancestor_type 
+    # while keeping the structure for sig_select function
+    mutate(contrast_PW = map2(contrast_PW, ancestor_type, 
+                              ~ .x %>% 
+                                  
+                                  # create a uniform naming variable for filteration
+                                  mutate(node = select(., contains("level_")) %>% 
+                                             as_vector()) %>% 
+                                  
+                                  # select the actual data that corresponds to the ancestor_type outside
+                                  filter(node == .y)
+    )) %>% 
+    mutate(contrast_MC = map2(contrast_MC, ancestor_type, 
+                              ~ .x %>% 
+                                  
+                                  # create uniform naming variable for filteration
+                                  mutate(node = select(., contains("level_")) %>% 
+                                            as_vector()) %>% 
+                                 
+                                 # select the actual data that corresponds to the ancestor_type outside
+                                 filter(node == .y)
+    )) %>% 
+    
+    # Enter the optimal signature size for each ancestor cell type (or node)
+    mutate(opPCA_sig_PW = opPCA_sig_PW) %>% 
+    mutate(opPCA_sig_MC = opPCA_sig_MC) %>% 
+    
+    # select markers of the optimal size for that ancestor cell type
+    mutate(markers_PW = pmap(list(contrast_PW, level, opPCA_sig_PW), ~ sig_select(..1, ..2, ..3))) %>% 
+    mutate(markers_MC = pmap(list(contrast_MC, level, opPCA_sig_MC), ~ sig_select(..1, ..2, ..3))) %>% 
+    
+    # select individual cell markers for the cell types at each node
+    mutate(cell_markers_PW = map(markers_PW, ~ cell_sig_select(.x) )) %>% 
+                                 
+    mutate(cell_markers_MC = map(markers_MC, ~ cell_sig_select(.x) )) %>% 
+    
+    # obtain plot data for either PCA or tSNE method
+    mutate(sil_PW_PCA = pmap(list(markers_PW, level, "PCA"), ~ sil_func(..1, ..2, ..3))) %>% 
+    mutate(sil_MC_PCA = pmap(list(markers_MC, level, "PCA"), ~ sil_func(..1, ..2, ..3))) %>% 
+    mutate(sil_PW_tSNE = pmap(list(markers_PW, level, "tSNE"), ~ sil_func(..1, ..2, ..3))) %>% 
+    mutate(sil_MC_tSNE = pmap(list(markers_MC, level, "tSNE"), ~ sil_func(..1, ..2, ..3))) %>% 
+
+    select(-c(data, contrast_PW, contrast_MC, sil_MC_PCA, sil_PW_tSNE))
+
 
 
 # Define UI for application that draws a histogram
@@ -93,28 +160,28 @@ ui <- fluidPage(
                 
                 # First Tab - signature expression =========================
 
-                tabPanel("Gene Expression Visualization", 
-                         
+                tabPanel("Gene Expression Visualization",
+
                          # Application title
                          titlePanel("Gene Expression Visualization"),
-                         
-                         # Sidebar with a slider input for number of bins 
+
+                         # Sidebar with a slider input for number of bins
                          sidebarLayout(
-                             
+
                              sidebarPanel(
-                                 
+
                                  selectInput("gene",
                                              h3("Enter a gene: "),
                                              choices = geneNames
                                  ),
-                                 
+
                                  actionButton("submit",
                                               "Submit"),
-                                 
+
                                  width = 3
-                                 
+
                              ),
-                             
+
                              # Show a plot of the generated distribution
                              mainPanel(
                                  fluidRow(
@@ -136,7 +203,7 @@ ui <- fluidPage(
                              )
                          )
                  ),
-                
+
                 # Second Tab Plots & Signature =================================
 
                 tabPanel("Plots & Signatures",
@@ -145,134 +212,62 @@ ui <- fluidPage(
                          titlePanel("Plots & Signatures"),
                          
                          fluidRow(
+                             
                              wellPanel(
+                                 
                                  h3("Settings"),
+                                 
                                  fluidRow(
+                                     
                                      column(6, 
                                             selectInput("rdim_method",
                                                         h4("Select method of dimensionality reduction: "),
                                                         choices = list("PCA", "tSNE"),
                                                         selected = "PCA")
-                                     ),
+                                            ),
                                      column(6, 
                                             selectInput("sig_select_method",
                                                         h4("Choose method of signature selection: "),
                                                         choices = list("Pairwise Comparison" = "PW", 
                                                                        "Mean Contrast" = "MC"),
                                                         selected = "PW")
-                                     )
-                                 ),
+                                            )
+                                     
+                                        ),
+                                 
                                  actionButton("run", "Run")
-                             )
-                         ),
+                                 
+                                        )
+                             
+                                ),
                          
                          mainPanel(
+                             
                              fluidRow(
+                                 
                                  h4("Level 1"),
-                                 column(6,
-                                        plotOutput("plot_cell")  
-                                        ),
-                                 textOutput("sig_cell")),
-                             
-                             fluidRow(
-                                 h4("Level 2"),
-                                 column(6,
-                                        plotOutput("plot_immune")
-                                        ),
-                                 textOutput("sig_immune")),
-                             
-                             fluidRow(
-                                 h4("Level 3"),
-                                 fluidRow(
-                                     column(6, 
-                                            plotOutput("plot_mono_derived"),
-                                            textOutput("sig_mono_derived")
-                                            ),
-                                     column(6, 
-                                            plotOutput("plot_t_cell"),
-                                            textOutput("sig_t_cell"))
-                                     ),
                                  
-                                 fluidRow(
-                                     column(6, 
-                                            plotOutput("plot_granulocyte"),
-                                            textOutput("sig_granulocyte")
-                                            ),
-                                     column(6,
-                                            plotOutput("plot_b_cell"),
-                                            textOutput("sig_b_cell")
-                                            )
-                                     ),
+                                 column(9,
+                                        plotlyOutput("plot_cell")  
+                                        ),
                                  
-                                 fluidRow(
-                                     column(6, 
-                                            plotOutput("plot_NK"),
-                                            textOutput("sig_NK")
-                                            )
+                                 column(3, 
+                                        uiOutput("markers_count"),
+                                        DT::dataTableOutput("markers_cell")
                                         )
-                                    ),
-                             
-                             fluidRow(
-                                 h4("Level 4"),
-                                 fluidRow(
-                                     column(6,
-                                            plotOutput("plot_t_CD4"),
-                                            textOutput("sig_t_CD4")
-                                            ),
-                                     column(6,
-                                            plotOutput("plot_macrophage"),
-                                            textOutput("sig_macrophage")
-                                            )
-                                 ),
                                  
-                                 fluidRow(
-                                     column(6,
-                                            plotOutput("plot_t_CD8"),
-                                            textOutput("sig_t_CD8")
-                                            ),
-                                     column(6,
-                                            plotOutput("plot_DC_myeloid"),
-                                            textOutput("sig_DC_myeloid")
-                                     )
-                                 ),
-                                 
-                                 fluidRow(
-                                     column(6,
-                                            plotOutput("plot_NK_primed"),
-                                            textOutput("sig_NK_primed")
-                                            )
                                     )
-                                 ),
-                             
-                             fluidRow(
-                                 h4("Level 5"),
-                                 fluidRow(
-                                     column(6,
-                                            plotOutput("plot_t_CD4_memory"),
-                                            textOutput("sig_t_CD4_memory")
-                                            ),
-                                     column(6,
-                                            plotOutput("plot_t_CD8_memory"),
-                                            textOutput("sig_t_CD8_memory")
-                                            )
-                                 ),
-                                 
-                                 fluidRow(
-                                     column(6,
-                                            plotOutput("plot_t_helper"),
-                                            textOutput("sig_t_helper")
-                                            )
+
                                  )
-                             )
                              
-                         )
+                        )
                          
-                         )
+              )
                 
-     )
+)
 
     
- )
+ 
 
 
 # Define server logic required to draw a histogram============
@@ -281,17 +276,17 @@ server <- function(input, output) {
     
     # Tab 1 output =============================
     gene <- reactive({input$gene})
-    
+
     plotData1 <- eventReactive(input$submit, {
         processed %>%
             filter(level=="level_1") %>%
             unnest(data) %>%
             filter(symbol==gene())
     })
-    
+
     output$geneExprL1 <- renderPlot({
-        
-        plotData1() %>% 
+
+        plotData1() %>%
             ggplot(aes(cell_type2, count_scaled+1, color=cell_type2)) +
             labs(title=isolate({gene()}), y="Scaled count", color="Cell type") +
             scale_y_log10() +
@@ -302,19 +297,19 @@ server <- function(input, output) {
                   plot.title = element_text(hjust = 0.5),
                   axis.title.x=element_blank(),
                   axis.text.x = element_text(angle=45, vjust=1, hjust=1))
-        
+
     })
-    
+
     plotData2 <- eventReactive(input$submit, {
         processed %>%
             filter(level=="level_2") %>%
             unnest(data) %>%
             filter(symbol==gene())
     })
-    
+
     output$geneExprL2 <- renderPlot({
-        
-        plotData2() %>% 
+
+        plotData2() %>%
             ggplot(aes(cell_type2, count_scaled+1, color=cell_type2)) +
             labs(title=isolate({gene()}), y="Scaled count", color="Cell type") +
             scale_y_log10() +
@@ -325,19 +320,19 @@ server <- function(input, output) {
                   plot.title = element_text(hjust = 0.5),
                   axis.title.x=element_blank(),
                   axis.text.x = element_text(angle=45, vjust=1, hjust=1))
-        
+
     })
-    
+
     plotData3 <- eventReactive(input$submit, {
         processed %>%
             filter(level=="level_3") %>%
             unnest(data) %>%
             filter(symbol==gene())
     })
-    
+
     output$geneExprL3 <- renderPlot({
-        
-        plotData3() %>% 
+
+        plotData3() %>%
             ggplot(aes(cell_type2, count_scaled+1, color=cell_type2)) +
             labs(title=isolate({gene()}), y="Scaled count", color="Cell type") +
             scale_y_log10() +
@@ -348,19 +343,19 @@ server <- function(input, output) {
                   plot.title = element_text(hjust = 0.5),
                   axis.title.x=element_blank(),
                   axis.text.x = element_text(angle=45, vjust=1, hjust=1))
-        
+
     })
-    
+
     plotData4 <- eventReactive(input$submit, {
         processed %>%
             filter(level=="level_4") %>%
             unnest(data) %>%
             filter(symbol==gene())
     })
-    
+
     output$geneExprL4 <- renderPlot({
-        
-        plotData4() %>% 
+
+        plotData4() %>%
             ggplot(aes(cell_type2, count_scaled+1, color=cell_type2)) +
             labs(title=isolate({gene()}), y="Scaled count", color="Cell type") +
             scale_y_log10() +
@@ -371,19 +366,19 @@ server <- function(input, output) {
                   plot.title = element_text(hjust = 0.5),
                   axis.title.x=element_blank(),
                   axis.text.x = element_text(angle=45, vjust=1, hjust=1))
-        
+
     })
-    
+
     plotData5 <- eventReactive(input$submit, {
         processed %>%
             filter(level=="level_5") %>%
             unnest(data) %>%
             filter(symbol==gene())
     })
-    
+
     output$geneExprL5 <- renderPlot({
-        
-        plotData5() %>% 
+
+        plotData5() %>%
             ggplot(aes(cell_type2, count_scaled+1, color=cell_type2)) +
             labs(title=isolate({gene()}), y="Scaled count", color="Cell type") +
             scale_y_log10() +
@@ -394,429 +389,105 @@ server <- function(input, output) {
                   plot.title = element_text(hjust = 0.5),
                   axis.title.x=element_blank(),
                   axis.text.x = element_text(angle=45, vjust=1, hjust=1))
-        
+
     })
-    
-    
+
+
     # Tab 2 output ===========================
     
     rdim_method <- reactive({input$rdim_method})
     
     sig_select_method <- reactive({input$sig_select_method})
-
-    sig_data <- eventReactive(input$run, {
-        markers_collect %>% 
-            mutate(sil = 
-                       pmap(list(!!as.symbol(format_name(sig_select_method())), level, rdim_method()),
-                            ~ sil_func(..1, ..2, ..3))) %>% 
-            mutate(sig =
-                       map(!!as.symbol(format_name(sig_select_method())), 
-                           ~.x %>% 
-                               pull(symbol) %>% 
-                               unique()))
-    })
     
-    
-    output$plot_cell <- renderPlot({
+    # Plot output
+    plotCell <- eventReactive(input$run, {
         if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 1) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_1, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
+            
+            which_sil <- paste("sil", sig_select_method(), rdim_method(), sep = "_")
+            which_cell_markers <- paste("cell_markers", sig_select_method(), sep = "_")
+            
+            signature_cell <- sig_collect %>% 
+                pluck(which_cell_markers, 1) 
+            
+            p_cell <- sig_collect %>% 
+                pluck(which_sil, 1) %>% 
+                pluck("rdim", 1) %>%
+                left_join(signature_cell, by = c("level_1" = "cell_type")) %>% 
+                plot_ly(x = ~ PC1, y = ~ PC2) %>% 
+                add_markers(
+                    color = ~ level_1,
+                    colors = "Set1",
+                    hoverinfo = "text",
+                    text = ~ paste("</br>Sample: ", sample,
+                                   "</br>Signature: ", signature
+                    )
+                ) %>% 
+                layout(
+                    title = sig_collect$ancestor_type[1],
+                    xaxis = list(zeroline = FALSE),
+                    yaxis = list(zeroline = FALSE)
+                )
         } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 1) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_1, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
+            
+            which_sil <- paste("sil", sig_select_method(), rdim_method(), sep = "_")
+            which_cell_markers <- paste("cell_markers", sig_select_method(), sep = "_")
+            
+            signature_cell <- sig_collect %>% 
+                pluck(which_cell_markers, 1) 
+            
+            p_cell <- sig_collect %>% 
+                pluck(which_sil, 1) %>% 
+                pluck("rdim", 1) %>%
+                left_join(signature_cell, by = c("level_1" = "cell_type")) %>% 
+                plot_ly(x = ~ tSNE1, y = ~ tSNE2) %>% 
+                add_markers(
+                    color = ~ level_1,
+                    colors = "Set1",
+                    hoverinfo = "text",
+                    text = ~ paste("</br>Sample: ", sample,
+                                   "</br>Signature: ", signature
+                    )
+                ) %>% 
+                layout(
+                    title = sig_collect$ancestor_type[1],
+                    xaxis = list(zeroline = FALSE),
+                    yaxis = list(zeroline = FALSE)
+                )
         }
+        return(p_cell)
     })
     
-    output$sig_cell <- renderText({
-        sig_data() %>% 
-            pluck("sig", 1) %>% 
-            str_pad(10, "both")
-    })
+    output$plot_cell <- renderPlotly({ plotCell() })
     
-    output$plot_immune <- renderPlot({
-        if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 2) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = PC1, y = PC2, colour = level_2, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw() 
-        } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 2) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_2, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
+    # Markers output
+    markersCell <- eventReactive(input$run, {
+        if(isolate({sig_select_method()}) =="PW") {
+            marker <- sig_collect %>% 
+                pluck("markers_PW", 1) %>% 
+                select(Gene = symbol) %>% 
+                distinct()
+            
+        } else if (isolate({sig_select_method()}) =="MC") {
+            marker <- sig_collect %>% 
+                pluck("markers_MC", 1) %>% 
+                select(Gene = symbol) %>% 
+                distinct()
         }
+        return(marker)
     })
     
-    output$sig_immune <- renderText({
-        sig_data() %>% 
-            pluck("sig", 2) %>% 
-            str_pad(10, "both")
+    
+    output$markers_count <- renderUI({  
+        tags$b(
+            paste(nrow(markersCell()), 
+                  "markers are selected for", 
+                  sig_collect$ancestor_type[1], 
+                  ": ")
+        )
     })
     
-    output$plot_mono_derived <- renderPlot({
-        if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 3) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 3) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        }
-    })
+    output$markers_cell <- DT::renderDataTable({ markersCell() })
     
-    output$sig_mono_derived <- renderText({
-        sig_data() %>% 
-            pluck("sig", 3) %>% 
-            str_pad(10, "both")
-    })
-    
-    output$plot_t_cell <- renderPlot({
-        
-        if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 4) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 4) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        }
-    })
-    
-    output$sig_t_cell <- renderText({
-        sig_data() %>% 
-            pluck("sig", 4) %>% 
-            str_pad(10, "both")
-    })
-    
-    output$plot_granulocyte <- renderPlot({
-        
-        if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 5) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 5) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        }
-    })
-    
-    output$sig_granulocyte <- renderText({
-        sig_data() %>% 
-            pluck("sig", 5) %>% 
-            str_pad(10, "both")
-    })
-    
-    output$plot_b_cell <- renderPlot({
-        
-        if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 6) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 6) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        }
-    })
-    
-    output$sig_b_cell <- renderText({
-        sig_data() %>% 
-            pluck("sig", 6) %>% 
-            str_pad(10, "both")
-    })
-    
-    output$plot_NK <- renderPlot({
-        
-        if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 7) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 7) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        }
-    })
-    
-    output$sig_NK <- renderText({
-        sig_data() %>% 
-            pluck("sig", 7) %>% 
-            str_pad(10, "both")
-    })
-    
-    output$plot_t_CD4 <- renderPlot({
-        
-        if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 8) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 8) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        }
-    })
-    
-    output$sig_t_CD4 <- renderText({
-        sig_data() %>% 
-            pluck("sig", 8) %>% 
-            str_pad(10, "both")
-    })
-    
-    output$plot_macrophage <- renderPlot({
-        
-        if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 9) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 9) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        }
-    })
-    
-    output$sig_macrophage <- renderText({
-        sig_data() %>% 
-            pluck("sig", 9) %>% 
-            str_pad(10, "both")
-    })
-    
-    output$plot_t_CD8 <- renderPlot({
-        
-        if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 10) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 10) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        }
-    })
-    
-    output$sig_t_CD8 <- renderText({
-        sig_data() %>% 
-            pluck("sig", 10) %>% 
-            str_pad(10, "both")
-    })
-    
-    output$plot_DC_myeloid <- renderPlot({
-        
-        if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 11) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 11) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        }
-    })
-    
-    output$sig_DC_myeloid <- renderText({
-        sig_data() %>% 
-            pluck("sig", 11) %>% 
-            str_pad(10, "both")
-    })
-    
-    output$plot_NK_primed <- renderPlot({
-        
-        if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 12) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 12) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        }
-    })
-    
-    output$sig_NK_primed <- renderText({
-        sig_data() %>% 
-            pluck("sig", 12) %>% 
-            str_pad(10, "both")
-    })
-    
-    output$plot_t_CD4_memory <- renderPlot({
-        
-        if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 13) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = PC1, y = PC2, colour = level_5, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 13) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_5, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        }
-    })
-    
-    output$sig_t_CD4_memory <- renderText({
-        sig_data() %>% 
-            pluck("sig", 13) %>% 
-            str_pad(10, "both")
-    })
-    
-    output$plot_t_CD8_memory <- renderPlot({
-        
-        if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 14) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = PC1, y = PC2, colour = level_5, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 14) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_5, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        }
-    })
-    
-    output$sig_t_CD8_memory <- renderText({
-        sig_data() %>% 
-            pluck("sig", 14) %>% 
-            str_pad(10, "both")
-    })
-    
-    output$plot_t_helper <- renderPlot({
-        if(isolate({rdim_method()}) =="PCA") {
-            sig_data() %>% 
-                pluck("sil", 15) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = PC1, y = PC2, colour = level_5, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        } else if (isolate({rdim_method()}) =="tSNE") {
-            sig_data() %>% 
-                pluck("sil", 15) %>% 
-                pluck("Rdim", 1) %>% 
-                ggplot(aes(x = tSNE1, y = tSNE2, colour = level_5, label = sample)) + 
-                geom_point() +
-                stat_ellipse(type = 't')+
-                theme_bw()
-        }
-    })
-    
-    output$sig_t_helper <- renderText({
-        sig_data() %>% 
-            pluck("sig", 15) %>% 
-            str_pad(10, "both")
-    })
  }
 
 # Run the application 

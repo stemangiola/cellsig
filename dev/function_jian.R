@@ -4,20 +4,15 @@ devtools::install_github("stemangiola/tidybulk@dev", force = TRUE)
 
 library(tidyverse)
 library(plotly)
-library(nanny)
-library(ggrepel)
-library(GGally)
-library(tidyHeatmap)
 library(future)
 library(furrr)
-plan(multiprocess, workers=5)
-
-# To be loaded after all libraries
 library(tidybulk)
 library(cluster)
 library(proxy)
 library(factoextra)
 library(stringr)
+plan(multiprocess, workers=5)
+
 
 # OLD Functions for data of old format===============================================================================
 ## 1 preprocess data
@@ -339,7 +334,7 @@ mean_contrast <- function(.data, .level){
   for(i in 1:length(cell_types) ){
     background = paste(cell_types[-i], collapse = "+")
     divisor = length(cell_types[-i])
-    contrasts[i] <- sprintf("%s-(%s)/%s", cell_types[i], background, divisor)
+    contrasts[i] <- sprintf("%s - (%s)/%s", cell_types[i], background, divisor)
   }
   
   return(contrasts)
@@ -616,7 +611,7 @@ mean_contrast0 <- function(.data){
   for(i in 1:length(cell_types) ){
     background = paste(cell_types[-i], collapse = "+")
     divisor = length(cell_types[-i])
-    contrasts[i] <- sprintf("%s-(%s)/%s", cell_types[i], background, divisor)
+    contrasts[i] <- sprintf("%s - (%s)/%s", cell_types[i], background, divisor)
   }
   
   return(contrasts)
@@ -830,4 +825,15 @@ sil_tb0 <- function(.contrast, .sig_size, .method) {
 # Functions for Shiny App
 format_name <- function(.method) {
   paste("markers", .method, sep = "_")
+}
+
+cell_sig_select <- function(.markers) {
+  .markers %>% 
+    # obtain cell types in a node and nest by it to extract signatures for all cell types
+    mutate(cell_type = str_extract(contrast_pretty, "([a-z]|\\_)+(?=\\s)")) %>% 
+    nest(signature = - cell_type) %>% 
+    mutate(signature = map(signature, ~ .x %>% 
+                             pull(symbol) %>% 
+                             unique()
+    ))
 }
