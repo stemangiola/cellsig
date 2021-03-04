@@ -1,7 +1,22 @@
 library(tidyverse)
 library(magrittr)
 library(cellsig)
+library(future)
+library("future.batchtools")
+library(furrr)
+library(tidyr)
 
+local_dir = "/stornext/Bioinf/data/bioinf-data/Papenfuss_lab/projects/mangiola.s/PostDoc/cellsig"
+
+slurm <- future::tweak(batchtools_slurm,
+                       template = sprintf("%s/dev/modeling_files/slurm_batchtools.tmpl", local_dir),
+                       resources=list(
+                         cores = 1,
+                         memory_mb = 20000
+                       )
+)
+
+plan(slurm)
 
 # counts =
 #   readRDS(file="~/PhD/deconvolution/ARMET/dev/counts_infer_NB.rds") %>%
@@ -24,23 +39,79 @@ library(cellsig)
 #   # Adapt it as input
 #   select(sample, symbol, count, `Cell type category`, level, `count scaled`, `house keeping`)
 
-my_level = 2
+
+# #
+load("dev/counts.rda")
+
+# Save files
+create_partition_files = function(.data, .level, .partitions = 30){
+  .data %>%
+
+    # IMPORTANT! To change for every level
+    mutate(level=.level, cell_type = !!as.symbol(sprintf("level_%s", .level))) %>%
+
+    # Process
+    filter(cell_type %>% is.na %>% `!`) %>%
+    nest(data = -c(cell_type, symbol)) %>%
+    #sample_frac(0.01) %>%
+    mutate(partition = sample(1:.partitions, size = n(), replace = T)) %>%
+    unnest(data) %>%
+    nest(data = -partition) %>%
+    mutate(saved = map2_lgl(
+      data, partition,
+      ~ {
+        .x %>% saveRDS(sprintf("dev/modeling_files/level_%s_patition_%s.rds", .level, .y))
+        TRUE
+      }
+    ))
+}
 
 
+create_partitions = function(.data, .level, .partitions = 30){
+  .data %>%
+    
+    # IMPORTANT! To change for every level
+    mutate(cell_type = !!as.symbol(sprintf("level_%s", .level))) %>%
+    
+    # Process
+    filter(cell_type %>% is.na %>% `!`) %>%
+    nest(data = -c(cell_type, symbol)) %>%
+    mutate(partition = sample(1:.partitions, size = n(), replace = T)) %>%
+    unnest(data) %>%
+    nest(data = -partition)
+}
 
-fit =
-  cellsig::counts %>%
 
-  # # subset
-  # nest(data = -c(symbol, house_keeping)) %>%
-  # nest(hk = -house_keeping) %>%
-  # arrange(house_keeping ) %>%
-  # mutate(how_many = c(5000, 500)) %>%
-  # mutate(hk = map2(hk, how_many, ~ .x %>% sample_n(.y))) %>%
-  # unnest(hk) %>%
-  # unnest(data) %>%
+tibble(level=1:5) %>%
+  mutate(partitions = map(level, ~ create_partitions(counts, .x, 3000))) %>%
+  unnest(partitions) %>%
 
-  # Infer
-  ref_intercept_only(my_level, cores = 10, approximate_posterior = T)
+  # FOR TESTING
+  slice(1:5) %>%
+  mutate(inference = future_imap(
+    data,
+    # ~ 5
+    ~ .x %>%
+      ref_intercept_only(
+        exposure_rate,
+        cores = 1,
+        approximate_posterior = T
+    ),
+    .options = furrr_options(packages = c("tidyverse", "magrittr", "cellsig"))
+  )) %>%
+  saveRDS(sprintf("%s/dev/temp.rds", local_dir))
 
+# tibble(level=1) %>%
+#   mutate(partitions = map(level, ~ create_partitions(counts, .x, 3000))) %>%
+#   unnest(partitions) %>%
+#   
+#   # FOR TESTING
+#   slice(1) %>%
+#   pull(data) %>%
+#   .[[1]] %>%
+#   ref_intercept_only(
+#     exposure_rate,
+#     cores = 1,
+#     approximate_posterior = TRUE
+#   ) 
 
