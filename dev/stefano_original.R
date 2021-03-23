@@ -9,14 +9,14 @@ library(GGally)
 library(tidyHeatmap)
 library(future)
 library(furrr)
-plan(multiprocess)
+plan(multiprocess, workers=5)
 
 # To be loaded after all libraries
 library(tidybulk)
 
 load("data/counts.rda")
 
-
+counts %>% filter(level_3 %>% is.na %>% `!`) %>% nest(data=-level_2)
 
 
 # Setup data frame
@@ -60,7 +60,7 @@ tt_naive <-
 
 
 # Functions
-get_constrasts_from_df = function(.data){
+get_contrasts_from_df = function(.data){
   .data %>% 
     
     distinct(cell_type) %>% 
@@ -116,10 +116,8 @@ all_contrasts <-
     data,
     ~ test_differential_abundance(.x,
                                   ~ 0 + cell_type, 
-                                  .contrasts = get_constrasts_from_df(.x),
-                                  action="only"
-    ) 
-    
+                                  .contrasts = get_contrasts_from_df(.x),
+                                  action="only")
   )) %>%
   
   # Select rank from each contrast
