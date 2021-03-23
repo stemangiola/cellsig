@@ -1,19 +1,24 @@
+library(unixtools)
+dir.create(t <- paste(sprintf("~/.Rtemp/%s", basename(tempdir())), Sys.getpid(), sep='-'), FALSE, TRUE, "0700")
+set.tempdir(t)
+
 library(tidyverse)
 library(magrittr)
 library(cellsig)
 library(future)
 library("future.batchtools")
 library(furrr)
-library(tidyr)
+
+cores = 8
 
 local_dir = "/stornext/Bioinf/data/bioinf-data/Papenfuss_lab/projects/mangiola.s/PostDoc/cellsig"
 
 slurm <- future::tweak(batchtools_slurm,
                        template = sprintf("%s/dev/modeling_files/slurm_batchtools.tmpl", local_dir),
                        resources=list(
-                         cores = 1,
-                         memory_mb = 10000,
-                         time = "12:00:00"
+                         cores = cores,
+                         memory_mb = 5000,
+                         time = "48:00:00"
                        )
 )
 
@@ -60,24 +65,39 @@ create_partitions = function(.data, .level, .partitions = 30){
 
 # Create files
 # load("dev/counts.rda")
+# sys("rm modeling_files/*rds")
 # tibble(level=1:5) %>%
 #   mutate(partitions = map(level, ~ create_partition_files(counts, .x, 30))) 
 
 dir(sprintf("%s/dev/modeling_files/", local_dir), pattern = ".rds", full.names = T) %>%
   enframe(value = "file") %>%
-  
-  mutate(inference = future_map(
-    file,
-    ~ .x %>%
-      readRDS() %>%
-      ref_intercept_only(
-        exposure_rate,
-        cores = 1,
-        approximate_posterior = T
-      ),
-    .options = furrr_options(packages = c("tidyverse", "magrittr", "cellsig"))
-  )) %>%
-  saveRDS(sprintf("%s/dev/temp.rds", local_dir))
+  mutate(cores = !!cores) %>%
+  mutate(inference = future_map2(
+    file, cores,
+    ~ 11,
+    # ~ {
+    #   
+    #   # library(unixtools)
+    #   # dir.create(t <- paste(sprintf("~/.Rtemp/%s", basename(tempdir())), Sys.getpid(), sep='-'), FALSE, TRUE, "0700")
+    #   # set.tempdir(t)
+    #   
+    #   library(tidyverse)
+    #   library(magrittr)
+    #   library(cellsig)
+    #   
+    #   .x %>%
+    #   readRDS() %>%
+    #   ref_intercept_only(
+    #     exposure_rate,
+    #     cores = .y,
+    #     approximate_posterior = T
+    #   )
+    #   }
+    #,
+    #.options = furrr_options(packages = c("tidyverse", "magrittr", "cellsig"))
+  )) 
+#%>%
+#  saveRDS(sprintf("%s/dev/temp.rds", local_dir))
 
 
 # On the fly - PROBABLY TOO MUCH
