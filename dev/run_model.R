@@ -64,60 +64,39 @@ create_partitions = function(.data, .level, .partitions = 30){
 }
 
 # Create files
-# load("dev/counts.rda")
-# sys("rm modeling_files/*rds")
-# tibble(level=1:5) %>%
-#   mutate(partitions = map(level, ~ create_partition_files(counts, .x, 30))) 
+load("dev/counts.rda")
+#sys("rm modeling_files/*rds")
+tibble(level=1:5) %>%
+  mutate(partitions = map(level, ~ create_partition_files(counts, .x, 15)))
 
-dir(sprintf("%s/dev/modeling_files/", local_dir), pattern = ".rds", full.names = T) %>%
-  enframe(value = "file") %>%
-  mutate(cores = !!cores) %>%
-  mutate(inference = future_map2(
-    file, cores,
-    ~ 11,
-    # ~ {
-    #   
-    #   # library(unixtools)
-    #   # dir.create(t <- paste(sprintf("~/.Rtemp/%s", basename(tempdir())), Sys.getpid(), sep='-'), FALSE, TRUE, "0700")
-    #   # set.tempdir(t)
-    #   
-    #   library(tidyverse)
-    #   library(magrittr)
-    #   library(cellsig)
-    #   
-    #   .x %>%
-    #   readRDS() %>%
-    #   ref_intercept_only(
-    #     exposure_rate,
-    #     cores = .y,
-    #     approximate_posterior = T
-    #   )
-    #   }
-    #,
-    #.options = furrr_options(packages = c("tidyverse", "magrittr", "cellsig"))
-  )) 
+# Create input
+sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s\nWALL_TIME=14000", 12) %>%
+  
+  c(
+  dir(sprintf("%s/dev/modeling_files/", local_dir), pattern = ".rds") %>%
+    grep("result", ., invert = T, value = T) %>%
+    enframe(value = "file") %>%
+    mutate(cores = !!cores) %>%
+    mutate(command = map2_chr(
+      file, cores,
+      ~sprintf(
+          "dev/modeling_files/%s: dev/modeling_files/%s\n\tRscript dev/modeling_files/core_run_model.R dev/modeling_files/%s dev/modeling_files/%s",
+          sprintf("%s_result.rds", basename(.x) %>%  sub("^([^.]*).*", "\\1", .)),
+          .x,
+          .x,  
+          sprintf("%s_result.rds", basename(.x) %>%  sub("^([^.]*).*", "\\1", .)) ,
+          .y
+      ))
+    ) %>%
+    pull(command) %>%
+    unlist()
+  ) %>%
+  write_lines("dev/modeling_files/run_model.makeflow") 
 #%>%
 #  saveRDS(sprintf("%s/dev/temp.rds", local_dir))
 
 
-# On the fly - PROBABLY TOO MUCH
-# counts_partitions =
-#   tibble(level=1:5) %>%
-#   mutate(partitions = map(level, ~ create_partition_files(counts, .x, 30))) %>%
-#   unnest(partitions)
-# 
-# counts_partitions %>%
-# 
-#   mutate(inference = future_map(
-#     data,
-#     ~ .x %>%
-#       ref_intercept_only(
-#         exposure_rate,
-#         cores = 1,
-#         approximate_posterior = T
-#     ),
-#     .options = furrr_options(packages = c("tidyverse", "magrittr", "cellsig"))
-#   )) %>%
-#   saveRDS(sprintf("%s/dev/temp.rds", local_dir))
-
-
+dir(sprintf("%s/dev/modeling_files/", local_dir), pattern = ".rds", full.names = T) %>%
+  grep("result", ., value = T) %>%
+  map_dfr(~ readRDS(.x)) %>%
+  saveRDS("dev/cellsig_theoretical_transcript_abundance_distribution.rds", compress = "xz")
