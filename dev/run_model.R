@@ -1,55 +1,38 @@
+library(unixtools)
+dir.create(t <- paste(sprintf("~/.Rtemp/%s", basename(tempdir())), Sys.getpid(), sep='-'), FALSE, TRUE, "0700")
+set.tempdir(t)
+
 library(tidyverse)
 library(magrittr)
 library(cellsig)
 library(future)
 library("future.batchtools")
 library(furrr)
-library(tidyr)
+
+cores = 8
 
 local_dir = "/stornext/Bioinf/data/bioinf-data/Papenfuss_lab/projects/mangiola.s/PostDoc/cellsig"
 
 slurm <- future::tweak(batchtools_slurm,
                        template = sprintf("%s/dev/modeling_files/slurm_batchtools.tmpl", local_dir),
                        resources=list(
-                         cores = 1,
-                         memory_mb = 20000
+                         cores = cores,
+                         memory_mb = 5000,
+                         time = "48:00:00"
                        )
 )
 
 plan(slurm)
 
-# counts =
-#   readRDS(file="~/PhD/deconvolution/ARMET/dev/counts_infer_NB.rds") %>%
-#   #left_join( (.) %>% distinct(`symbol original`) %>% mutate(run = sample(1:5, n(), replace = T))) %>%
-#   #filter(`Cell type category` == "house_keeping" | run == my_run) %>%
-#   mutate(symbol = `symbol original`) %>%
-#
-#   # Replace the category house_keeping
-#   mutate(`house keeping` = `Cell type category` == "house_keeping") %>%
-#   rename(temp = `Cell type category`) %>%
-#   left_join(
-#     (.) %>%
-#       filter(temp != "house_keeping") %>%
-#       distinct(sample, temp, level) %>%
-#       rename(`Cell type category` = temp)
-#   ) %>%
-#   select(-temp) %>%
-#   filter(`Cell type category` %>% is.null %>% `!`) %>%
-#
-#   # Adapt it as input
-#   select(sample, symbol, count, `Cell type category`, level, `count scaled`, `house keeping`)
 
-
-# #
-load("dev/counts.rda")
 
 # Save files
 create_partition_files = function(.data, .level, .partitions = 30){
   .data %>%
-
+    
     # IMPORTANT! To change for every level
     mutate(level=.level, cell_type = !!as.symbol(sprintf("level_%s", .level))) %>%
-
+    
     # Process
     filter(cell_type %>% is.na %>% `!`) %>%
     nest(data = -c(cell_type, symbol)) %>%
@@ -60,12 +43,11 @@ create_partition_files = function(.data, .level, .partitions = 30){
     mutate(saved = map2_lgl(
       data, partition,
       ~ {
-        .x %>% saveRDS(sprintf("dev/modeling_files/level_%s_patition_%s.rds", .level, .y))
+        .x %>% saveRDS(sprintf("%s/dev/modeling_files/level_%s_patition_%s.rds", local_dir, .level, .y))
         TRUE
       }
     ))
 }
-
 
 create_partitions = function(.data, .level, .partitions = 30){
   .data %>%
@@ -81,37 +63,40 @@ create_partitions = function(.data, .level, .partitions = 30){
     nest(data = -partition)
 }
 
-
+# Create files
+load("dev/counts.rda")
+#sys("rm modeling_files/*rds")
 tibble(level=1:5) %>%
-  mutate(partitions = map(level, ~ create_partitions(counts, .x, 3000))) %>%
-  unnest(partitions) %>%
+  mutate(partitions = map(level, ~ create_partition_files(counts, .x, 15)))
 
-  # FOR TESTING
-  slice(1:5) %>%
-  mutate(inference = future_imap(
-    data,
-    # ~ 5
-    ~ .x %>%
-      ref_intercept_only(
-        exposure_rate,
-        cores = 1,
-        approximate_posterior = T
-    ),
-    .options = furrr_options(packages = c("tidyverse", "magrittr", "cellsig"))
-  )) %>%
-  saveRDS(sprintf("%s/dev/temp.rds", local_dir))
+# Create input
+sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s\nWALL_TIME=14000", 12) %>%
+  
+  c(
+  dir(sprintf("%s/dev/modeling_files/", local_dir), pattern = ".rds") %>%
+    grep("result", ., invert = T, value = T) %>%
+    enframe(value = "file") %>%
+    mutate(cores = !!cores) %>%
+    mutate(command = map2_chr(
+      file, cores,
+      ~sprintf(
+          "dev/modeling_files/%s: dev/modeling_files/%s\n\tRscript dev/modeling_files/core_run_model.R dev/modeling_files/%s dev/modeling_files/%s",
+          sprintf("%s_result.rds", basename(.x) %>%  sub("^([^.]*).*", "\\1", .)),
+          .x,
+          .x,  
+          sprintf("%s_result.rds", basename(.x) %>%  sub("^([^.]*).*", "\\1", .)) ,
+          .y
+      ))
+    ) %>%
+    pull(command) %>%
+    unlist()
+  ) %>%
+  write_lines("dev/modeling_files/run_model.makeflow") 
+#%>%
+#  saveRDS(sprintf("%s/dev/temp.rds", local_dir))
 
-# tibble(level=1) %>%
-#   mutate(partitions = map(level, ~ create_partitions(counts, .x, 3000))) %>%
-#   unnest(partitions) %>%
-#   
-#   # FOR TESTING
-#   slice(1) %>%
-#   pull(data) %>%
-#   .[[1]] %>%
-#   ref_intercept_only(
-#     exposure_rate,
-#     cores = 1,
-#     approximate_posterior = TRUE
-#   ) 
 
+dir(sprintf("%s/dev/modeling_files/", local_dir), pattern = ".rds", full.names = T) %>%
+  grep("result", ., value = T) %>%
+  map_dfr(~ readRDS(.x)) %>%
+  saveRDS("dev/cellsig_theoretical_transcript_abundance_distribution.rds", compress = "xz")
