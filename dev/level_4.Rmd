@@ -35,6 +35,8 @@ tt_L4 <- tt_all %>%
 ```{r literal}
 # select level of interest
 LEVEL = "level_4"
+
+METHOD = "PCA"
 ```
 
 
@@ -376,7 +378,7 @@ tt_naive_L4 <-
   mutate(data = map(
     data,
     ~ .x %>%
-      reduce_dimensions(method="PCA")
+      reduce_dimensions(method=METHOD)
       # reduce_dimensions(method="MDS") %>%
       # reduce_dimensions(method="tSNE")
   ))
@@ -457,7 +459,7 @@ ellip_tb <-
   tibble(sig_size = 1:sig_size) %>%
   # slice(1) %>%
   mutate(ellip = map(sig_size, ~ sig_select(contrast_PW_L4, LEVEL, .x))) %>%
-  mutate(ellip = map(ellip, ~ ellip_func(.x, LEVEL, "PCA") ))
+  mutate(ellip = map(ellip, ~ ellip_func(.x, LEVEL, METHOD) ))
 
 # rescale areas and plot total areas vs the total number of markers selected from cell types in a level
 ellip_data <- ellip_tb %>% ellip_scale(LEVEL)
@@ -633,7 +635,7 @@ sil_tb <-
   tibble(sig_size = 1:sig_size) %>%
   # slice(1) %>%
   mutate(sil_df = map(sig_size, ~ sig_select(contrast_PW_L4, LEVEL, .x))) %>%
-  mutate(sil_df = map(sil_df, ~.x %>% sil_func(LEVEL, "PCA")))
+  mutate(sil_df = map(sil_df, ~.x %>% sil_func(LEVEL, METHOD)))
 
 sil_data <- sil_tb %>%
   unnest(sil_df) %>%
@@ -864,7 +866,7 @@ ellip_tb <-
   tibble(sig_size = 1:sig_size) %>%
   # slice(1) %>%
   mutate(ellip = map(sig_size, ~ sig_select(contrast_MC_L4, LEVEL, .x))) %>%
-  mutate(ellip = map(ellip, ~ ellip_func(.x, LEVEL, "PCA")))
+  mutate(ellip = map(ellip, ~ ellip_func(.x, LEVEL, METHOD)))
 
 # rescale areas and plot total areas vs the total number of markers selected from cell types in a level
 ellip_data <- ellip_tb %>% ellip_scale(LEVEL)
@@ -1041,7 +1043,7 @@ sil_tb <-
   tibble(sig_size = 1:sig_size) %>%
   # slice(1) %>%
   mutate(sil_df = map(sig_size, ~ sig_select(contrast_MC_L4, LEVEL, .x))) %>%
-  mutate(sil_df = map(sil_df, ~.x %>% sil_func(LEVEL, "PCA")))
+  mutate(sil_df = map(sil_df, ~.x %>% sil_func(LEVEL, METHOD)))
 
 sil_data <- sil_tb %>%
   unnest(sil_df) %>%
