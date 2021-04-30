@@ -2,9 +2,11 @@
 
 export(create_tree_object)
 export(get_MPI_df_ref)
+export(impute_abundance_using_levels)
 export(infer_sequencing_depth_bias)
 export(ref_format)
 export(ref_intercept_only)
+export(ref_to_mixture)
 export(run_model_ref)
 import(Rcpp)
 import(data.tree)
