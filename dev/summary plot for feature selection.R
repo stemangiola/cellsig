@@ -548,7 +548,18 @@ summary_plot_tSNE
 
 ggsave("summary_plot_tSNE.png", summary_plot_tSNE)
 
-# Below is a summary plot comparing silhouette score for four selection methods + CIBERSORT
+# compare 4 marker selection strategie by sil score in different cell types (faceted by nodal cell type)
+final_tSNE %>% 
+  ggplot(aes(sig_size, sil, 
+             color=analysis,
+             shape = analysis) ) +
+  geom_line(position = position_dodge(width=0.5)) +
+  geom_point(position = position_dodge(width=0.5)) +
+  facet_wrap(~ ancestor_type) +
+  ggtitle("Compare four marker selection strategies by silhouette score over 20 signature sizes") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Below is a summary bar plot comparing silhouette score for four selection methods + CIBERSORT
 # It requires code from these files: cibersortx.R, hierarchy.R, no_hierarchy.R====================
 
 sil_all_methods <- bind_rows(ciber_sil, hierarchy_PW_sil, hierarchy_MC_sil, NH_PW_sil, NH_MC_sil) %>% 
