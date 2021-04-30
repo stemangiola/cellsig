@@ -442,4 +442,84 @@ infer_sequencing_depth_bias = function(counts, shards = 10){
     ) %>% 
     select(sample, exposure_rate = mean) %>%
     right_join(counts, by="sample")
- }
+}
+
+#' @export
+impute_abundance_using_levels = function(.data, .abundance){
+  
+# Input dataset
+#   Rows: 28,455,434
+#   Columns: 11
+#   $ sample        <chr> "ENCFF060YNO", "ENCFF060YNO", "ENCFF060YNO", "ENCFF060YNO", "ENCFF060YNO", "ENCFF06…
+#   $ exposure_rate <dbl> -0.5029584, -0.5029584, -0.5029584, -0.5029584, -0.5029584, -0.5029584, -0.5029584,…
+#   $ cell_type     <chr> "dendritic_myeloid", "dendritic_myeloid", "dendritic_myeloid", "dendritic_myeloid",…
+#   $ count         <int> 20, 26, 0, 27635, 1, 0, 0, 0, 85, 0, 0, 78, 65, 0, 0, 0, 0, 0, 0, 0, 0, 398, 146, 1…
+#   $ symbol        <chr> "A1BG", "A1BG-AS1", "A1CF", "A2M", "A2M-AS1", "A2ML1", "A2MP1", "A3GALT2", "A4GALT"…
+#   $ database      <chr> "ENCODE", "ENCODE", "ENCODE", "ENCODE", "ENCODE", "ENCODE", "ENCODE", "ENCODE", "EN…
+#   $ level_1       <chr> "immune_cell", "immune_cell", "immune_cell", "immune_cell", "immune_cell", "immune_…
+#   $ level_2       <chr> "mono_derived", "mono_derived", "mono_derived", "mono_derived", "mono_derived", "mo…
+#   $ level_3       <chr> "dendritic_myeloid", "dendritic_myeloid", "dendritic_myeloid", "dendritic_myeloid",…
+#   $ level_4       <chr> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA,…
+#   $ level_5       <chr> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA,…
+
+  
+  # counts_imputed = 
+  #   counts %>% 
+  #   mutate(count_scaled = count / exp(exposure_rate)) %>% 
+  #   impute_abundance_using_levels(count_scaled)
+  # .abundance = enquo(.abundance)
+  
+  .data %>%
+  #mutate(count_scaled = count * exp(exposure_rate)) %>%
+  complete(nesting(sample, exposure_rate, cell_type, database, level_1 , level_2 , level_3 ,  level_4 ,level_5), symbol) %>%
+  
+  # Complete last level
+  nest(data = -c(symbol, cell_type)) %>%
+  mutate(count_median = map_dbl(data, ~  .x %>% pull(!!.abundance) %>%  median(na.rm = T) )) %>%
+  mutate(count_median = case_when(!is.na(cell_type) ~ count_median)) %>%
+  unnest(data) %>%
+  mutate(!!.abundance := case_when(is.na(!!.abundance) ~ count_median, TRUE ~ !!.abundance)) %>%
+  select(-count_median) %>%
+  
+  # Complete level 5
+  nest(data = -c(symbol, level_5 )) %>%
+  mutate(count_median = map_dbl(data, ~  .x %>% pull(!!.abundance) %>%  median(na.rm = T) )) %>%
+  mutate(count_median = case_when(!is.na(level_5 ) ~ count_median)) %>%
+  unnest(data) %>%
+  mutate(!!.abundance := case_when(is.na(!!.abundance) ~ count_median, TRUE ~ !!.abundance)) %>%
+  select(-count_median) %>%
+  
+  # Complete level 4
+  nest(data = -c(symbol, level_4 )) %>%
+  mutate(count_median = map_dbl(data, ~  .x %>% pull(!!.abundance) %>%  median(na.rm = T) )) %>%
+  mutate(count_median = case_when(!is.na(level_4 ) ~ count_median)) %>%
+  unnest(data) %>%
+  mutate(!!.abundance := case_when(is.na(!!.abundance) ~ count_median, TRUE ~ !!.abundance)) %>%
+  select(-count_median) %>%
+  
+  # Complete level 3
+  nest(data = -c(symbol, level_3 )) %>%
+  mutate(count_median = map_dbl(data, ~  .x %>% pull(!!.abundance) %>%  median(na.rm = T) )) %>%
+  mutate(count_median = case_when(!is.na(level_3 ) ~ count_median)) %>%
+  unnest(data) %>%
+  mutate(!!.abundance := case_when(is.na(!!.abundance) ~ count_median, TRUE ~ !!.abundance)) %>%
+  select(-count_median) %>%
+  
+  # Complete level 2
+  nest(data = -c(symbol, level_2 )) %>%
+  mutate(count_median = map_dbl(data, ~  .x %>% pull(!!.abundance) %>%  median(na.rm = T) )) %>%
+  mutate(count_median = case_when(!is.na(level_2 ) ~ count_median)) %>%
+  unnest(data) %>%
+  mutate(!!.abundance := case_when(is.na(!!.abundance) ~ count_median, TRUE ~ !!.abundance)) %>%
+  select(-count_median) %>%
+  
+  # Complete level 1
+  nest(data = -c(symbol, level_1 )) %>%
+  mutate(count_median = map_dbl(data, ~  .x %>% pull(!!.abundance) %>%  median(na.rm = T) )) %>%
+  mutate(count_median = case_when(!is.na(level_1 ) ~ count_median)) %>%
+  unnest(data) %>%
+  mutate(!!.abundance := case_when(is.na(!!.abundance) ~ count_median, TRUE ~ !!.abundance)) %>%
+  select(-count_median)
+}
+
+
