@@ -10,12 +10,12 @@ get_alpha = function(slope, which_changing, cell_types){
   
 }
 
-get_survival_X = function(S, PFI_all_cancers){
+get_survival_X = function(S, PFI_all_cancers, center = F){
  
     PFI_all_cancers %>%
     filter(PFI.2 == 1 & !is.na(PFI.time.2) & PFI.time.2 > 0) %>%
     select(real_days = PFI.time.2 ) %>%
-    mutate(real_days = real_days %>% scale(center = F) %>% as.numeric) %>%
+    mutate(real_days = real_days %>% scale(center = center) %>% as.numeric) %>%
     sample_n(S) %>%
     mutate(sample = sprintf("S%s", 1:n())) %>%
     mutate(alive = sample(0:1, n(), replace = T)) %>%
