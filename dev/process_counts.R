@@ -91,7 +91,12 @@ counts =
 
 save(counts, file="dev/counts.rda", compress = "xz")
 
+counts_imputed =
+  counts %>%
+  mutate(count_scaled = count / exp(exposure_rate)) %>%
+  impute_abundance_using_levels(count_scaled)
 
+save(counts_imputed, file="dev/counts_imputed.rda", compress = "xz")
 
 # symbol   level_1         n
 # <chr>    <chr>       <int>
@@ -108,16 +113,16 @@ save(counts, file="dev/counts.rda", compress = "xz")
 
 
 
-  # filter(cell_type %>% is.na %>% `!`) %>%
-  
-  # # Eliminate genes that are not in all cell types
-  # inner_join( (.) %>% distinct(symbol, cell_type) %>% count(symbol) %>% filter(n == max(n)) ) %>%
-  # 
-  # # Setup house keeping genes
-  # mutate(cell_type = ifelse(symbol %in% (read_csv("dev/database/ARMET/dev/hk_600.txt", col_names = FALSE) %>% pull(1)), "house_keeping", cell_type)) %>%
-  # 
-  # Select just needed columns
-  #select(sample, `Cell type`, cell_type_formatted, cell_type, level, count, symbol, ensembl_gene_id, `Data base`,  `Sample name`) %>%
+# filter(cell_type %>% is.na %>% `!`) %>%
+
+# # Eliminate genes that are not in all cell types
+# inner_join( (.) %>% distinct(symbol, cell_type) %>% count(symbol) %>% filter(n == max(n)) ) %>%
+# 
+# # Setup house keeping genes
+# mutate(cell_type = ifelse(symbol %in% (read_csv("dev/database/ARMET/dev/hk_600.txt", col_names = FALSE) %>% pull(1)), "house_keeping", cell_type)) %>%
+# 
+# Select just needed columns
+#select(sample, `Cell type`, cell_type_formatted, cell_type, level, count, symbol, ensembl_gene_id, `Data base`,  `Sample name`) %>%
 
 # # Median redundant
 # group_by(level, `Data base`) %>%

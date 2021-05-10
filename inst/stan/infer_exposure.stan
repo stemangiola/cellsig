@@ -1,5 +1,26 @@
 functions{
+  vector Q_sum_to_zero_QR(int N) {
+    vector [2*N] Q_r;
 
+    for(i in 1:N) {
+      Q_r[i] = -sqrt((N-i)/(N-i+1.0));
+      Q_r[i+N] = inv_sqrt((N-i) * (N-i+1));
+    }
+    return Q_r;
+  }
+
+  vector sum_to_zero_QR(vector x_raw, vector Q_r) {
+    int N = num_elements(x_raw) + 1;
+    vector [N] x;
+    real x_aux = 0;
+
+    for(i in 1:N-1){
+      x[i] = x_aux + x_raw[i] * Q_r[i];
+      x_aux = x_aux + x_raw[i] * Q_r[i+N];
+    }
+    x[N] = x_aux;
+    return x;
+  }
 }
 data {
 	// shards
@@ -22,6 +43,11 @@ data {
 	real sigma_intercept_prior[2];
 
 }
+transformed data{
+
+	vector[2*S] Q_r = Q_sum_to_zero_QR(S);
+  real x_raw_sigma = inv_sqrt(1 - inv(S));
+}
 parameters {
 
 	// Global properties
@@ -42,10 +68,7 @@ parameters {
 
 }
 transformed parameters{
-
-	vector[S] exposure_rate = append_row(exposure_rate_minus_1, -sum(exposure_rate_minus_1));
-
-
+	vector[S] exposure_rate = sum_to_zero_QR(exposure_rate_minus_1, Q_r);
 }
 model {
 
@@ -59,7 +82,7 @@ model {
   sigma_sigma ~ normal(0,2);
 
 	// Exposure
-	exposure_rate_minus_1 ~ normal(0,2);
+	exposure_rate_minus_1 ~ normal(0, x_raw_sigma);
 
 	// Means overdispersion reference
 	lambda_log ~ skew_normal(lambda_mu, exp(lambda_sigma), lambda_skew);
