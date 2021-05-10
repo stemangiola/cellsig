@@ -89,7 +89,7 @@ ref_intercept_only = function(reference,
 
   exposure_rate_col = enquo(sample_abundance_multiplier)
 
-  # Non centered
+  # Non centred
   lambda_mu_prior = c(8, 2)
   lambda_sigma_prior =  c(log(3.3) , 1)
   lambda_skew_prior =  c(-2.7, 2)
@@ -468,6 +468,8 @@ impute_abundance_using_levels = function(.data, .abundance){
   #   mutate(count_scaled = count / exp(exposure_rate)) %>% 
   #   impute_abundance_using_levels(count_scaled)
   # .abundance = enquo(.abundance)
+  
+  .abundance = enquo(.abundance)
   
   .data %>%
   #mutate(count_scaled = count * exp(exposure_rate)) %>%
