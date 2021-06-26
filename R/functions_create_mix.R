@@ -11,8 +11,8 @@ get_alpha = function(slope, which_changing, cell_types){
 }
 
 get_survival_X = function(S, PFI_all_cancers, center = F){
- 
-    PFI_all_cancers %>%
+  
+  PFI_all_cancers %>%
     filter(PFI.2 == 1 & !is.na(PFI.time.2) & PFI.time.2 > 0) %>%
     select(real_days = PFI.time.2 ) %>%
     mutate(real_days = real_days %>% scale(center = center) %>% as.numeric) %>%
@@ -42,15 +42,14 @@ generate_mixture_from_model = function(.data, X_df, alpha, foreign_prop = 0, for
   X = X_df %>% mutate(real_days = log(real_days)) %>% select(intercept, real_days) %>% nanny::as_matrix()
   
   samples_per_run =
-    map_dfr(
-      1:nrow(X), ~ 
-        .data %>%
-        distinct(cell_type, sample) %>%
-        group_by(cell_type) %>%
-        sample_n(1) %>%
-        ungroup() %>%
-        mutate(run = .x)
-    )
+    .data %>%
+    distinct(cell_type, sample) %>%
+    group_by(cell_type) %>%
+    sample_n(nrow(X), replace = T) %>% 
+    ungroup() %>% 
+    mutate(run = rep(1:nrow(X), !!.data %>% distinct(cell_type) %>% nrow())) %>%
+    arrange(run)
+  
   
   ct_names = .data %>% distinct(cell_type) %>% pull(1)
   
@@ -97,19 +96,21 @@ generate_mixture_from_model = function(.data, X_df, alpha, foreign_prop = 0, for
     {	max(.) / min(.)	} %>%
     { slope = alpha[,2][ alpha[,2]!=0]; ifelse(slope<0, -(.), (.)) }
   
-  # Add counts
-  dirichlet_source =
-    cell_type_proportions %>%
-    left_join(.data, by = c("cell_type", "sample"))
   
-  # Make mix
-  dirichlet_source %>%
-    mutate(c = `count_scaled` * p) %>%
-    group_by(run, symbol) %>%
-    summarise(`count_mix` = c %>% sum) %>%
-    ungroup %>%
+  # Add counts
+  cell_type_proportions %>%
+    nest(data = -run) %>%
+    mutate(data = map(
+      data,
+      ~ .x %>% 
+        left_join(!!.data %>% select(cell_type, sample, count_scaled, symbol), by = c("cell_type", "sample")) %>%
+        mutate(c = `count_scaled` * p) %>%
+        group_by(symbol) %>%
+        summarise(`count_mix` = c %>% sum)
+    )) %>%
+    unnest(data) %>%
     
-    left_join(dirichlet_source %>% nanny::subset(run) ) %>%
+    left_join(cell_type_proportions %>% nanny::subset(run)) %>%
     
     mutate(fold_change = fold_change) %>%
     
@@ -129,19 +130,20 @@ generate_mixture_from_model = function(.data, X_df, alpha, foreign_prop = 0, for
 
 #' @export
 generate_mixture_from_proportion_matrix = function(.data, proportions, foreign_prop = 0, foreign_sample = NULL) {
-
-    proportions %>% 
-    as_tibble(rownames = "replicate") %>% 
-    gather(cell_type, proportion, -replicate) %>%
   
-    mutate(sample = map_chr(
-      cell_type, 
-      ~ !!.data %>% 
-        filter(cell_type == .x) %>% 
-        distinct(sample) %>% 
-        pull(sample) %>% 
-        sample(size = 1)
-    )) %>%
+
+  
+  sample_df = 
+    .data %>%
+    distinct(sample, cell_type) %>%
+    nest(data = -cell_type) %>%
+    mutate(sample = map_chr(data, ~ sample(.x$sample, size = 1))) %>%
+    select(-data)
+  
+  proportions %>% 
+    as_tibble(rownames = "replicate") %>% 
+    gather(cell_type, proportion, -replicate)  %>%
+    left_join(sample_df, by = "cell_type") %>% 
     
     left_join(.data, by = c("cell_type", "sample")) %>%
     
