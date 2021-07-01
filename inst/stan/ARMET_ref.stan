@@ -230,7 +230,7 @@ model {
   
   // If I have 1 shard
   if(shards==1)
-    	counts_linear ~ neg_binomial_2_log_lpmf(
+    	counts_linear ~ neg_binomial_2_log(
 			lambda_log[G_to_counts_linear] + exposure_rate,
 			1.0 ./ exp( sigma_inv_log[G_to_counts_linear] )
 		);
