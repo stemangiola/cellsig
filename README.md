@@ -1,17 +1,10 @@
----
-title: "README"
-author: "Stefano Mangiola"
-date: "01/07/2021"
-output: html_document
----
+README
+================
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+Create a hierarchical signature data frame from a tree and and signature
+database
 
-Create a hierarchical signature data frame from a tree and and signature database
-
-```{r eval = FALSE}
+``` r
 library(tidyverse)
 library(cellsig)
 library(tidybulk)
@@ -39,4 +32,3 @@ counts =
 
 counts
 ```
-
