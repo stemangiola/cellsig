@@ -19,7 +19,7 @@ counts =
   tree_and_signatures_to_database(tree, signatures, sample, cell_type, symbol, count) %>%
 
   # Infer exposure rate  
-  infer_sequencing_depth_bias()
+  infer_sequencing_depth_bias(hk600 = readr::read_csv("dev/hk_600.txt", col_names = FALSE) %>% pull(X1))
 
 save(counts, file="dev/counts.rda", compress = "xz")
 
