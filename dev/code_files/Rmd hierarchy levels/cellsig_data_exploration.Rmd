@@ -1,0 +1,613 @@
+---
+title: "cellsig_data_exploration"
+author: "Jian"
+date: "19/07/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r message = FALSE}
+# load libraries
+#library(devtools)
+# install_github("jokergoo/ComplexHeatmap")
+# devtools::install_github("stemangiola/tidyHeatmap")
+# install.packages("tidyverse")
+library(tidyverse)
+library(tidybulk)
+library(tidyHeatmap)
+library(ggrepel)
+library(plotly)
+library(GGally)
+```
+
+
+```{r data}
+# import data
+load("/stornext/Home/data/allstaff/w/wu.j/Master Project/cellsig/dev/counts.rda")
+```
+
+```{r}
+tt = 
+  counts %>% 
+  tidybulk(sample, symbol, count) %>%
+  
+  # Group by level because otherwise samples are duplicated
+  nest(data = -level) %>%
+  
+  # Fill missing data. There are many genes that 
+  # are not shared by the majority of samples
+  mutate(data, map(data, ~ .x %>% fill_missing_abundance(fill_with = 0))) %>%
+  
+  # ungroup
+  unnest(data)
+```
+
+```{r data inspection}
+# data inspection
+head(counts)
+
+tail(counts)
+
+str(counts)
+
+#View(counts)
+
+levels(counts$cell_type)
+
+levels(as.factor(counts$level))
+```
+
+```{r PCA}
+# PCA at each of the five levels
+tt_PCA_1 <- counts %>%
+  filter(level == 1) %>%
+  scale_abundance(sample, symbol, count) %>% 
+  reduce_dimensions(sample, symbol, count_scaled, method = 'PCA', .dims = 4)
+
+tt_PCA_2 <- counts %>%
+  filter(level == 2) %>%
+  scale_abundance(sample, symbol, count) %>% 
+  reduce_dimensions(sample, symbol, count_scaled, method = 'PCA', .dims = 4)
+
+tt_PCA_3 <- counts %>%
+  filter(level == 3) %>% 
+  scale_abundance(sample, symbol, count) %>% 
+  reduce_dimensions(sample, symbol, count_scaled, method = 'PCA', dims = 4)
+
+tt_PCA_4 <- counts %>%
+  filter(level == 4) %>%
+  scale_abundance(sample, symbol, count) %>% 
+  reduce_dimensions(sample, symbol, count_scaled, method = 'PCA', .dims = 4)
+
+tt_PCA_5 <- counts %>%
+  filter(level == 5) %>%
+  scale_abundance(sample, symbol, count) %>% 
+  reduce_dimensions(sample, symbol, count_scaled, method = 'PCA', .dims = 4)
+```
+```{r}
+View(tt_PCA_1)
+```
+
+
+```{r PCA plot}
+# PCA plots at each of the 5 levels
+tt_PCA_1 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) +
+  geom_point() +
+  theme_bw()
+
+tt_PCA_2 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) +
+  geom_point() +
+  theme_bw()
+
+tt_PCA_3 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) +
+  geom_point() +
+  theme_bw()
+
+tt_PCA_4 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) +
+  geom_point() +
+  theme_bw()
+
+tt_PCA_5 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) +
+  geom_point() +
+  theme_bw()
+```
+
+```{r}
+# tSNE
+tt_tSNE_1 <- counts %>%
+  filter(level == 1) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, count_scaled, method = 'tSNE',
+                    perplexity = 10, pca_scale = TRUE)
+
+tt_tSNE_2 <- counts %>%
+  filter(level == 2) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, count_scaled, method = 'tSNE',
+                    perplexity = 10, pca_scale = TRUE)
+
+tt_tSNE_3 <- counts %>%
+  filter(level == 3) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, count_scaled, method = 'tSNE',
+                    perplexity = 10, pca_scale = TRUE)
+
+tt_tSNE_4 <- counts %>%
+  filter(level == 4) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, count_scaled, method = 'tSNE',
+                    perplexity = 10, pca_scale = TRUE)
+
+tt_tSNE_5 <- counts %>%
+  filter(level == 5) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, count_scaled, method = 'tSNE',
+                    perplexity = 10, pca_scale = TRUE)
+```
+
+```{r}
+View(tt_tSNE_1)
+
+View(tt_tSNE_1 %>% pivot_sample())
+```
+
+```{r}
+# plot tSNE
+tt_tSNE_1 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = tSNE1, y = tSNE2, colour = cell_type)) +
+  geom_point() +
+  theme_bw()
+
+tt_tSNE_2 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = tSNE1, y = tSNE2, colour = cell_type)) +
+  geom_point() +
+  theme_bw()
+
+tt_tSNE_3 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = tSNE1, y = tSNE2, colour = cell_type)) +
+  geom_point() +
+  theme_bw()
+
+tt_tSNE_4 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = tSNE1, y = tSNE2, colour = cell_type)) +
+  geom_point() +
+  theme_bw()
+
+tt_tSNE_5 %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = tSNE1, y = tSNE2, colour = cell_type)) +
+  geom_point() +
+  theme_bw()
+```
+
+```{r}
+# MDS
+tt_MDS_1 <- counts %>%
+  filter(level == 1) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, count_scaled, method = 'MDS', .dims = 4)
+
+tt_MDS_2 <- counts %>%
+  filter(level == 2) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, count_scaled, method = 'MDS', .dims = 4)
+
+tt_MDS_3 <- counts %>%
+  filter(level == 3) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, count_scaled, method = 'MDS', .dims = 4)
+
+tt_MDS_4 <- counts %>%
+  filter(level == 4) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, count_scaled, method = 'MDS', .dims = 4)
+
+tt_MDS_5 <- counts %>%
+  filter(level == 5) %>% 
+  scale_abundance(sample, symbol, count) %>%
+  reduce_dimensions(sample, symbol, count_scaled, method = 'MDS', .dims = 4)
+```
+
+
+```{r}
+View(tt_MDS_1)
+
+View(tt_MDS_1 %>% pivot_sample())
+```
+
+
+```{r}
+# plot MDS
+tt_MDS_1 %>%  
+  pivot_sample() %>% 
+  ggpairs(columns = 6:9 , aes(colour = cell_type))
+
+tt_MDS_2 %>%  
+  pivot_sample() %>% 
+  ggpairs(columns = 6:9 , aes(colour = cell_type))
+
+tt_MDS_3 %>%  
+  pivot_sample() %>% 
+  ggpairs(columns = 6:9 , aes(colour = cell_type))
+```
+
+```{r}
+# 
+# tt_MDS_4 %>%  
+#   pivot_sample() %>% 
+#   ggpairs(columns = 6:9 , aes(colour = cell_type))
+# 
+# tt_MDS_5 %>%  
+#   pivot_sample() %>% 
+#   ggpairs(columns = 6:9 , aes(colour = cell_type))
+
+```
+
+
+```{r}
+# Cluster samples
+tt_MDS_1 %>% 
+  cluster_elements(method = "kmeans", centers = 2, action = "get") %>% 
+  ggplot(aes(x = "Dim1", y = "Dim2", colour = `cluster kmeans`)) +
+  geom_point() +
+  theme_bw()
+```
+
+```{r}
+# cluster
+tt_SNN_3 <- tt_tSNE_3 %>% 
+  cluster_elements(method = "SNN")
+
+View(tt_SNN_3)
+
+tt_SNN_3 %>% 
+  pivot_sample() %>%
+  gather(source, Call, c("cluster SNN", "Call")) %>%
+  distinct() %>%
+  ggplot(aes(x = `tSNE1`, y = `tSNE2`, color=Call)) + 
+  geom_point() + 
+  facet_grid(~source) + 
+  theme_bw()
+```
+
+
+```{r heatmap}
+# heatmap
+tt_PCA_1 %>%
+  keep_variable(sample, symbol, count_scaled) %>%
+  group_by(cell_type) %>% 
+  heatmap(.row = symbol,
+          .column = sample,
+          .value = count_scaled)
+
+tt_PCA_2 %>%
+  keep_variable(sample, symbol, count_scaled) %>%
+  group_by(cell_type) %>% 
+  heatmap(.row = symbol,
+          .column = sample,
+          .value = count_scaled)
+
+tt_PCA_3 %>%
+  keep_variable(sample, symbol, count_scaled) %>%
+  group_by(cell_type) %>% 
+  heatmap(.row = symbol,
+          .column = sample,
+          .value = count_scaled)
+
+tt_PCA_4 %>%
+  keep_variable(sample, symbol, count_scaled) %>%
+  group_by(cell_type) %>%  
+  heatmap(.row = symbol,
+          .column = sample,
+          .value = count_scaled)
+
+tt_PCA_5 %>%
+  keep_variable(sample, symbol, count_scaled) %>%
+  group_by(cell_type) %>% 
+  heatmap(.row = symbol,
+          .column = sample,
+          .value = count_scaled)
+```
+
+
+
+```{r}
+# Deconvolve cell types
+tt_cybersort_1 <- counts %>% 
+  tidybulk(sample, symbol, count) %>% 
+  filter(level == 1) %>% 
+  deconvolve_cellularity(sample, symbol, count, action = "get", cores = 2)
+
+tt_cybersort_2 <- counts %>% 
+  filter(level == 2) %>% 
+  deconvolve_cellularity(sample, symbol, count, action = "get", cores = 2)
+
+tt_cybersort_3 <- counts %>% 
+  filter(level == 3) %>% 
+  deconvolve_cellularity(sample, symbol, count, action = "get", cores = 2)
+
+tt_cybersort_4 <- counts %>% 
+  filter(level == 4) %>% 
+  deconvolve_cellularity(sample, symbol, count, action = "get", cores = 2)
+
+tt_cybersort_5 <- counts %>% 
+  filter(level == 5) %>% 
+  deconvolve_cellularity(sample, symbol, count, action = "get", cores = 2)
+```
+
+```{r}
+# differential cell type abundance
+counts %>% 
+  test_differential_cellularity()
+```
+
+
+## After Monday's meeting with Stefano
+
+```{r}
+# Preprocess counts data and normalisation
+counts_norm <- counts %>%
+  tidybulk(sample, symbol, count) %>% 
+  aggregate_duplicates() %>% 
+  scale_abundance()
+```
+
+
+```{r}
+View(counts_norm)
+
+str(counts_norm)
+
+str(counts_norm$count_scaled)
+
+```
+
+
+```{r}
+
+counts_imm_epi_de <- counts_norm %>%
+  mutate(count_scaled = as.integer(count_scaled)) %>% 
+  filter(level == 1) %>%
+  filter(cell_type %in% c("immune_cell", "epithelial")) %>%
+  test_differential_abundance(sample, symbol, count_scaled, ~ cell_type) %>% 
+  filter(FDR < 0.05 & abs(logFC) > 2) %>%
+  nest(data = -symbol) %>%
+  arrange(FDR, desc()) %>%
+  slice(1:10) %>% 
+  unnest()
+```
+```{r}
+counts_imm_epi_de %>% 
+  filter(FDR < 0.05 & abs(logFC) > 2) %>%
+  nest(data = -symbol) %>%
+  arrange(FDR, desc()) %>%
+  slice(1:10) %>% 
+  unnest()
+```
+
+```{r}
+top_de_genes <- counts_imm_epi_de %>% 
+  pull(transcript)
+
+volcano_immi_epi <- counts_imm_epi_de %>% 
+  pivot_transcript() %>% 
+  mutate(siginificant = FDR < 0.05, abs(logFC) > 2) %>% 
+  mutate(transcript = ifelse(transcript %in% top_de_genes, transcript, "")) %>% 
+  ggplot(aes(x = log(FC), y = -log(Pvalue), label = transcript)) +
+  geom_point(aes(colour = significant, alpha = significant, size = significant)) +
+  geom_text_repel() +
+  scale_color_manual(values=c("black", "#e11f28")) +
+  scale_size_discrete(range = c(0, 2)) +
+  xlim(c(-10,10)) +
+  theme_bw()
+```
+
+```{r}
+class(counts$cell_type)
+class(counts$level)
+counts %>% 
+  select(cell_type, level) %>% 
+  arrange(level) %>% 
+  mutate(cell_type = )
+```
+
+====================================================================================================================
+
+
+## After Stefano's update on 02-08-2020
+
+```{r}
+# load libraries
+
+# devtools::github_install("stemangiola/nanny@convert-to-S3")
+# devtools::github_install("stemangiola/tidybulk@dev")
+
+library(tidyverse)
+library(plotly)
+library(nanny)
+library(ggrepel)
+library(GGally)
+library(tidyHeatmap)
+library(furrr)
+plan(multiprocess, workers=5)
+
+# To be loaded after all libraries
+library(tidybulk)
+```
+
+```{r}
+# load data
+
+load("/stornext/Home/data/allstaff/w/wu.j/Master Project/cellsig/dev/counts.rda")
+```
+
+```{r}
+# reduce dimensions on all 5 levels at the same time
+tt =
+  counts %>%
+  tidybulk(sample, symbol, count) %>%
+
+  # Group by level because otherwise samples are duplicated
+  nest(data = -level) %>%
+
+  # Redefine factors inside each level
+  mutate(data = future_map(data, ~ droplevels(.x))) %>%
+
+  # Fill missing data. There are many genes that
+  # are not shared by the majority of samples
+  mutate(data = future_map(data, ~ fill_missing_abundance(.x, fill_with = 0))) %>%
+
+  # Scale and reduce dimensions
+  mutate(data = future_map(
+    data,
+    ~ .x %>%
+      scale_abundance() %>%
+      reduce_dimensions(method="MDS") %>%
+      reduce_dimensions(method="PCA") %>%
+      reduce_dimensions(method="tSNE")
+  ))
+```
+```{r}
+# save tt
+save(tt, file = "tt.RData")
+```
+
+
+
+```{r}
+ # Cluster
+tt %>% 
+  mutate(data = future_map(data,~ cluster_elements(.x, method="SNN")))
+
+```
+
+```{r}
+# PCA function
+plot_pca <- function(input, n) {
+  data %>% 
+    filter(level == n) %>% 
+    unnest(data) %>% 
+    pivot_sample() %>% 
+    ggplot(aes(x = PC1, y = PC2, colour = cell_type)) + 
+    geom_point() +
+    theme_bw()
+}
+
+for (i in seq(5)) {
+plot_pca(tt, i)
+}
+
+```
+
+
+```{r}
+# top 10 differentially expressed genes
+
+top10_de <- function(input, pair) {
+  
+  input %>% 
+    # Investigate one level
+  filter(level==1) %>%
+  unnest(data) %>%
+
+  # investigate one cell type pair
+  filter(cell_type %in% pair) %>%
+  mutate(cell_type = as.character(cell_type) ) %>%
+
+  #test
+  test_differential_abundance( ~ cell_type, sample, symbol, count_scaled) %>%
+
+  # Nest
+  nest_subset(data = -symbol) %>%
+
+  # Select markers
+  filter(FDR < 0.05 & abs(logFC) > 2) %>%
+  filter(logCPM > mean(logCPM)) %>%
+  arrange(logFC %>% desc()) %>%
+  slice(1:10) %>%
+  unnest()
+  
+}
+
+```
+
+```{r}
+# pairwise comparison of differentially expressed genes
+level1 <-  c("immune_cell", "epithelial", "endothelial","fibroblast")
+pairs <- combn(level1, 2)
+
+pair1 <- c("immune_cell", "epithelial")
+pair2 <- c("immune_cell", "endothelial")
+pair3 <- c("immune_cell", "fibroblast")
+pair4 <- c("epithelial", "endothelial")
+pair5 <- c("epithelial", "fibroblast")
+pair6 <- c("endothelial", "fibroblast")
+
+counts_imm_epi_de <- top10_de(tt, pair1)
+counts_imm_endo_de <- top10_de(tt, pair2)
+counts_imm_fib_de <- top10_de(tt, pair3)
+counts_epi_endo_de <- top10_de(tt, pair4)
+counts_epi_fib_de <- top10_de(tt, pair5)
+counts_endo_fib_de <- top10_de(tt, pair6)
+
+```
+
+```{r}
+save(counts_imm_epi_de, file = "counts_imm_epi_de.rda")
+save(counts_imm_endo_de, file = "counts_imm_endo_de.rda")
+save(counts_imm_fib_de, file = "counts_imm_fib_de.rda")
+save(counts_epi_endo_de, file = "counts_epi_endo_de.rda")
+save(counts_epi_fib_de, file = "counts_epi_fib_de.rda")
+save(counts_endo_fib_de, file = "counts_endo_fib_de.rda")
+
+```
+
+
+```{r}
+# Combining all the pairwise gene signatures
+total <- rbind(counts_imm_epi_de, counts_imm_endo_de, counts_imm_fib_de, 
+               counts_epi_endo_de, counts_epi_fib_de, counts_endo_fib_de)
+
+save(total, file = "total.rda")
+```
+
+
+```{r}
+# PCA
+total %>% 
+  unnest(data) %>%
+  pivot_sample(sample) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) + 
+  geom_point() +
+  theme_bw()
+  
+```
+```{r}
+# for comparison
+tt %>% 
+  filter(level == 1) %>% 
+  unnest(data) %>% 
+  pivot_sample() %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = cell_type)) + 
+  geom_point() +
+  theme_bw()
+```
+
