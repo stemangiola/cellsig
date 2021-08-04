@@ -367,7 +367,7 @@ ref_format = function(ref) {
 #' @importFrom tidyr nest
 #' @importFrom tidyr unnest
 #' @export
-infer_sequencing_depth_bias = function(counts, shards = 10){
+infer_sequencing_depth_bias = function(counts, shards = 10, hk600){
   
   model_input = 
     counts %>%
