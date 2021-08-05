@@ -1444,7 +1444,7 @@ new_data <- bind_rows(GSE135390, GSE138603, GSE138604, GSE122941, GSE113891, GSE
                       GSE118829, GSE123812, GSE153104, GSE133527, GSE131792, GSE115736, GSE70106) %>% 
   mutate(cell_type=as.factor(cell_type))
 
-save(new_data, file = "new_data.RData")
+save(new_data, file = "database_2.RData")
 
 # For the future, save your database as
 # 
