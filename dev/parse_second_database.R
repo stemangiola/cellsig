@@ -1446,6 +1446,8 @@ new_data <- bind_rows(GSE135390, GSE138603, GSE138604, GSE122941, GSE113891, GSE
 
 save(new_data, file = "database_2.RData")
 
+
+# saveRDS() << correct way
 # For the future, save your database as
 # 
 # 
