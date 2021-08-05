@@ -192,17 +192,17 @@ sil_func <- function(.markers, .level, .method){
   .markers %>%
     nest(rdim = - !!as.symbol(pre(.level))) %>%
     mutate(rdim = map(rdim, ~ .x %>%
-                       distinct(sample, symbol, count_scaled, !!as.symbol(.level)))) %>%
+                        distinct(sample, symbol, count_scaled, !!as.symbol(.level)))) %>%
     mutate(rdim = map(rdim, ~ .x %>%
-                       reduce_dimensions(sample, symbol, count_scaled,
-                                         method = .method,
-                                         action = "add",
-                                         transform = log1p,
-                                         # check_duplicates is for Rtsne method
-                                         check_duplicates = FALSE) %>% 
-                       
-                       # save symbols for calculating real_size while reducing replicated rows resulted from symbol
-                       nest(data_symbol = c(symbol, count_scaled))
+                        reduce_dimensions(sample, symbol, count_scaled,
+                                          method = .method,
+                                          action = "add",
+                                          transform = log1p,
+                                          # check_duplicates is for Rtsne method
+                                          check_duplicates = FALSE) %>% 
+                        
+                        # save symbols for calculating real_size while reducing replicated rows resulted from symbol
+                        nest(data_symbol = c(symbol, count_scaled))
     )) %>%
     
     # calculate the dissimilarity matrix with PC values
@@ -335,17 +335,17 @@ sil_func0 <- function(.markers, .method){
   .markers %>% 
     nest(rdim = - level_0) %>% 
     mutate(rdim = map(rdim, ~ .x %>% 
-                       distinct(sample, symbol, count_scaled, cell_type))) %>% 
+                        distinct(sample, symbol, count_scaled, cell_type))) %>% 
     mutate(rdim = map(rdim, ~ .x %>%
-                       reduce_dimensions(sample, symbol, count_scaled,
-                                         method = .method,
-                                         action = "add",
-                                         transform = log1p,
-                                         # check_duplicates is for Rtsne method
-                                         check_duplicates = FALSE) %>% 
-                       
-                       # save symbols for calculating real_size while reducing replicated rows resulted from symbol
-                       nest(data_symbol = c(symbol, count_scaled))
+                        reduce_dimensions(sample, symbol, count_scaled,
+                                          method = .method,
+                                          action = "add",
+                                          transform = log1p,
+                                          # check_duplicates is for Rtsne method
+                                          check_duplicates = FALSE) %>% 
+                        
+                        # save symbols for calculating real_size while reducing replicated rows resulted from symbol
+                        nest(data_symbol = c(symbol, count_scaled))
     )) %>%
     
     # calculate the dissimilarity matrix with PC values
@@ -420,7 +420,7 @@ H_PW <- contrast_all %>%
                      mutate(ancestor = select(., contains("level_")) %>% 
                               as_vector() ) %>% 
                      select(sig_size, real_size, sil, ancestor)
-                            )) %>% 
+  )) %>% 
   select(sil) %>% 
   unnest(sil) %>% 
   mutate(analysis = "PW+H")
@@ -586,7 +586,7 @@ naive_H <- naive_H %>%
   mutate(method = rep(
     c("mean_contrast.naive.hierarchy", 
       "pairwise.naive.hierarchy"), each=14)
-    ) %>% 
+  ) %>% 
   mutate(plot_data = map(plot_data, ~.x %>% select(real_size, silhouette=sil))) %>% 
   unnest(plot_data)
 
@@ -594,7 +594,7 @@ new_H <- new_H %>%
   mutate(method = rep(
     c("mean_contrast.silhouette.hierarchy", 
       "pairwise.silhouette.hierarchy"), each=14)
-    ) %>% 
+  ) %>% 
   unnest(signature_data) %>% 
   mutate(real_size = map_int(cumulative_signature, ~length(.x))) %>% 
   rename(silhouette = winning_silhouette) %>% 
@@ -615,7 +615,7 @@ full_data_hierarchy %>%
   theme(legend.position = "bottom",
         legend.title = element_text(size=10),
         legend.title.align = 0.5
-        )
+  )
 
 ggsave("x.png", x)
 
@@ -708,7 +708,7 @@ all_methods_filtered_signature <-
       unnest(tt) %>% 
       unnest(data) %>% 
       filter(symbol %in% .x)
-    ))
+  ))
 
 cell_types <- tt_non_hierarchy %>% 
   unnest(tt) %>% 
@@ -836,7 +836,7 @@ pca <- y %>%
   select(-sample) %>% 
   data.frame() %>% 
   prcomp(center=TRUE, scale=TRUE)
-  # number_of_pcs_needed(0.95)
+# number_of_pcs_needed(0.95)
 
 summary(pca)
 
@@ -1007,7 +1007,7 @@ CD8_signature <- pairwise.silhouette.hierarchy %>%
 nodal_filtered <- 
   tibble(cell = c("macrophage", "CD4", "CD8"),
          signature = list(macrophage_signature, CD4_signature, CD8_signature)
-         ) %>% 
+  ) %>% 
   mutate(tt_filtered = map(
     signature,
     ~ tt_non_hierarchy %>% 
@@ -1031,7 +1031,7 @@ macrophage_node <- nodal_filtered %>%
                         top = Inf,
                         scale = FALSE,
                         .dims = 6 # macrophage has only 6 signature genes
-                        )
+      )
   ))
 
 
@@ -1063,8 +1063,8 @@ CD4_node <- nodal_filtered %>%
                         scale = FALSE,
                         .dims = 10)
   ))
-  
- 
+
+
 ## PCA
 CD4_node %>% 
   pluck("tt_filtered", 1) %>% 
@@ -1266,7 +1266,7 @@ CD4_and_level_noise <- markers_level %>%
                         top = Inf,
                         scale = FALSE,
                         .dims = 2)
-      ))
+  ))
 
 # Level 1 noise
 CD4_and_level_noise %>% 
@@ -1343,7 +1343,7 @@ CD4_and_same_number_noise <- markers_level %>%
     sampled_noise,
     ~.x %>% 
       append(CD4_signature_mc)
-    )) %>% 
+  )) %>% 
   
   mutate(tt_filtered = map(
     sampled_noise_and_CD4,
@@ -1432,7 +1432,7 @@ xx <- all_methods_comparison %>%
                         scale = FALSE,
                         .dims = 2)
   ))
-  
+
 xx %>% 
   pluck("tt_filtered", 1) %>% 
   ggplot(aes(PC1, PC2, color = cell_type), label=sample) +
@@ -1460,7 +1460,7 @@ xx <- tibble(
   signature = list(append(CD4_signature_mc, ten), 
                    append(CD4_signature_mc, twenty),
                    append(CD4_signature_mc, thirty))
-       ) %>% 
+) %>% 
   mutate(tt_filtered = map(
     signature,
     ~ tt_non_hierarchy %>% 
@@ -1497,4 +1497,225 @@ xx %>%
 
 
 
+
+
+
+# comparisons for all methods using curvature optimisation
+
+# import unoptimised data from all methods
+naive <- list.files("topInf_scaleFALSE/unoptimised/", pattern = ".*naive\\..*\\..*")
+silhouette <- list.files("topInf_scaleFALSE/unoptimised/", pattern = ".*silhouette\\..*\\..*")
+
+naive_df <- map_dfr(naive, ~ readRDS(paste0("topInf_scaleFALSE/unoptimised/", .x))) %>%
+  mutate(method = rep(str_replace_all(naive, '\\.rds', ''), c(14, 1, 14, 1)))
+
+o <- rep(str_replace_all(silhouette, '\\.rds', ''), c(14, 1, 14))
+silhouette_df <- map_dfr(silhouette, ~ readRDS(paste0("topInf_scaleFALSE/unoptimised/", .x))) %>% 
+  mutate(method = o) %>% 
+  mutate(data = map(data, ~ .x %>% dplyr::rename(signature = cumulative_signature)))
+rm(o)
+
+full_df <- bind_rows(naive_df, silhouette_df) %>% 
+  nest(signature = -method)
+
+
+full_df <- full_df %>% 
+  mutate(signature = map(
+    signature,
+    ~.x %>% 
+      do_optimisation(.optimisation_method = "curvature")
+  ))
+
+silhouette_score <- function(.reduced_dimensions, .distance, .level){
+  
+  .reduced_dimensions %>% 
+    
+    pull(!!as.symbol(.level)) %>% 
+    
+    as.factor() %>% 
+    
+    as.numeric() %>% 
+    
+    silhouette(.distance) %>% 
+    
+    summary()
+  
+}
+
+silhouette_function <- function(.selected, .reduction_method){
+  
+  .selected %>% 
+    
+    # reduce dimensions
+    mutate(reduced_dimensions = map2(
+      markers, level, 
+      ~ dimension_reduction(.x, .y, .reduction_method)
+    )) %>% 
+    
+    # calculate distance matrix using PC1 & PC2
+    mutate(distance = map(
+      reduced_dimensions,
+      ~ distance_matrix(.x, .reduction_method)
+    )) %>% 
+    
+    # calculate silhouette score
+    mutate(silhouette = pmap(
+      list(reduced_dimensions, distance, level),
+      ~ silhouette_score(..1, ..2, ..3)
+    )) %>% 
+    
+    # remove unnecessary columns
+    select(-c(markers, distance))
+  
+}
+
+all_methods_silhouette <- full_df %>% 
+  mutate(signature = map(signature, ~.x %>% pull(signature) %>% unlist() %>% unique())) %>% 
+  mutate(silhouette = map(
+    signature, 
+    ~ tt_non_hierarchy %>% 
+      unnest(tt) %>% 
+      unnest(data) %>% 
+      filter(symbol %in% .x) %>% 
+      nest(markers = -c(level, ancestor)) %>% 
+      # calculate silhouette score for all signatures combined in each method
+      silhouette_function(METHOD) %>% 
+      select(reduced_dimensions, silhouette)
+  )) %>% 
+  unnest(silhouette)
+
+cibersortx <- readRDS("topInf_scaleFALSE/cibersortx.new.rds")
+cibersort_signature <- cibersortx$signature[[1]]
+
+cibersortx <- tibble(method = "cibersortx") %>% 
+  mutate(signature = list(cibersort_signature)) %>% 
+  mutate(silhouette = map(
+    signature, 
+    ~ tt_non_hierarchy %>% 
+      unnest(tt) %>% 
+      unnest(data) %>% 
+      filter(symbol %in% .x) %>% 
+      nest(markers = -c(level, ancestor)) %>% 
+      # calculate silhouette score
+      silhouette_function(METHOD) %>% 
+      select(reduced_dimensions, silhouette)
+  )) %>% 
+  unnest(silhouette)
+
+# silhouette
+all_methods_comparison <- all_methods_silhouette %>% 
+  bind_rows(cibersortx) %>% 
+  mutate(cluster.silhouette = map(silhouette, ~ .x$clus.avg.widths)) %>% 
+  mutate(avg.silhouette = map_dbl(silhouette, ~ .x$avg.width)) %>% 
+  select(-c(reduced_dimensions, silhouette)) %>% 
+  arrange(desc(avg.silhouette)) %>% 
+  mutate(method = str_remove_all(method, "\\.new") %>% 
+           str_remove_all("\\.unOP"))
+
+all_methods_comparison %>%
+  unnest(cluster.silhouette) %>% 
+  ggplot(aes(x=reorder(method, avg.silhouette), y=cluster.silhouette, colour=method)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(position=position_jitter(0.2), alpha=0.5) +
+  theme(axis.text.x = element_blank())
+
+
+mix100 <- readRDS("intermediate_data/mix100.rds")
+
+deconvolution_all_methods <- mix100 %>% 
+  tidyr::expand(
+    nesting(method=all_methods_comparison$method, 
+            signature=all_methods_comparison$signature),
+    nesting(mixture_ID, mix)
+  ) %>% 
+  
+  # reference
+  mutate(reference = map(
+    signature,
+    
+    # filter out data for signature genes
+    ~ tt_non_hierarchy %>% 
+      unnest(tt) %>% 
+      unnest(data) %>% 
+      filter(symbol %in% .x) %>% 
+      
+      # reshape the input matrix for deconvolve_cellularity():
+      select(symbol, cell_type, sample, count_scaled) %>% 
+      group_by(symbol, cell_type) %>% 
+      summarise(count_scaled_median = median(count_scaled)) %>% 
+      ungroup() %>% 
+      pivot_wider(id_cols = symbol, names_from = cell_type, values_from = count_scaled_median) %>% 
+      tidybulk::as_matrix(rownames = symbol) # must be a matrix
+  )) %>% 
+  
+  # deconvolution
+  mutate(deconvolution = map2(
+    mix, reference,
+    ~ tidybulk::deconvolve_cellularity(
+      .x,
+      replicate, symbol, count_mix,
+      reference = .y,
+      method = "llsr", 
+      prefix = "llsr_", 
+      action = "get") %>% 
+      
+      pivot_longer(cols=starts_with("llsr_"), 
+                   names_prefix ="llsr_", 
+                   names_to="cell_type", 
+                   values_to="estimated_proportion") %>%
+      
+      left_join(.x %>% 
+                  unnest(data_samples) %>% 
+                  distinct(replicate, cell_type, proportion))
+  ))
+
+
+deconvolution_all_methods %>% 
+  select(method, mixture_ID, deconvolution) %>% 
+  mutate(method = str_remove_all(method, "\\.new") %>% str_remove_all("\\.unOP") ) %>% 
+  
+  # macro.mse for ordering
+  mutate(MSE = map_dbl(
+    deconvolution,
+    ~ mean((.x$estimated_proportion - .x$proportion)^2)
+  )) %>% 
+  # nest(data=-method) %>%
+  # mutate(macro.mse = map_dbl(data, ~ mean(.x$MSE))) %>%
+  # unnest(data) %>%
+  
+  # mse by cell type
+  unnest(deconvolution) %>% 
+  mutate(squared.error = (estimated_proportion - proportion)^2) %>% 
+  nest(data = -c(method, cell_type)) %>% 
+  mutate(mse.cell = map_dbl(data, ~ mean(.x$squared.error))) %>%
+  mutate(macro.mse = map_dbl(data, ~ mean(.x$MSE))) %>%
+  group_by(method) %>% 
+  summarise(method, cell_type, data, mse.cell, macro.mse) %>%
+  # summarise(method, cell_type, data, mse.cell, median = median(mse.cell)) %>%
+  ungroup() %>% 
+  
+  ggplot(aes(x=reorder(method, -macro.mse), y=log(mse.cell))) +
+  # ggplot(aes(x=reorder(method, -median), y=log(mse.cell))) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(color = cell_type), 
+              position=position_jitter(0.2)) +
+  # theme(axis.text.x = element_blank())
+  theme(axis.text.x = element_text(angle=45, vjust=1, hjust = 1))
+
+# boxplot of macro.mse by method
+deconvolution_all_methods %>% 
+  select(method, mixture_ID, deconvolution) %>% 
+  mutate(method = str_remove_all(method, "\\.new") %>% str_remove_all("\\.unOP") ) %>% 
+  mutate(MSE = map_dbl(
+    deconvolution,
+    ~ mean((.x$estimated_proportion - .x$proportion)^2)
+  )) %>% 
+  group_by(method) %>% 
+  summarise(MSE, macro.mse=mean(MSE)) %>% 
+  ungroup() %>% 
+  ggplot(aes(x= reorder(method, -macro.mse), y=log(MSE), colour = method)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(position=position_jitter(0.2), alpha=0.5) +
+  # theme(axis.text.x = element_text(angle=45, vjust=1, hjust = 1)) +
+  theme(axis.text.x = element_blank())
 

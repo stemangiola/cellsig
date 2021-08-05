@@ -2,8 +2,15 @@ library(tidyverse)
 library(cellsig)
 library(tidybulk)
 
+# Database #1
 counts_first_db_raw = readRDS("dev/counts_first_db_raw.rds")
+
+# Database #2
 load("dev/counts_second_db_raw.rda")
+counts_second_db_raw = new_data %>% select(sample, symbol, count, dataset, cell_type)
+
+# Database #3
+counts_third_db_raw <- readRDS("dev/raw_data/counts_third_db_raw.rds")
 counts_second_db_raw = new_data %>% select(sample, symbol, count, dataset, cell_type)
 
 signatures = 
@@ -15,17 +22,20 @@ signatures =
 
 data("tree")
 
-counts = 
+counts =  
+  
   tree_and_signatures_to_database(tree, signatures, sample, cell_type, symbol, count) %>%
-
-  # Infer exposure rate  
+  # Infer exposure rate  and scale
   infer_sequencing_depth_bias(hk600 = readr::read_csv("dev/hk_600.txt", col_names = FALSE) %>% pull(X1))
+  
 
 save(counts, file="dev/counts.rda", compress = "xz")
 
 counts_imputed =
   counts %>%
+  
   mutate(count_scaled = count / exp(exposure_rate)) %>%
+  
   impute_abundance_using_levels(count_scaled)
 
 save(counts_imputed, file="dev/counts_imputed.rda", compress = "xz")
