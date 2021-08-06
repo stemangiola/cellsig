@@ -26,35 +26,6 @@ GSE135390_Th1_17 <- GSE135390_raw_counts_csv %>%
 
 GSE135390_new <- bind_rows(GSE135390_Th22, GSE135390_Th1_17) %>% mutate(count=as.numeric(count))
 
-# # 4 Dataset GSE138603_readcounts.txt 
-# New level and cell_type added
-GSE138603_rtreg_4 <- GSE138603_readcounts_txt %>% 
-  select(ensembl=ensembl_gene_id, symbol=external_gene_id, count=`4848_15_81_tTreg_rest_24h_metab_sort_19_CAGATCA/genecounts.txt`) %>% 
-  mutate(sample="4848_15_81", dataset="GSE138603", cell_type="t_reg", level=5,
-         note="sorted from male blood CD4+ Tregs expanded for 1 to 2 weeks then unstimulated for 24hrs with IL2 only")
-
-GSE138603_atreg_5 <- GSE138603_readcounts_txt %>% 
-  select(ensembl=ensembl_gene_id, symbol=external_gene_id, count=`4848_4_28_tTreg_stim_24h_GPA33_D1_GGCTACA/genecounts.txt`) %>% 
-  mutate(sample="4848_4_28", dataset="GSE138603", cell_type="t_reg", level=5,
-         note="sorted from male blood CD4+ Tregs expanded for 1 to 2 weeks then stimulated for 24hrs with anti-CD3_anti-CD28_IL2")
-
-GSE138603_atreg_6 <- GSE138603_readcounts_txt %>% 
-  select(ensembl=ensembl_gene_id, symbol=external_gene_id, count=`4848_8_58_tTreg_stim_24h_GPA33_D6_GAGTGGA/genecounts.txt`) %>% 
-  mutate(sample="4848_8_58", dataset="GSE138603", cell_type="t_reg", level=5,
-         note="sorted from male blood CD4+ Tregs expanded for 1 to 2 weeks then stimulated for 24hrs with anti-CD3_anti-CD28_IL2")
-
-GSE138603_atreg_7 <- GSE138603_readcounts_txt %>% 
-  select(ensembl=ensembl_gene_id, symbol=external_gene_id, count=`4848_12_70_tTreg_stim_24h_metab_sort_18_TGACCAA/genecounts.txt`) %>% 
-  mutate(sample="4848_12_70", dataset="GSE138603", cell_type="t_reg", level=5,
-         note="sorted from male blood CD4+ Tregs expanded for 1 to 2 weeks then stimulated for 24hrs with anti-CD3_anti-CD28_IL2")
-
-GSE138603_atreg_8 <- GSE138603_readcounts_txt %>% 
-  select(ensembl=ensembl_gene_id, symbol=external_gene_id, count=`4848_16_82_tTreg_stim_24h_metab_sort_19_CTTGTAA/genecounts.txt`) %>% 
-  mutate(sample="4848_16_82", dataset="GSE138603", cell_type="t_reg", level=5,
-         note="sorted from male blood CD4+ Tregs expanded for 1 to 2 weeks then stimulated for 24hrs with anti-CD3_anti-CD28_IL2")
-
-GSE138603_new <- bind_rows(GSE138603_rtreg_4, GSE138603_atreg_5, GSE138603_atreg_6,
-                           GSE138603_atreg_7, GSE138603_atreg_8)
 
 # 11 Dataset GSE115103_raw_counts
 ######### NEW 
@@ -443,7 +414,7 @@ GSE157844_DC_mature2 <- GSM4776601_I20_1161_02_htseq_txt %>%
 GSE157844 <- bind_rows(GSE157844_DC_immature1, GSE157844_DC_immature2,
                        GSE157844_DC_mature1, GSE157844_DC_mature2)
 
-# 30 GSE174659 CD141+ DC batched effect removed counts
+# 30 GSE174659 CD141+ DC 
 
 # CD141+ cDC1
 GSE174659_cDC1 <- GSE174659_Raw_counts_csv %>% 
@@ -470,46 +441,9 @@ GSE174659 <- bind_rows(GSE174659_cDC1, GSE174659_cDC2)
 # 31 
 
 counts_third_db_raw <- bind_rows(GSE164643, GSE60424, GSE157844, GSE174659, GSE107011, 
-                       GSE135390_new, GSE138603_new, GSE115103_new, GSE123812_new)
+                       GSE135390_new, GSE115103_new, GSE123812_new)
 
 
 saveRDS(counts_third_db_raw, file = "counts_third_db_raw.rds", compress = "xz")
 
 
-# parse database 3 ============
-counts_first_db_raw = readRDS("dev/counts_first_db_raw.rds")
-load("dev/counts_second_db_raw.rda")
-counts_second_db_raw = new_data %>% select(sample, symbol, count, dataset, cell_type)
-
-signatures <- new_data3 %>% 
-  select(sample, cell_type, symbol, count)
-
-signatures = 
-  counts_first_db_raw %>%
-  select(-cell_type_original) %>%
-  bind_rows(counts_second_db_raw %>% rename(database = dataset)) %>% 
-  select(sample, cell_type, symbol, count)
-
-data("tree")
-
-counts = 
-  tree_and_signatures_to_database(tree, signatures, sample, cell_type, symbol, count) %>%
-  
-  # Infer exposure rate  
-  infer_sequencing_depth_bias()
-
-counts3 <- 
-  tree_and_signatures_to_database(tree, signatures, sample, cell_type, symbol, count)
-
-counts3 %>%   
-  # Infer exposure rate  
-  infer_sequencing_depth_bias(hk600 = readr::read_csv("dev/hk_600.txt", col_names = FALSE) %>% pull(X1))
-
-save(counts, file="dev/counts.rda", compress = "xz")
-
-counts_imputed =
-  counts %>%
-  mutate(count_scaled = count / exp(exposure_rate)) %>%
-  impute_abundance_using_levels(count_scaled)
-
-save(counts_imputed, file="dev/counts_imputed.rda", compress = "xz")
