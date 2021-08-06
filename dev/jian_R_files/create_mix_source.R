@@ -63,7 +63,7 @@ deconvolution_all_methods <- tibble(mixture_ID = 1:100) %>%
     nesting(method=all_methods_comparison$method, 
             signature=all_methods_comparison$signature),
     nesting(mixture_ID, mix)
-    )
+  )
 
 deconvolution_all_methods <- deconvolution_all_methods %>% 
   
@@ -85,7 +85,7 @@ deconvolution_all_methods <- deconvolution_all_methods %>%
       pivot_wider(id_cols = symbol, names_from = cell_type, values_from = count_scaled_median) %>% 
       tidybulk::as_matrix(rownames = symbol) # must be a matrix
   )) %>% 
-
+  
   # deconvolution
   mutate(deconvolution = map2(
     mix, reference,
@@ -129,7 +129,7 @@ deconvolution_all_methods %>%
   nest(data=-method) %>% 
   mutate(macro.mse = map_dbl(data, ~ mean(.x$MSE))) %>% 
   unnest(data) %>% 
-
+  
   unnest(deconvolution) %>% 
   mutate(squared.error = (estimated_proportion - proportion)^2) %>% 
   nest(data = -c(method, cell_type)) %>% 
@@ -142,7 +142,7 @@ deconvolution_all_methods %>%
               position=position_jitter(0.2)) +
   # theme(axis.text.x = element_blank())
   theme(axis.text.x = element_text(angle=45, vjust=1, hjust = 1))
-  
+
 deconvolution_all_methods %>% 
   select(method, mixture_ID, deconvolution) %>% 
   mutate(method = map_chr(method, ~ .x %>% str_replace_all("\\.new", "") )) %>% 
@@ -177,7 +177,7 @@ deconvolution_all_methods <- all_methods_comparison %>%
       ungroup() %>% 
       pivot_wider(id_cols = symbol, names_from = cell_type, values_from = count_scaled_median) %>% 
       tidybulk::as_matrix(rownames = symbol) # must be a matrix
-      
+    
   )) %>% 
   
   # deconvolution
@@ -199,7 +199,7 @@ deconvolution_all_methods <- all_methods_comparison %>%
       left_join(mix %>% 
                   unnest(data_samples) %>% 
                   distinct(replicate, cell_type, proportion)
-                )
+      )
     
   )) %>% 
   
@@ -208,9 +208,9 @@ deconvolution_all_methods <- all_methods_comparison %>%
     deconvolution,
     ~ mean((.x$estimated_proportion - .x$proportion)^2)
   ))
-  
 
-  
+
+
 # MSE plot ================================================
 mse %>% 
   ggplot(aes(x = reorder(method, -MSE.macro), y = MSE.macro, fill = method)) +
@@ -239,7 +239,7 @@ tidybulk::deconvolve_cellularity(
   method = "llsr", 
   prefix = "llrs_", 
   action = "get"
-  ) %>%
+) %>%
   pivot_longer(cols=starts_with("llrs_"), names_prefix ="llrs_", names_to="cell_type", values_to="estimated_proportion") %>%
   left_join(
     mix %>% 

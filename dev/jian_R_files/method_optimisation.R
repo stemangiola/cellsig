@@ -92,7 +92,7 @@ optimal_size <- function(.plot_data) {
 
 # Hierarchical and non-hierarchical in the same plot
 # Read in and process data ======================================================
-  
+
 naive_methods <- list.files("naive methods silhouette score data/")
 new_methods <- list.files("intermediate_data/", pattern = "^[pm].*(NH|L\\d)\\.rds$")
 
@@ -179,7 +179,7 @@ penalty %>%
     aes(x = optimal_size, 
         y = optimal_silhouette,
         label = sprintf("%i , %.3f", optimal_size, optimal_silhouette)
-        ),
+    ),
     position = position_nudge(y = -0.1)
   ) +
   geom_line() +
@@ -217,7 +217,7 @@ full_df %>%
         plot.title = element_text(hjust = 0.5)
   ) +
   ggtitle("penalty optimisation, penalty rate = 0.2")
-  
+
 # 2 Optimisation by Ratio ==========================
 
 ## 2.1 choose scaling interval===============
@@ -321,7 +321,7 @@ tt_non_hierarchy <- scale_input_counts(counts, .is_hierarchy = FALSE)
 
 new <- map_dfr(
   new_methods, ~ readRDS(paste("intermediate_data", .x, sep = "/"))
-  ) %>% 
+) %>% 
   mutate(method = rep(
     c("mean_contrast.silhouette.hierarchy",
       "mean_contrast.silhouette.non_hierarchy",
@@ -370,7 +370,7 @@ signature_all_methods <-
       filter(signature_size == .y) %>% 
       pull(cumulative_signature) %>% 
       unlist()
-    )) %>% 
+  )) %>% 
   
   # nest by method because we want to combine all the signatures collected from each hierarchy to compare with that from the Nonh-hierarchical approach
   nest(data = -method) %>% 
@@ -382,8 +382,8 @@ signature_all_methods <-
       pull(signature_data) %>%
       unlist() %>%
       unique()
-    )) %>% 
-
+  )) %>% 
+  
   # calculate silhouette score for signatures collected
   mutate(silhouette = map(
     signature,
@@ -396,7 +396,7 @@ signature_all_methods <-
   )) %>% 
   
   unnest(silhouette) %>% 
-
+  
   # remove unnecessary column
   select(-data)
 
@@ -414,7 +414,7 @@ signature_all_methods %>%
   theme(axis.text.x=element_blank(),
         axis.ticks.x=element_blank(),
         plot.title = element_text(hjust = 0.5)
-        ) +
+  ) +
   ggtitle("All methods comparison using silhouette score")
 
 # PCA plot 
@@ -424,7 +424,7 @@ signature_all_methods %>%
   geom_point() +
   theme(
     plot.title = element_text(hjust = 0.5)
-    ) +
+  ) +
   ggtitle("mean_contrast.silhouette.non_hierarchy")
 
 saveRDS(tt_non_hierarchy, "tt_non_hierarchy.rds", compress = "xz")
@@ -479,7 +479,7 @@ mean_contrast.silhouette.hierarchy.unOP %>%
              aes(x = real_size, y = silhouette),
              color = "red") +
   ggtitle("mean contrast silhouette hierarchy; ancestor: root, size  = 30")
-  
+
 mean_contrast.silhouette.hierarchy.unOP %>% 
   pluck("data", 1) %>% 
   filter(real_size == 30) %>% 
@@ -494,7 +494,7 @@ mean_contrast.silhouette.hierarchy.unOP %>%
                         top = Inf,
                         scale = FALSE,
                         .dims = 2)
-    )) %>% 
+  )) %>% 
   pluck("pca", 1) %>% 
   ggplot(aes(PC1, PC2, colour = level_1), label = sample) +
   geom_point() +
@@ -1067,7 +1067,7 @@ nodal_signature_all %>%
     plot.title = element_text(hjust = 0.5)
   ) +
   ggtitle("root, 0.2")
-  
+
 nodal_signature_all %>% 
   pluck("reduced_dimensions", 2) %>% 
   ggplot(aes(PC1, PC2, colour = cell_type), label = sample) +
@@ -1440,7 +1440,7 @@ curvature_of_kernel_smoothed_trend <- function(.plot_data,
     )) %>% 
     
     mutate(optimal_size = ifelse(optimal_size<10, 10, optimal_size))
-    
+  
 }
 
 x <- mean_contrast.silhouette.hierarchy.unOP %>% 
@@ -1454,8 +1454,8 @@ x <- mean_contrast.silhouette.hierarchy.unOP %>%
   mutate(smoothed.estimate = map(
     data,
     ~ locpoly(.x$size.rescaled, .x$silhouette, 
-                drv = 0L, degree=2, kernel = "normal", 
-                bandwidth = 0.05, gridsize = 100) %>% 
+              drv = 0L, degree=2, kernel = "normal", 
+              bandwidth = 0.05, gridsize = 100) %>% 
       as_tibble() %>% 
       `colnames<-`(c("grid", "estimate"))
   )) %>% 
@@ -1528,15 +1528,15 @@ p2 <- x %>%
   geom_point(aes(grid, estimate), 
              data=pluck(x, "smoothed", 2) %>% filter(curvature==max(curvature[peaks(curvature)])),
              colour = "tomato"
-             ) +
+  ) +
   geom_point(aes(grid, estimate), 
              data=pluck(x, "smoothed", 2) %>% 
                with(.[which.min(abs(deriv1-1)), ]),
              colour = "dodgerblue"
-             ) +
+  ) +
   # annotate(geom="text", x=0.18, y=0.65, label="72", color="tomato") +
   ggtitle("immune node, manual.size=54")
-  
+
 p3 <- x %>% 
   pluck("data", 3) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
@@ -1790,18 +1790,18 @@ p1+p2+p3+p4+p5+p6+p7+p8+p9+p10+p11+p12+p13+p14+
   plot_layout(ncol=4, nrow=4)+
   plot_annotation(
     title = "mean_contrast.silhouette.hierarchy, bandwidth=0.05"
-    )
+  )
 
 x %>% 
   # manual.op.size
   mutate(manual.op.size = optimal_size.man) %>%
-
+  
   # deriv1.op.size
   mutate(deriv1.op.size = map_dbl(
     smoothed,
     ~ with(.x, grid[which.min(abs(deriv1-1))])
   )) %>%
-
+  
   mutate(
     deriv1.op.size = map2_dbl(
       data, deriv1.op.size,
@@ -1913,7 +1913,7 @@ all_methods_comparison <- all_methods_silhouette %>%
   select(-c(reduced_dimensions, silhouette)) %>% 
   arrange(desc(avg.silhouette)) %>% 
   mutate(method = str_remove_all(method, "\\.new"))
-  
+
 
 all_methods_comparison %>%
   unnest(cluster.silhouette) %>% 
@@ -2043,5 +2043,5 @@ deconvolution_all_methods %>%
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(position=position_jitter(0.2), alpha=0.5) +
   theme(axis.text.x = element_text(angle=45, vjust=1, hjust = 1))
-  theme(axis.text.x = element_blank())
+theme(axis.text.x = element_blank())
 

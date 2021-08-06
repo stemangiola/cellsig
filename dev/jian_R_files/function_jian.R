@@ -11,7 +11,10 @@ library(cluster)
 # library(proxy)
 library(factoextra)
 library(stringr)
-plan(multiprocess, workers=5)
+library(scales)
+library(KernSmooth)
+library(splus2R)
+library(data.tree)
 
 
 # OLD Functions for data of old format===============================================================================
@@ -407,9 +410,9 @@ contrast_PW <- function(.tt, .level){
       data,
       ~ .x %>% 
         test_differential_abundance(
-                                    ~ 0 + !!as.symbol(.level), 
-                                    .contrasts = pairwise_contrast(.x, .level),
-                                    action="only") 
+          ~ 0 + !!as.symbol(.level), 
+          .contrasts = pairwise_contrast(.x, .level),
+          action="only") 
     ))
 }
 
@@ -542,7 +545,7 @@ sil_func <- function(.markers, .level, .method){
   .markers %>%
     nest(reduced_dimensions = - !!as.symbol(pre(.level))) %>%
     mutate(reduced_dimensions = map(reduced_dimensions, ~ .x %>%
-                        distinct(sample, symbol, count_scaled, !!as.symbol(.level)))) %>%
+                                      distinct(sample, symbol, count_scaled, !!as.symbol(.level)))) %>%
     
     mutate(signature = map(reduced_dimensions, ~ .x %>% 
                              pull(symbol) %>% 
@@ -551,14 +554,14 @@ sil_func <- function(.markers, .level, .method){
     mutate(real_size = map_int(signature, ~ length(.x))) %>% 
     
     mutate(reduced_dimensions = map(reduced_dimensions, ~ .x %>%
-                        reduce_dimensions(sample, symbol, count_scaled,
-                                          method = .method,
-                                          transform = log1p,
-                                          # check_duplicates is for Rtsne method
-                                          check_duplicates = FALSE) %>% 
-                        
-                        # remove duplicates caused by symbol & counts to calculate the distance matrix
-                        distinct(sample, !!as.symbol(.level), PC1, PC2)
+                                      reduce_dimensions(sample, symbol, count_scaled,
+                                                        method = .method,
+                                                        transform = log1p,
+                                                        # check_duplicates is for Rtsne method
+                                                        check_duplicates = FALSE) %>% 
+                                      
+                                      # remove duplicates caused by symbol & counts to calculate the distance matrix
+                                      distinct(sample, !!as.symbol(.level), PC1, PC2)
     )) %>%
     
     # calculate the dissimilarity matrix with PC values
@@ -569,11 +572,11 @@ sil_func <- function(.markers, .level, .method){
     
     # calculate silhouette score
     mutate(silhouette = map2(reduced_dimensions, distance,
-                      ~ silhouette(as.numeric(as.factor(`$`(.x, !!as.symbol(.level)))), .y)
+                             ~ silhouette(as.numeric(as.factor(`$`(.x, !!as.symbol(.level)))), .y)
     )) %>%
     mutate(silhouette = map(silhouette, ~ .x %>% summary())) %>%
     mutate(silhouette = map(silhouette, ~ .x %>% 
-                       `$`(avg.width) ))%>% 
+                              `$`(avg.width) ))%>% 
     mutate(silhouette = unlist(silhouette))
   
 }
@@ -829,11 +832,11 @@ sil_func0 <- function(.markers, .method){
                         summarise(count_scaled = mean(count_scaled), 
                                   cell_type=unique(cell_type)) %>% 
                         ungroup()
-                      )) %>% 
+    )) %>% 
     mutate(signature = map(rdim, ~ .x %>% 
-                                 pull(symbol) %>% 
-                                 unique()
-                               )) %>% 
+                             pull(symbol) %>% 
+                             unique()
+    )) %>% 
     mutate(real_size = map_int(signature, ~ length(.x))) %>% 
     mutate(rdim = map(rdim, ~ .x %>%
                         reduce_dimensions(sample, symbol, count_scaled,
@@ -1417,7 +1420,7 @@ silhouette_for_markers0 <-function(.signature, .contrast, .method) {
     
     # filter markers that are in the signature
     mutate(markers = map(markers, ~.x %>% 
-                            filter(symbol %in% .signature))) %>% 
+                           filter(symbol %in% .signature))) %>% 
     
     # format statistics from pairwise contrast
     mutate(markers  = map(markers, 
@@ -2162,9 +2165,14 @@ silhouette_for_markers <-function(.ranked, .signature, .ancestor, .reduction_met
 
 # Optimisation
 
-do_optimisation <- function(.selected, .optimisation_method, .penalty_rate=0.2){
+do_optimisation <- function(.selected, 
+                            .optimisation_method, 
+                            .penalty_rate=0.2,
+                            .kernel = "normal", 
+                            .bandwidth = 0.05, 
+                            .gridsize = 100){
   
-  if(str_detect(.optimisation_method, "penal")) {
+  if(.optimisation_method == "penalty") {
     
     .selected %>% 
       
@@ -2172,9 +2180,106 @@ do_optimisation <- function(.selected, .optimisation_method, .penalty_rate=0.2){
       
       unnest(data) %>% 
       
-      filter(real_size == optimal_size)
+      filter(real_size == optimal_size) %>% 
+      
+      rename(signature = cumulative_signature)
     
+  } else if (.optimisation_method == "curvature") {
+    
+    .selected %>% 
+      
+      curvature_of_kernel_smoothed_trend(.kernel, .bandwidth, .gridsize) %>% 
+      
+      unnest(data) %>% 
+      
+      filter(real_size == optimal_size) %>% 
+      
+      select(-c(size.rescaled, smoothed)) %>% 
+      
+      rename(signature = cumulative_signature)
   }
+  
+}
+
+curvature <- function(.drv1, .drv2){
+  abs(.drv2) / (1 + .drv1^2)^(3/2)
+}
+
+curvature_of_kernel_smoothed_trend <- function(.plot_data, 
+                                               .kernel = "normal", 
+                                               .bandwidth = 0.05, 
+                                               .gridsize = 100){
+  .plot_data %>% 
+    
+    mutate(data = map(
+      data,
+      ~ .x %>% 
+        mutate(size.rescaled = rescale(real_size))
+    )) %>% 
+    
+    mutate(smoothed.estimate = map(
+      data,
+      ~ locpoly(.x$size.rescaled, .x$silhouette, 
+                drv = 0L, degree=2, kernel = .kernel, 
+                bandwidth = .bandwidth, gridsize = .gridsize) %>% 
+        as_tibble() %>% 
+        `colnames<-`(c("grid", "estimate"))
+    )) %>% 
+    
+    mutate(first.derivative = map(
+      data,
+      ~ locpoly(.x$size.rescaled, .x$silhouette, 
+                drv = 1L, degree=2, kernel = .kernel, 
+                bandwidth = .bandwidth, gridsize = .gridsize) %>% 
+        as_tibble() %>% 
+        `colnames<-`(c("grid", "deriv1"))
+    )) %>% 
+    
+    mutate(second.derivative = map(
+      data,
+      ~ locpoly(.x$size.rescaled, .x$silhouette, 
+                drv = 2L, degree=2, kernel = .kernel, 
+                bandwidth = .bandwidth, gridsize = .gridsize) %>% 
+        as_tibble() %>% 
+        `colnames<-`(c("grid", "deriv2"))
+    )) %>% 
+    
+    mutate(smoothed = pmap(
+      list(smoothed.estimate, first.derivative, second.derivative),
+      ~..1 %>% 
+        left_join(..2, by = "grid") %>% 
+        left_join(..3, by = "grid")
+    )) %>% 
+    
+    mutate(smoothed = map(
+      smoothed,
+      ~ .x %>% 
+        mutate(curvature = map2_dbl(
+          deriv1, deriv2,
+          ~ curvature(.x, .y)
+        ))
+    )) %>% 
+    
+    select(-c(smoothed.estimate, first.derivative, second.derivative)) %>% 
+    
+    # optimal_size
+    mutate(optimal_size = map_dbl(
+      smoothed,
+      ~ with(.x, grid[which(peaks(curvature))[which.max(curvature[peaks(curvature)])]]) 
+    )) %>% 
+    
+    mutate(optimal_size = map2_dbl(
+      data, optimal_size,
+      ~ with(.x, size.rescaled[which.min(abs(size.rescaled - .y))])
+    )) %>% 
+    
+    mutate(optimal_size = map2_int(
+      data, optimal_size,
+      ~ .x %>% 
+        with(real_size[size.rescaled == .y])
+    )) %>% 
+    
+    mutate(optimal_size = ifelse(optimal_size<10, 10, optimal_size))
   
 }
 
@@ -2194,7 +2299,6 @@ penalised_silhouette <- function(.plot_data, .penalty_rate=0.2) {
     
     pull(real_size)
 }
-
 # Format output
 
 format_output <- function(.optimised, .is_complete=FALSE){
