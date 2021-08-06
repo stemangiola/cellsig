@@ -704,7 +704,7 @@ dat <- structure(list(x = c(1.158362492, 1.1430148, 1.11058971, 1.120573931,
                             1.149219113, 1.123851641, 1.096910013), 
                       y = c(1.322219295, 1.267171728, 1.252853031, 1.260071388, 
                             1.278753601, 1.276461804, 1.222716471
-                            )), .Names = c("x", "y"), class = "data.frame", row.names = c(NA, -7L))
+                      )), .Names = c("x", "y"), class = "data.frame", row.names = c(NA, -7L))
 dat %>% 
   cov() %>% 
   eigen() %>% 
@@ -1004,7 +1004,7 @@ df %>%
           text = paste("cell_type: ", df$level_2,
                        "<br>",
                        "sample: ", df$sample)
-          )
+  )
 
 # Shiny ================================
 cell_sig_select <- function(.markers) {
@@ -1013,8 +1013,8 @@ cell_sig_select <- function(.markers) {
     mutate(cell_type = str_extract(contrast_pretty, "([a-z]|\\_)+(?=\\s)")) %>% 
     nest(signature = - cell_type) %>% 
     mutate(signature = map(signature, ~ .x %>% 
-                            pull(symbol) %>% 
-                            unique()
+                             pull(symbol) %>% 
+                             unique()
     ))
 }
 
@@ -1033,7 +1033,7 @@ x <- contrast_all %>%
                                       select(., contains("level_")) %>% 
                                       as_vector()) %>% 
                              select(-contains("level_"))
-                           )) %>% 
+  )) %>% 
   mutate(contrast_MC = map(contrast_MC, ~ .x %>% 
                              mutate(node = 
                                       select(., contains("level_")) %>% 
@@ -1047,7 +1047,7 @@ x <- contrast_all %>%
   mutate(opPCA_sig_MC = opPCA_sig_MC) %>% 
   mutate(markers_PW = pmap(list(contrast_PW, level, opPCA_sig_PW), ~ sig_select(..1, ..2, ..3))) %>% 
   mutate(markers_MC = pmap(list(contrast_MC, level, opPCA_sig_MC), ~ sig_select(..1, ..2, ..3)))
-  
+
 
 x <- contrast_all %>% 
   unnest(tt) %>% 
@@ -1058,10 +1058,10 @@ x <- contrast_all %>%
   select(-contains("level_")) %>% 
   
   mutate(contrast_PW = map2(contrast_PW, ancestor_type, ~ .x %>% 
-                             mutate(node = 
-                                      select(., contains("level_")) %>% 
-                                      as_vector()) %>% 
-                             filter(node == .y)
+                              mutate(node = 
+                                       select(., contains("level_")) %>% 
+                                       as_vector()) %>% 
+                              filter(node == .y)
   ))
 
 # Plotly
@@ -1080,7 +1080,7 @@ sig_collect %>%
     hoverinfo = "text",
     text = ~ paste("</br>Sample: ", sample,
                    "</br>Signature: ", signature
-                   )
+    )
   ) %>% 
   layout(
     title = sig_collect$ancestor_type[1],
@@ -1104,7 +1104,7 @@ p <- sig_collect %>%
 
 ggplotly(p, tooltip = c("level_1", "label"))
 
-  plot_ly(x = ~ tSNE1, y = ~ tSNE2) %>% 
+plot_ly(x = ~ tSNE1, y = ~ tSNE2) %>% 
   add_markers(
     color = ~ level_1,
     colors = "Set1",
@@ -1690,9 +1690,9 @@ single_marker_pw_select <- function(.contrast, .target_size, .level, .method) {
     
     sil_score <- sil_score %>% 
       mutate(sil_pre = map2_dbl(sil_pre, ancestor, ~ 
-                                 if (with(contrast_pair_tb, is_sil_greater[ancestor == .y]) )
-                                 {with(contrast_pair_tb, sil_current[ancestor == .y])} else{
-                                   .x} ))
+                                  if (with(contrast_pair_tb, is_sil_greater[ancestor == .y]) )
+                                  {with(contrast_pair_tb, sil_current[ancestor == .y])} else{
+                                    .x} ))
     
     # append the base + 1 markers that result in highest silhouette score
     signature <- signature %>% 
@@ -1716,7 +1716,7 @@ single_marker_pw_select <- function(.contrast, .target_size, .level, .method) {
           nest(data = - is_sil_greater) %>% 
           with(data[is_sil_greater==TRUE])
       )
-     
+    
     contrast_copy <- contrast_copy %>% 
       mutate(markers = map2(markers, ancestor,
                             ~ if(with(contrast_pair_tb, is_sil_greater[ancestor==.y])) {
@@ -1726,7 +1726,7 @@ single_marker_pw_select <- function(.contrast, .target_size, .level, .method) {
                               .x %>% 
                                 filter(!symbol %in% with(contrast_pair_tb, markers_to_filter[ancestor==.y][[1]]))
                             } 
-                            ))
+      ))
     
     # number of genes selected for each node (THIS IS WRONG, such cumulative counter contains duplicates of base markers)
     # i <- i + map_int(contrast_pair_tb$markers_to_filter, ~ length(.x)) * contrast_pair_tb$is_sil_greater
@@ -2442,7 +2442,7 @@ FromDataFrameTable(x,
                                     x$level_5, 
                                     x$cell_type),
                    
-                   )
+)
 
 x <- plot(cellsig::tree)
 saveWidget(x, "tree.html")
@@ -2542,7 +2542,7 @@ yy %>%
 
 all_methods_silhouette <- full_df %>%
   mutate(data = map(data, ~ if ("cumulative_signature" %in% names(.x))
-    {rename(.x, signature=cumulative_signature)}else(.x))) %>% 
+  {rename(.x, signature=cumulative_signature)}else(.x))) %>% 
   nest(signature = -method) %>% 
   mutate(signature = map(signature, ~ .x %>% do_optimisation("penalised", 0.4))) %>% 
   mutate(signature = map(signature, ~.x %>% pull(signature) %>% unlist() %>% unique())) %>% 
