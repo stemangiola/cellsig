@@ -3,20 +3,23 @@ library(cellsig)
 library(tidybulk)
 
 # Database #1
-counts_first_db_raw = readRDS("dev/counts_first_db_raw.rds")
+counts_first_db_raw = readRDS("dev/raw_data/counts_first_db_raw.rds")
+counts_first_db_raw <- counts_first_db_raw %>% 
+  select(sample, symbol, count, database, cell_type)
 
 # Database #2
-load("dev/counts_second_db_raw.rda")
-counts_second_db_raw = new_data %>% select(sample, symbol, count, dataset, cell_type)
+counts_second_db_raw <- readRDS("dev/raw_data/counts_second_db_raw.rds")
+counts_second_db_raw <- counts_second_db_raw %>% 
+  select(sample, symbol, count, database=dataset, cell_type)
 
 # Database #3
 counts_third_db_raw <- readRDS("dev/raw_data/counts_third_db_raw.rds")
-counts_second_db_raw = new_data %>% select(sample, symbol, count, dataset, cell_type)
+counts_third_db_raw <- counts_third_db_raw %>% 
+  select(sample, symbol, count, database=dataset, cell_type)
 
 signatures = 
   counts_first_db_raw %>%
-  select(-cell_type_original) %>%
-  bind_rows(counts_second_db_raw %>% rename(database = dataset)) %>% 
+  bind_rows(counts_second_db_raw, counts_third_db_raw) %>% 
   select(sample, cell_type, symbol, count)
 
 
@@ -24,7 +27,10 @@ data("tree")
 
 counts =  
   
-  tree_and_signatures_to_database(tree, signatures, sample, cell_type, symbol, count) %>%
+  tree_and_signatures_to_database(tree, signatures, sample, cell_type, symbol, count) 
+
+counts <- counts %>% 
+  
   # Infer exposure rate  and scale
   infer_sequencing_depth_bias(hk600 = readr::read_csv("dev/hk_600.txt", col_names = FALSE) %>% pull(X1))
   
