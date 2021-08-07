@@ -1,201 +1,16 @@
-# Modularisation ===============================================
+library(tidyverse)
+library(tidybulk)
+library(cluster)
+library(factoextra)
+library(stringr)
+library(scales)
+library(KernSmooth)
+library(splus2R)
+library(data.tree)
+library(cellsig)
 
-# input tibble_of transcript abundance
-# output tibble(node = c("root", "immuno", "CD4", ...), signature_genes)
-
-# do_selection_naive_pairwise_hierarchical = function() 
-# do_selection_naive_mean_contrast_hierarchical = function()
-# do_selection_pairwise_silouette_hierarchical = function()
-# do_selection_naive_pairwise_non_hierarchical = function() 
-# do_selection_naive_mean_contrast_non_hierarchical = function()
-# do_selection_pairwise_silouette_non_hierarchical = function()
-# do_selection_cibersort = function()
-
-# do_selection = function(input_tibble_of_transcript_abundance, method_ranking = function(), method_optimisation = function(),  method_selection = function(...)){
-#
-# do_ranking -> method_ranking(input_tibble_of_transcript_abundance)
-# feature selection -> method_selection(input_tibble_of_transcript_abundance)
-# feature optimisation -> method_optimisation(...)
-# return feature union
-# } 
-
-# EXAMPLE
-# do_selection(input_tibble_of_transcript_abundance, do_selection_naive_pairwise_hierarchical) %>%
-#   distinct(gene) %>%
-#   left_join(input_tibble_of_transcript_abundance) %>%
-#   recuce_dimensions() %>%
-#   calculate_siluette()
-
-counts %>% 
-  scale_input_counts(.level = "level_4") %>% 
-  generate_contrast(.contrast_method = "pairwise") %>% 
-  do_ranking(.ranking_method = "logFC") %>% 
-  do_selection("naive", .kmax = 60, METHOD) %>% 
-  do_optimisation("penalised") %>% 
-  format_output()
-
-mean_contrast.naive.non_hierarchy <- contrast_MC_NH %>% 
-  do_ranking(.ranking_method = "logFC") %>%
-  do_selection("naive", .kmax = 60, METHOD) %>% 
-  do_optimisation("penalised") %>% 
-  format_output(.is_complete = TRUE)
-
-pairwise.naive.non_hierarchy <- contrast_PW_NH %>% 
-  do_ranking(.ranking_method = "logFC") %>%
-  do_selection("naive", .kmax = 60, METHOD) %>% 
-  do_optimisation("penalised") %>% 
-  format_output(.is_complete = TRUE)
-
-mean_contrast.naive.hierarchy <- contrast_MC_H %>% 
-  do_ranking(.ranking_method = "logFC") %>%
-  do_selection("naive", .kmax = 60, METHOD) %>% 
-  do_optimisation("penalised") %>% 
-  format_output(.is_complete = TRUE)
-
-pairwise.naive.hierarchy <- contrast_PW_H %>% 
-  do_ranking(.ranking_method = "logFC") %>%
-  do_selection("naive", .kmax = 60, METHOD) %>% 
-  do_optimisation("penalised") %>% 
-  format_output(.is_complete = TRUE)
-
-mean_contrast.silhouette.non_hierarchy.before_optimisation <- contrast_MC_NH %>% 
-  do_ranking(.ranking_method = "logFC") %>%
-  do_selection("silhouette", .discard_number = 10000, .reduction_method = METHOD) %>% 
-  do_optimisation("penalised") %>% 
-  format_output(.is_complete = TRUE)
-
-# currently running (before do_optimisation() step)
-# pairwise is computationally unfeasible for silhouette selection
-pairwise.silhouette.non_hierarchy <- contrast_PW_NH %>% 
-  do_ranking(.ranking_method = "logFC") %>%
-  do_selection("silhouette", .discard_number = 10000, .reduction_method = METHOD) %>% 
-  do_optimisation("penalised") %>% 
-  format_output(.is_complete = TRUE)
-
-
-ranked_H <- contrast_MC_H %>% 
-  do_ranking(.ranking_method = "logFC")
-
-mean_contrast.silhouette.hierarchy <- contrast_MC_H %>% 
-  do_ranking(.ranking_method = "logFC") %>%
-  mutate(level.copy = level) %>% 
-  nest(data = -level.copy) %>% 
-  mutate(data = map(
-    data,
-    ~ .x %>% 
-      do_selection("silhouette", .discard_number = 2000, .reduction_method = METHOD) %>%
-      do_optimisation("penalised") %>% 
-      format_output(.is_complete = TRUE)
-  )) %>% 
-  unnest(data) %>% 
-  select(-level.copy)
-
-# unoptimised data
-saveRDS(mean_contrast.silhouette.hierarchy.unOP, 
-        "mean_contrast.silhouette.hierarchy.unOP.rds",
-        compress = "xz")
-
-pairwise.silhouette.hierarchy <- contrast_PW_H %>% 
-  do_ranking(.ranking_method = "logFC") %>%
-  mutate(level.copy = level) %>% 
-  nest(data = -level.copy) %>% 
-  mutate(data = map(
-    data,
-    ~ .x %>% 
-      do_selection("silhouette", .discard_number = 2000, .reduction_method = METHOD) %>%
-      do_optimisation("penalised") %>% 
-      format_output(.is_complete = TRUE)
-  )) %>% 
-  unnest(data) %>% 
-  select(-level.copy)
-
-# unoptimised data
-saveRDS(pairwise.silhouette.hierarchy.unOP, 
-        "pairwise.silhouette.hierarchy.unOP.rds",
-        compress = "xz")
-
-saveRDS(mean_contrast.naive.non_hierarchy, "mean_contrast.naive.non_hierarchy.rds", compress = "xz")
-saveRDS(pairwise.naive.non_hierarchy, "pairwise.naive.non_hierarchy.rds", compress = "xz")
-saveRDS(mean_contrast.naive.hierarchy, "mean_contrast.naive.hierarchy.rds", compress = "xz")
-saveRDS(pairwise.naive.hierarchy, "pairwise.naive.hierarchy.rds", compress = "xz")
-saveRDS(mean_contrast.silhouette.hierarchy, "mean_contrast.silhouette.hierarchy.rds", compress = "xz")
-saveRDS(pairwise.silhouette.hierarchy, "pairwise.silhouette.hierarchy.rds", compress = "xz")
-saveRDS(mean_contrast.silhouette.non_hierarchy, "mean_contrast.silhouette.non_hierarchy.rds", compress = "xz")
-saveRDS()
-
-# Main ============================
-
-main <- function(.tree, .transcript, .sample, .cell_type, .symbol, .count,
-                 .is_hierarchy=TRUE, .level=NULL, 
-                 .contrast_method, .ranking_method, .selection_method,
-                 .kmax = NULL, .discard_number = NULL, .reduction_method = "PCA",
-                 .optimisation_method="penalised_silhouette", .penalty_rate = 0.2,
-                 .is_complete = FALSE) {
-  
-  # mao the given developmental tree to a data frame
-  counts <- .transcript %>% 
-    tree_and_signatures_to_database(tree = tree, 
-                                    .sample = sample, 
-                                    .cell_type = cell_type,
-                                    .symbol = symbol,
-                                    .count = count)
-  
-  
-  if ( (!.is_hierarchy)|(.selection_method == "naive")) {
-    
-    .counts %>% 
-      
-      # Input: data.frame columns_1 <int> | ...
-      # Output: 
-      scale_input_counts(.is_hierarchy, .level) %>% 
-      
-      # Input: data.frame columns_1 <int> | ...
-      # Output: 
-      generate_contrast(.contrast_method) %>% 
-      
-      # Input: data.frame columns_1 <int> | ...
-      do_ranking(.ranking_method) %>% 
-      
-      # Input: data.frame columns_1 <int> | ...
-      # Output: 
-      do_selection(.selection_method, .kmax, .reduction_method) %>% 
-      
-      do_optimisation(.optimisation_method, .penalty_rate) %>% 
-      
-      format_output(.is_complete)
-    
-  } else {
-    
-    counts %>% 
-      
-      scale_input_counts(.is_hierarchy, .level) %>% 
-      
-      generate_contrast(.contrast_method) %>% 
-      
-      do_ranking(.ranking_method) %>% 
-      
-      mutate(level.copy = level) %>% 
-      nest(data = -level.copy) %>% 
-      
-      mutate(data = map(
-        data,
-        ~ .x %>% 
-          
-          do_selection(.selection_method, .discard_number, .reduction_method) %>%
-          
-          do_optimisation(.optimisation_method, .penalty_rate) %>%
-          
-          format_output(.is_complete)
-        
-      )) %>% 
-      
-      unnest(data) %>% 
-      select(-level.copy)
-    
-  }
-}
-
-# Map hierarchy to a dataframe =============================
+# function =========================
+# map hierarchy to a dataframe
 tree_and_signatures_to_database = function(tree, signatures, .sample, .cell_type, .symbol, .count){
   .sample = enquo(.sample)
   .cell_type = enquo(.cell_type)
@@ -226,21 +41,13 @@ tree_and_signatures_to_database = function(tree, signatures, .sample, .cell_type
     select(-one_of("merged_transcripts"))
 }
 
-#Test
-counts2 <- transcriptome %>% 
-  tree_and_signatures_to_database(tree = tree, 
-                                  .sample = sample, 
-                                  .cell_type = cell_type,
-                                  .symbol = symbol,
-                                  .count = count)
-
-# Input scale abundance ================
+# Input scale abundance
 
 scale_input_counts <- function(.transcript, .is_hierarchy = TRUE, .level = NULL){
   
   if (.is_hierarchy) { # scaling under each ancestor node at each level
     
-    if (is.null(.level) == TRUE) { # scale counts for all levels present
+    if (is.null(.level)) { # scale counts for all levels present
       
       tt_hierarchy <- 
         
@@ -252,7 +59,7 @@ scale_input_counts <- function(.transcript, .is_hierarchy = TRUE, .level = NULL)
                           
                           preprocess(.x))) %>% 
         
-        mutate(tt = map2(tt, level, ~ .x %>% dplyr::rename("ancestor" = pre(.y))))
+        mutate(tt = map2(tt, level, ~ .x %>% rename("ancestor" = pre(.y))))
       
     } else { # scale counts for the level specified by .level
       
@@ -266,7 +73,7 @@ scale_input_counts <- function(.transcript, .is_hierarchy = TRUE, .level = NULL)
                           
                           preprocess(.x))) %>% 
         
-        mutate(tt = map2(tt, level, ~ .x %>% dplyr::rename("ancestor" = pre(.y))))
+        mutate(tt = map2(tt, level, ~ .x %>% rename("ancestor" = pre(.y))))
     }
     
     return(tt_hierarchy)
@@ -287,7 +94,7 @@ scale_input_counts <- function(.transcript, .is_hierarchy = TRUE, .level = NULL)
                         
                         preprocess(.x))) %>% 
       
-      mutate(tt = map2(tt, level, ~ .x %>% dplyr::rename("ancestor" = pre(.y))))
+      mutate(tt = map2(tt, level, ~ .x %>% rename("ancestor" = pre(.y))))
     
     return(tt_non_hierarchy)
   }
@@ -352,38 +159,41 @@ pre <- function(.level) {
   }
 }
 
-# Test
-tt_non_hierarchy <- scale_input_counts(counts, .is_hierarchy = FALSE)
-tt_L4_new <- scale_input_counts(counts, .is_hierarchy = TRUE, LEVEL)
-tt_hierarchy <- scale_input_counts(counts, .is_hierarchy = TRUE)
+# Generate contrast for ranking
 
-LEVEL <- "level_4"
-
-saveRDS(tt_non_hierarchy, "tt_non_hierarchy.rds", compress = "xz")
-saveRDS(tt_L4, "tt_L4.rds", compress = "xz")
-saveRDS(tt_hierarchy, "tt_hierarchy.rds", compress = "xz")
-tt_L4
-
-# Generate contrast for ranking ===================
-
-hypothesis_test_edgeR
-
-hypothesis_test_bayes
-
-generate_contrast <- function(.preprocessed, .contrast_method){
+generate_contrast <- function(.tt, .contrast_method){
   
-  .preprocessed %>%
-    unnest(tt) %>% 
+  if (str_detect(.contrast_method, "pair")) {
     
-    # Differential transcription
-    mutate(markers = map2(
-      data, level,
-      ~ .x %>% 
-        test_differential_abundance(
-          as.formula(sprintf("~ 0 + %s", .y)),
-          .contrasts = .contrast_method(.x, .y),
-          action="only") 
-    ))
+    .tt %>%
+      unnest(tt) %>% 
+      
+      # Differential transcription
+      mutate(markers = map2(
+        data, level,
+        ~ .x %>% 
+          test_differential_abundance(
+            as.formula(sprintf("~ 0 + %s", .y)),
+            .contrasts = pairwise_contrast(.x, .y),
+            action="only") 
+      ))
+    
+  } else {
+    
+    .tt %>%
+      unnest(tt) %>% 
+      
+      # Differential transcription
+      mutate(markers = map2(
+        data, level,
+        ~ .x %>% 
+          test_differential_abundance(
+            as.formula(sprintf("~ 0 + %s", .y)),
+            .contrasts = mean_contrast(.x, .y), 
+            action = "only")
+      ))
+  }
+  
 }
 
 pairwise_contrast = function(.data, .level){
@@ -394,7 +204,7 @@ pairwise_contrast = function(.data, .level){
     
     # Permute
     mutate(cell_type2 = !!as.symbol(.level)) %>% 
-    tidyr::expand(!!as.symbol(.level), cell_type2) %>% 
+    expand(!!as.symbol(.level), cell_type2) %>% 
     filter(!!as.symbol(.level) != cell_type2) %>% 
     
     # Create contrasts
@@ -422,39 +232,11 @@ mean_contrast <- function(.data, .level){
     pull(contrast)
 }
 
-
-# Test
-tt_L4 %>% 
-  select(-level) %>% 
-  unnest(tt) %>% 
-  pluck("data", 1) %>% 
-  pairwise_contrast(LEVEL)
-
-contrast_MC_L4 <- tt_L4 %>% 
-  generate_contrast(.contrast_method = mean_contrast)
-
-contrast_MC_NH <- tt_non_hierarchy %>% 
-  generate_contrast(.contrast_method = "mean_contrast")
-
-contrast_PW_NH <- tt_non_hierarchy %>% 
-  generate_contrast(.contrast_method = "pairwise")
-
-contrast_PW_H <- tt_hierarchy %>% 
-  generate_contrast(.contrast_method = "pair")
-
-contrast_MC_H <- tt_hierarchy %>% 
-  generate_contrast(.contrast_method = "mean_contrast")
-
-saveRDS(contrast_PW_NH, "contrast_PW_NH.rds", compress = "xz")
-saveRDS(contrast_MC_NH, "contrast_MC_NH.rds", compress = "xz")
-saveRDS(contrast_MC_H, "contrast_MC_H.rds", compress = "xz")
-saveRDS(contrast_PW_H, "contrast_PW_H.rds", compress = "xz")
-
-# Rank ==========================================
+# Rank
 
 do_ranking <- function(.contrast, .ranking_method){
   
-  if (.ranking_method == "logFC") {
+  if (str_detect(.ranking_method, "logFC")) {
     
     .contrast %>% 
       
@@ -494,28 +276,21 @@ rank_by_logFC <-  function(.markers){
     mutate(stat_df = map(stat_df, ~.x %>% pivot_wider(names_from = stats, values_from = .value))) %>%
     
     # Filter out insignificant genes and rank the significant ones
-    
-    # THIS WILL HAVE TO CHANGE
     mutate(stat_df = map(stat_df, ~.x %>%
                            filter(FDR < 0.05 & logFC > 2) %>%
                            filter(logCPM > mean(logCPM)) %>%
-                           dplyr::arrange(desc(logFC))
+                           arrange(logFC %>% desc())
     ))
 }
 
-# Test
-
-ranked_PW_L4 <- contrast_MC_L4 %>% 
-  do_ranking(.ranking_method = "logFC")
-
-# Selection =======================================
+# Selection
 
 do_selection <- 
   function(.ranked, .selection_method, .kmax=NULL, .discard_number=NULL, .reduction_method="PCA") {
     
     # .k is the number of genes selected from each cell_type contrast
     
-    if (.selection_method == "naive") {
+    if (str_detect(.selection_method, "naive")) {
       
       .ranked %>% 
         
@@ -531,9 +306,9 @@ do_selection <-
     
   }
 
-## Naive selection =============================
+## Naive selection
 
-# calculate silhouette score for a series of sig_sizes
+### calculate silhouette score for a series of sig_sizes
 
 do_naive_selection <- function(.ranked, .kmax, .reduction_method) {
   
@@ -569,7 +344,7 @@ naive_selection <- function(.ranked, .k) {
     mutate(markers = map(
       markers,
       ~ .x %>% 
-        mutate(stat_df = map(stat_df, ~ .x %>% dplyr::slice(1: .k))) %>% 
+        mutate(stat_df = map(stat_df, ~ .x %>% slice(1: .k))) %>% 
         unnest(stat_df)
     )) %>% 
     
@@ -587,7 +362,7 @@ naive_selection <- function(.ranked, .k) {
   
 }
 
-# calculate silhouette score
+### calculate silhouette score
 
 silhouette_function <- function(.selected, .reduction_method){
   
@@ -658,25 +433,7 @@ silhouette_score <- function(.reduced_dimensions, .distance, .level){
   
 }
 
-
-# Test
-
-naive_PW_L4 <- ranked_PW_L4 %>% 
-  naive_selection(5)
-
-xx <- naive_PW_L4 %>% 
-  silhouette_function(METHOD)
-
-xx <- ranked_PW_L4 %>% 
-  do_naive_selection(5, METHOD)
-
-naive_MC_L4 <- x_L4 %>% 
-  naive_selection(5)
-
-xx <- naive_MC_L4 %>% 
-  silhouette_function(METHOD)
-
-## Silhouette selection =========================================
+## Silhouette selection
 
 single_marker_pw_selection_using_silhouette <- 
   function(.ranked, .discard_number=NULL, .reduction_method="PCA") {
@@ -714,7 +471,7 @@ single_marker_pw_selection_using_silhouette <-
       # select top 1 markers from each contrast
       naive_selection(1) %>%
       
-      dplyr::rename("new_challengers" = "signature") %>% 
+      rename("new_challengers" = "signature") %>% 
       
       mutate(winner = map(new_challengers, ~ unique(.x))) %>% 
       
@@ -914,33 +671,13 @@ silhouette_for_markers <-function(.ranked, .signature, .ancestor, .reduction_met
                         filter(symbol %in% .signature))) %>% 
     
     # format input
-    dplyr::rename("markers" = "data") %>% 
+    rename("markers" = "data") %>% 
     
     silhouette_function(.reduction_method)
   
 }
 
-## CIBERSORTx selection ==========================================
-# use "cibersort_signature" from cibersortx.R
-
-cibersortx <- tibble(method = "cibersortx") %>% 
-  mutate(signature = list(cibersort_signature)) %>% 
-  mutate(silhouette = map(
-    signature, 
-    ~ tt_non_hierarchy %>% 
-      unnest(tt) %>% 
-      unnest(data) %>% 
-      filter(symbol %in% .x) %>% 
-      nest(markers = -c(level, ancestor)) %>% 
-      # calculate silhouette score
-      silhouette_function(METHOD) %>% 
-      select(reduced_dimensions, silhouette)
-  )) %>% 
-  unnest(silhouette)
-
-saveRDS(cibersortx, "cibersortx.rds", compress = "xz")
-
-# Optimisation =========================================
+# Optimisation
 
 do_optimisation <- function(.selected, 
                             .optimisation_method, 
@@ -1072,13 +809,7 @@ penalised_silhouette <- function(.plot_data, .penalty_rate=0.2) {
     
     pull(real_size)
 }
-
-# Test
-
-mean_contrast.silhouette.hierarchy.unOP %>% 
-  do_optimisation("penalised", .penalty_rate = 0.61)
-
-# Format output ===================================
+# Format output
 
 format_output <- function(.optimised, .is_complete=FALSE){
   
@@ -1097,83 +828,45 @@ format_output <- function(.optimised, .is_complete=FALSE){
   
 }
 
-# Test
-
-x %>% format_output()
 
 
-# Compare all methods ============================
-# use the complete output from format_output as input
+# mean_contrast, silhouette, hierarchy, curvature ===========
 
-# import summary data from all methods
-naive <- list.files("topInf_scaleFALSE/", pattern = ".*naive\\..*\\..*")
-silhouette <- list.files("topInf_scaleFALSE/", pattern = ".*silhouette\\..*\\..*")
+transcriptome <- readRDS("transcriptome.rds")
 
-naive_df <- map_dfr(naive, ~ readRDS(paste0("topInf_scaleFALSE/", .x))) %>% 
-  select(level, ancestor, real_size, signature, silhouette) %>% 
-  mutate(method = rep(str_replace_all(naive, '\\.rds', ''), c(14, 1, 14, 1)))
 
-o <- rep(str_replace_all(silhouette, '\\.rds', ''), c(14, 1, 14))
-silhouette_df <- map_dfr(silhouette, ~ readRDS(paste0("topInf_scaleFALSE/", .x))) %>% 
-  select(level, ancestor, real_size, signature=cumulative_signature, silhouette) %>% 
-  mutate(method = o)
-rm(o)
+signature.test <- counts %>% 
+  
+  # tree_and_signatures_to_database(tree = tree, 
+  #                                 .sample = sample, 
+  #                                 .cell_type = cell_type,
+  #                                 .symbol = symbol,
+  #                                 .count = count) %>% 
 
-full_df <- silhouette_df %>% 
-  bind_rows(naive_df)
+  scale_input_counts(.is_hierarchy=TRUE) %>% 
 
-all_methods_silhouette <- full_df %>% 
-  nest(signature = -method) %>% 
-  mutate(signature = map(signature, ~.x %>% pull(signature) %>% unlist() %>% unique())) %>% 
-  mutate(silhouette = map(
-    signature, 
-    ~ tt_non_hierarchy %>% 
-      unnest(tt) %>% 
-      unnest(data) %>% 
-      filter(symbol %in% .x) %>% 
-      nest(markers = -c(level, ancestor)) %>% 
-      # calculate silhouette score for all signatures combined in each method
-      silhouette_function(METHOD) %>% 
-      select(reduced_dimensions, silhouette)
+  # generate_contrast(.contrast_method = mean_contrast) %>% 
+  
+  do_ranking(.contrast_method = mean_contrast, .ranking_method = "logFC") %>% 
+  
+  mutate(level.copy = level) %>% 
+  nest(data = -level.copy)
+
+signature.test <- signature.test %>%
+  
+  mutate(data = map(
+    data,
+    ~ .x %>% 
+      
+      do_selection(.selection_method = "silhouette", .discard_number = 2000, .reduction_method="PCA") %>%
+      
+      do_optimisation(.optimisation_method = "curvature") %>%
+      
+      format_output(.is_complete=TRUE)
+    
   )) %>% 
-  unnest(silhouette)
+  
+  unnest(data) %>% 
+  select(-level.copy)
 
-
-cibersortx <- readRDS("topInf_scaleFALSE/cibersortx.new.rds")
-
-
-# summary table comparing all methods using silhouette score
-
-all_methods_comparison <- all_methods_silhouette %>% 
-  bind_rows(cibersortx) %>% 
-  arrange(desc(silhouette))
-
-all_methods_comparison
-
-saveRDS(all_methods_comparison, "all_methods_comparison.new.rds", compress = 'xz')
-
-# summary bar plot comparing all methods using silhouette score
-
-all_methods_comparison %>% 
-  ggplot(aes(reorder(method, silhouette), silhouette, fill = method)) +
-  geom_col() +
-  geom_text(aes(label = round(silhouette, 3)), vjust = 1.5) + 
-  theme(axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        plot.title = element_text(hjust = 0.5)
-  ) +
-  ggtitle("All methods comparison using silhouette score")
-
-# PCA plot 
-all_methods_comparison %>% 
-  pluck("reduced_dimensions", 8) %>% 
-  ggplot(aes(PC1, PC2, color = root), label=sample) +
-  geom_point() +
-  stat_ellipse(type = 't') +
-  theme(
-    plot.title = element_text(hjust = 0.5)
-  ) +
-  ggtitle("cibersortx")
-ggtitle("mean_contrast.silhouette.non_hierarchy")
-
-
+saveRDS(signature.test, "signature.test.rds", compress = "xz")
