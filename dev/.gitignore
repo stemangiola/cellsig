@@ -3,3 +3,5 @@ intermediate_data*
 error_files*
 cibersortx/*
 topInf_scaleFALSE
+counts.rda
+counts_imputed.rda
