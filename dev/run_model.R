@@ -67,7 +67,12 @@ create_partitions = function(.data, .level, .partitions = 30){
 load("dev/counts.rda")
 #sys("rm modeling_files/*rds")
 tibble(level=1:5) %>%
-  mutate(partitions = map(level, ~ create_partition_files(counts, .x, 15)))
+  mutate(partitions = map(
+    level,
+    ~ counts %>% 
+      filter(level==.x) %>% 
+      create_partition_files(.x, 15)
+  ))
 
 # Create input
 sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s\nWALL_TIME=14000", 12) %>%
