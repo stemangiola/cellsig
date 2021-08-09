@@ -107,17 +107,17 @@ preprocess <- function(.transcript, .level) {
     
     tidybulk(sample, symbol, count) %>%
     
+    # aggregate duplicate sample/gene pairs in the data
+    aggregate_duplicates(sample, symbol, count) %>% 
+    
     # rectangularise data
     nest(data = -c(symbol, cell_type)) %>%
     add_count(symbol) %>%
     filter(n == max(n)) %>%
     unnest(data) %>% 
     
-    # aggregate duplicate sample/gene pairs in the data
-    aggregate_duplicates(sample, symbol, count) %>% 
-    
     # Imputation of missing data
-    impute_missing_abundance(~ cell_type) %>%
+    # impute_missing_abundance(~ cell_type) %>%
     
     # scale counts
     identify_abundant(factor_of_interest = !!as.symbol(.level)) %>%
@@ -870,3 +870,39 @@ signature.test <- signature.test %>%
   select(-level.copy)
 
 saveRDS(signature.test, "signature.test.rds", compress = "xz")
+
+# debug
+counts %>% 
+  
+  distinct(sample, cell_type) %>% 
+  nest(s = -sample) %>%
+  mutate(n = map_int(s,~ nrow(.x))) %>%
+  filter(n > 1)  %>%
+  unnest(s)
+arrange(desc(n))
+
+all(is.na(counts$count))
+
+# find which function produce duplicates
+counts_first_db_raw %>% 
+  tidybulk(sample, symbol, count) %>%
+  
+  # aggregate duplicate sample/gene pairs in the data
+  # aggregate_duplicates(sample, symbol, count) %>%
+  
+  # rectangularise data
+  nest(data = -c(symbol, cell_type)) %>%
+  add_count(symbol) %>%
+  filter(n == max(n)) %>%
+  unnest(data) %>% 
+  
+  # Imputation of missing data
+  impute_missing_abundance(~ cell_type) %>%
+    
+  group_by(sample, cell_type, symbol) %>% 
+  count() %>% 
+  arrange(desc(n))
+  
+  # scale counts
+  identify_abundant(factor_of_interest = !!as.symbol(.level)) %>%
+  scale_abundance()

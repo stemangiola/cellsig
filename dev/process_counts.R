@@ -17,22 +17,31 @@ counts_third_db_raw <- readRDS("dev/raw_data/counts_third_db_raw.rds")
 counts_third_db_raw <- counts_third_db_raw %>% 
   select(sample, symbol, count, database=dataset, cell_type)
 
-signatures = 
-  counts_first_db_raw %>%
-  bind_rows(counts_second_db_raw, counts_third_db_raw) %>% 
-  select(sample, cell_type, symbol, count, database)
+ 
 
-
+"AF1_NK_PDGF_DD"
 data("tree")
 
 counts =  
   
-  tree_and_signatures_to_database(tree, signatures, sample, cell_type, symbol, count) %>% 
+  # Merge dataset
+  counts_first_db_raw %>%
+  bind_rows(counts_second_db_raw, counts_third_db_raw) %>% 
+  select(sample, cell_type, symbol, count, database) %>%
+  
+  # Add tree structure
+  tree_and_signatures_to_database(tree, ., sample, cell_type, symbol, count) %>% 
   
   # Infer exposure rate  and scale
   infer_sequencing_depth_bias(hk600 = readr::read_csv("dev/hk_600.txt", col_names = FALSE) %>% pull(X1))
   
+# counts %>% 
+#   distinct(sample, symbol) %>%
+#   dplyr::count(symbol)%>% 
+#   dplyr::count(n)%>% 
+#   arrange(desc(n))
 
+  
 save(counts, file="dev/counts.rda", compress = "xz")
 
 counts_imputed =
