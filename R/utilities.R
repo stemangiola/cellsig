@@ -159,7 +159,6 @@ parse_baseline = function(.data, shards_in_levels, lv) {
     format_for_MPI_from_linear()
 }
 
-#' 
 #' @import magrittr
 #' @importFrom tibble rowid_to_column
 format_for_MPI_from_linear = function(df) {
