@@ -1,0 +1,1234 @@
+---
+title: "Analysis Summary level_1"
+author: "Jian"
+date: "26/01/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r library, message = FALSE}
+# Load libraries
+library(tidyverse)
+library(plotly)
+library(future)
+library(furrr)
+library(tidybulk)
+library(cluster)
+library(proxy)
+library(factoextra)
+library(stringr)
+library(scales)
+```
+
+
+```{r data, message=FALSE, warning=FALSE}
+# Load data
+tt_L1 <- readRDS("intermediate_data/tt_L1.rds")
+
+```
+
+```{r literal}
+# select level of interest
+LEVEL = "level_1"
+
+METHOD = "PCA"
+```
+
+
+```{r functions, message=F}
+## 1 preprocess data
+
+### 1.1 string manipulation that converts level of interest (e.g "level_5") to its ancestor level (e.g "level_4")
+pre <- function(.level) {
+  .level %>% 
+    str_split("_") %>% 
+    {as.numeric(.[[1]][2])-1} %>% 
+    paste("level", ., sep = "_")
+}
+
+### 1.2 preprocess
+
+preprocess <- function(.data, .level) {
+  
+  # load data
+  .data %>%
+    
+    tidybulk(sample, symbol, count) %>%
+    
+    # filter for the cell types of interest for gene marker selection
+    filter(is.na(!!as.symbol(.level))==F) %>%
+    
+    # Imputation of missing data within each level_5
+    # impute_missing_abundance(~ !!as.symbol(.level)) %>%
+    
+    # Group by ancestor
+    nest(data = - !!as.symbol(pre(.level))) %>%
+    
+    # Eliminate genes that are present in some but all cell types
+    # (can be still present in a subset of samples from each cell-type)
+    mutate(data = map(
+      data,
+      ~ .x %>%
+        nest(data = -c(symbol, !!as.symbol(.level))) %>%
+        add_count(symbol) %>%
+        filter(n == max(n)) %>%
+        unnest(data)
+    )) %>%
+    
+    # Imputation of missing data within each level_5
+    mutate(data = map(data, ~ .x %>% impute_missing_abundance(~ !!as.symbol(.level)))) %>%
+    
+    # scale count for further analysis
+    mutate(data=map(data, ~ .x %>%
+                      identify_abundant(factor_of_interest = !!as.symbol(.level)) %>%
+                      scale_abundance()
+    ))
+}
+
+## 2 contrast functions
+
+### 2.1 pairwise comparisons
+get_contrasts_from_df = function(.data, .level){
+  
+  .data %>% 
+    distinct(!!as.symbol(.level)) %>% 
+    mutate(!!as.symbol(.level) := paste0(.level, !!as.symbol(.level))) %>% 
+    
+    # Permute
+    mutate(cell_type2 := !!as.symbol(.level)) %>% 
+    expand(!!as.symbol(.level), cell_type2) %>% 
+    filter(!!as.symbol(.level) != cell_type2) %>% 
+    
+    # Create contrasts
+    mutate(contrast = sprintf("%s - %s", !!as.symbol(.level), cell_type2)) %>%
+    pull(contrast)
+  
+}
+
+### 2.2 create a contrast vector for limma::makeContrasts() or tidybulk::test_differential abundance()
+
+mean_contrast <- function(.data, .level){
+  
+  # find all cell types
+  cell_types <- .data %>% 
+    distinct(!!as.symbol(.level)) %>% 
+    pull() %>% 
+    as.vector()
+  
+  # format cell_types with prefix
+  cell_types <- paste0(.level, cell_types)
+  
+  # initialise a vector called contrasts
+  contrasts <- 1: length(cell_types)
+  
+  # create all contrasts and store them in contrasts
+  for(i in 1:length(cell_types) ){
+    background = paste(cell_types[-i], collapse = "+")
+    divisor = length(cell_types[-i])
+    contrasts[i] <- sprintf("%s - (%s)/%s", cell_types[i], background, divisor)
+  }
+  
+  return(contrasts)
+}
+
+## 3 marker ranking & selection
+
+select_markers_for_each_contrast = function(.markers, .sig_size){
+  .markers %>%
+    
+    # Group by contrast. Comparisons both ways.
+    pivot_longer(
+      cols = contains("___"),
+      names_to = c("stats", "contrast"), 
+      values_to = ".value", 
+      names_sep="___"
+    ) %>% 
+    
+    # Markers selection within each pair of contrast
+    nest(stat_df = -contrast) %>%
+    
+    # Reshape inside each contrast
+    mutate(stat_df = map(stat_df, ~.x %>% pivot_wider(names_from = stats, values_from = .value))) %>%
+    
+    # Rank
+    mutate(stat_df = map(stat_df, ~.x %>%
+                           filter(FDR < 0.05 & logFC > 2) %>%
+                           filter(logCPM > mean(logCPM)) %>%
+                           arrange(logFC %>% desc()) %>%
+                           slice(1: .sig_size)
+                         
+    )) %>%
+    
+    unnest(stat_df)
+}
+
+## 4 marker collection for each contrast
+
+### pairwise contrast method
+contrast_PW <- function(.tt, .level){
+  .tt %>%
+    
+    # Differential transcription gives all the statistics for each gene in each contrast
+    mutate(markers = map(
+      data,
+      ~ test_differential_abundance(.x,
+                                    ~ 0 + !!as.symbol(.level), 
+                                    .contrasts = get_contrasts_from_df(.x, .level),
+                                    action="only") 
+    ))
+}
+
+### mean contrast method
+contrast_MC <- function(.tt, .level){
+  .tt %>%
+    
+    # Differential transcription
+    mutate(markers = map(
+      data,
+      ~ test_differential_abundance(.x,
+                                    ~ 0 + !!as.symbol(.level), 
+                                    .contrasts = mean_contrast(.x, .level),
+                                    action="only") 
+    ))
+}
+
+### select signature genes and processing
+sig_select <- function(.contrast, .level, .sig_size) {
+  .contrast %>% 
+    
+    # Select markers from each contrast by rank of stats
+    mutate(markers = map(markers, ~ select_markers_for_each_contrast(.x, .sig_size))) %>%
+    
+    # Add original data info to the markers selected
+    mutate(markers = map2(markers, data, ~ left_join(.x, .y))) %>%
+    select(!!as.symbol(pre(.level)), markers) %>%
+    unnest(markers) %>%
+    
+    # make contrasts pretty
+    mutate(contrast_pretty = str_replace(contrast, .level, "") %>% str_replace(.level, ""))
+}
+
+# ====================================================================
+
+single_marker_pw_select2 <- function(.contrast, .size, .level, .method) {
+  
+  # initialize variables
+  signature <- vector()
+  
+  contrast_summary_tb <- tibble()
+  
+  contrast_copy <- .contrast
+  
+  # set the base markers
+  contrast_pair_tb0 <- 
+    
+    # contrast_copy contains all the statistics of all cell_type contrasts for each gene
+    contrast_copy %>% 
+    
+    # select top 1 markers from each contrast, output is an unnested tibble
+    sig_select(.level, 1) %>% 
+    
+    # enables markers from each contrast pair to be entitled to every other contrast so that 
+    # all the base genes rather than one base gene per contrast can be incorporated in each iteration
+    nest(markers = - contrast_pretty) %>% 
+    
+    expand(contrast_pretty, markers) %>% 
+    
+    unnest(markers)
+  
+  # base markers
+  base_markers <- contrast_pair_tb0 %>% pull(symbol) %>% unique()
+  
+  # remove base markers from contrast_copy input before further selection
+  contrast_copy <- contrast_copy %>%
+    mutate(markers = map(markers, ~.x %>% 
+                           filter(!symbol %in% base_markers) ))
+  
+  # append the base markers
+  signature <- append(signature, base_markers)
+  
+  while (length(signature) < .size) {
+    
+    contrast_pair_tb <- 
+      
+      # contrast_PW_L1 contains all the statistics of all cell_type contrasts for each gene
+      contrast_copy %>% 
+      
+      # select top 1 markers from each contrast, output is an unnested tibble
+      sig_select(.level, 1) %>% 
+      
+      # combine markers at the base level before iteration
+      bind_rows(contrast_pair_tb0) %>% 
+      
+      # nest by pairwise contrast instead of ancestor level before
+      nest(markers = - contrast_pretty) %>% 
+      
+      # calculate silhouette score for PCA of cell types resolved by the selected 1 markers
+      mutate(sil_pair = map(markers, ~ sil_func(.x, .level, .method))) %>% 
+      
+      # make the silhouette score explicit
+      mutate(sil_pair = map_dbl(sil_pair, ~ .x$sil)) %>% 
+      
+      # rank silhouette score in a descending manner
+      arrange(desc(sil_pair)) %>% 
+      
+      # extract all the new markers from each contrast
+      mutate(markers_new = map(markers, ~ .x %>% pull(symbol) %>% unique())) %>% 
+      
+      # create a column of empty vectors to store cumulative markers below
+      mutate(markers_cumu = map(contrast_pretty, ~ vector()) )
+    
+    # append the base + 1 markers that result in highest silhouette score
+    signature <- signature %>% append(contrast_pair_tb$markers_new[[1]]) %>% unique()
+    
+    # store the selected contrast pair, markers and cumulative markers as a tibble
+    contrast_summary_tb <- contrast_summary_tb %>% 
+      bind_rows(contrast_pair_tb[1, ] %>% 
+                  mutate(markers_cumu = map(markers_cumu, ~ .x %>% append(signature)))   )
+    
+    # remove the selected markers from contrast_PW_L1 so that other markers can be selected in later iterations
+    contrast_copy <- contrast_copy %>%
+      mutate(markers = map(markers, ~.x %>% 
+                             filter(!symbol %in% signature) ))
+  }
+  
+  return(contrast_summary_tb)
+}
+
+single_marker_pw_select <- function(.contrast, .size, .level, .method) {
+  
+  # initialize variables
+  signature <- vector()
+  
+  contrast_summary_tb <- tibble()
+  
+  contrast_copy <- .contrast
+  
+  # set the base markers
+  contrast_pair_tb0 <- 
+    
+    # contrast_copy contains all the statistics of all cell_type contrasts for each gene
+    contrast_copy %>% 
+    
+    # select top 1 markers from each contrast, output is an unnested tibble
+    sig_select(.level, 1)
+  
+  # base markers
+  base_markers <- contrast_pair_tb0 %>% pull(symbol) %>% unique()
+  
+  # remove base markers from contrast_copy input before further selection
+  contrast_copy <- contrast_copy %>%
+    mutate(markers = map(markers, ~.x %>% 
+                           filter(!symbol %in% base_markers) ))
+  
+  # append the base markers
+  signature <- append(signature, base_markers)
+  
+  while (length(signature) < .size) {
+    
+    contrast_pair_tb <- 
+      
+      # contrast_PW_L1 contains all the statistics of all cell_type contrasts for each gene
+      contrast_copy %>% 
+      
+      # select top 1 markers from each contrast, output is an unnested tibble
+      sig_select(.level, 1) %>% 
+      
+      # combine markers at the base level before iteration
+      bind_rows(contrast_pair_tb0) %>% 
+      
+      # nest by pairwise contrast instead of ancestor level before
+      nest(markers = - contrast_pretty) %>% 
+      
+      # calculate silhouette score for PCA of cell types resolved by the selected 1 markers
+      mutate(sil_pair = map(markers, ~ sil_func(.x, .level, .method))) %>% 
+      
+      # make the silhouette score explicit
+      mutate(sil_pair = map_dbl(sil_pair, ~ .x$sil)) %>% 
+      
+      # rank silhouette score in a descending manner
+      arrange(desc(sil_pair)) %>% 
+      
+      # extract all the new markers from each contrast
+      mutate(markers_new = map(markers, ~ .x %>% pull(symbol) %>% unique())) %>% 
+      
+      # create a column of empty vectors to store cumulative markers below
+      mutate(markers_cumu = map(contrast_pretty, ~ vector()) )
+    
+    # append the base + 1 markers that result in highest silhouette score
+    signature <- signature %>% append(contrast_pair_tb$markers_new[[1]]) %>% unique()
+    
+    # store the selected contrast pair, markers and cumulative markers as a tibble
+    contrast_summary_tb <- contrast_summary_tb %>% 
+      bind_rows(contrast_pair_tb[1, ] %>% 
+                  mutate(markers_cumu = map(markers_cumu, ~ .x %>% append(signature)))   )
+    
+    # remove the selected markers from contrast_PW_L1 so that other markers can be selected in later iterations
+    contrast_copy <- contrast_copy %>%
+      mutate(markers = map(markers, ~.x %>% 
+                             filter(!symbol %in% signature) ))
+  }
+  
+  return(contrast_summary_tb)
+}
+
+pair_marker_pw_select <- function(.contrast, .size, .level, .method) {
+  
+  # initialize variables
+  signature <- vector()
+  
+  contrast_summary_tb <- tibble()
+  
+  contrast_copy <- .contrast
+  
+  while (length(signature) < .size) {
+    
+    contrast_pair_tb <- 
+      
+      # contrast_PW_L1 contains all the statistics of all cell_type contrasts for each gene
+      contrast_copy %>% 
+      
+      # select top 1 markers from each contrast, output is an unnested tibble
+      sig_select(.level, 2) %>% 
+      
+      # nest by pairwise contrast instead of ancestor level before
+      nest(markers = - contrast_pretty) %>% 
+      
+      # calculate silhouette score for PCA of cell types resolved by the selected 1 markers
+      mutate(sil_pair = map(markers, ~ sil_func(.x, .level, .method))) %>% 
+      
+      # make the silhouette score explicit
+      mutate(sil_pair = map_dbl(sil_pair, ~ .x$sil)) %>% 
+      
+      # rank silhouette score in a descending manner
+      arrange(desc(sil_pair)) %>% 
+      
+      # extract all the new markers from each contrast
+      mutate(markers_new = map(markers, ~ .x %>% pull(symbol) %>% unique())) %>% 
+      
+      # create a column of empty vectors to store cumulative markers below
+      mutate(markers_cumu = map(contrast_pretty, ~ vector()) )
+    
+    # append the base + 1 markers that result in highest silhouette score
+    signature <- signature %>% append(contrast_pair_tb$markers_new[[1]]) %>% unique()
+    
+    # store the selected contrast pair, markers and cumulative markers as a tibble
+    contrast_summary_tb <- contrast_summary_tb %>% 
+      bind_rows(contrast_pair_tb[1, ] %>% 
+                  mutate(markers_cumu = map(markers_cumu, ~ .x %>% append(signature)))   )
+    
+    # remove the selected markers from contrast_PW_L1 so that other markers can be selected in later iterations
+    contrast_copy <- contrast_copy %>%
+      mutate(markers = map(markers, ~.x %>% 
+                             filter(!symbol %in% signature) ))
+  }
+  
+  return(contrast_summary_tb)
+}
+
+sil_score_for_markers <-function(.contrast, .signature, .level, .method) {
+  .contrast %>%
+    # filter markers that are in the signature
+    mutate(markers = map(markers, ~.x %>% 
+                           filter(symbol %in% .signature))) %>% 
+    
+    # format statistics from pairwise contrast
+    mutate(markers  = map(markers, ~ .x %>% 
+                            # Group by contrast. Comparisons both ways.
+                            pivot_longer(
+                              cols = contains("___"),
+                              names_to = c("stats", "contrast"), 
+                              values_to = ".value", 
+                              names_sep="___"
+                            ) %>% 
+                            
+                            # Markers selection within each pair of contrast
+                            nest(stat_df = -contrast) %>%
+                            
+                            # Reshape inside each contrast
+                            mutate(stat_df = map(stat_df, ~.x %>% 
+                                                   pivot_wider(names_from = stats, 
+                                                               values_from = .value))) %>% 
+                            
+                            unnest(stat_df) )) %>% 
+    
+    # Add original data info to the markers selected
+    mutate(markers = map2(markers, data, ~ left_join(.x, .y))) %>% 
+    
+    # select only columns needed
+    select(!!as.symbol(pre(LEVEL)), markers) %>%
+    unnest(markers) %>%
+    
+    # make contrasts pretty
+    mutate(contrast_pretty = str_replace(contrast, LEVEL, "") %>% str_replace(LEVEL, "")) %>% 
+    
+    # Calculate silhouette score for PCA plot resulted from the markers selected
+    sil_func(.level, .method)
+}
+
+# =======================================================================
+## 5 
+##5.1 calculate the area of confidence ellipses and the sum of their areas
+ellipse <- function(.rdim, .level, .method) {
+  .rdim %>% 
+    
+    # remove non-numerical data to form a numerical data frame
+    select(!!as.symbol(.level), 
+           contains(str_sub(.method, end=-2L))) %>% 
+    
+    # normalize principle component values
+    mutate(across(contains(str_sub(.method, end=-2L)), scale)) %>% 
+    
+    # nest by cell_type so as to calculate ellipse area for each cell type
+    nest(dims = - !!as.symbol(.level)) %>% 
+    
+    # obtain covariance matrix for each cell type
+    mutate(cov = map(dims, ~ cov(.x))) %>% 
+    
+    # calculate the eigenvalues for the covariance matrix of each cell type
+    mutate(eigval = map(cov, ~ eigen(.x)$values)) %>% 
+    
+    # transformation
+    mutate(area = map(eigval, ~ sqrt(.x * qchisq(0.95, 2)))) %>%
+    
+    # below is the actual area for each ellipse
+    mutate(area = map_dbl(area, ~ prod(.x)*pi)) %>% 
+    
+    # collect size of each cluster as factors for weights
+    mutate(cluster_size = map_int(dims, ~ nrow(.x))) %>%
+    
+    # weight each area by the inverse of its cluster size
+    mutate(weighted_area = map2_dbl(area, cluster_size, ~ .x / .y))
+}
+
+## 5.2 Ellipse area calculation 
+ellip_func <- function(.markers, .level, .method){
+  .markers %>% 
+  
+    # nest by ancestor cell types
+    nest(rdim = - !!as.symbol(pre(.level))) %>%
+      
+    # reduce dimension
+    mutate(rdim = map(rdim, ~ .x %>%
+                        distinct(sample, symbol, count_scaled, !!as.symbol(.level)))) %>%
+    mutate(rdim = map(rdim, ~ .x %>%
+                        reduce_dimensions(sample, symbol, count_scaled,
+                                          method = .method,
+                                          action = "add",
+                                          transform = log1p,
+                                          # check_duplicates is for Rtsne method
+                                          check_duplicates = FALSE) %>% 
+                        
+                        # save symbols for calculating real_size while reducing replicated rows resulted from symbol
+                        nest(data_symbol = c(symbol, count_scaled))
+    )) %>% 
+    
+    mutate(real_size = map_int(rdim, ~ .x$data_symbol %>% 
+                                 map_int(~ n_distinct(.x$symbol)) %>% 
+                                 unlist() %>% 
+                                 unique() )) %>% 
+    
+    mutate(area_df = map(rdim, ~ ellipse(.x, .level, .method) )
+    )
+  
+}
+
+## 5.3 Scale serialised ellip_func() output (a tibble called ellip_tb) for plotting
+ellip_scale <- function(.ellip_tb, .level) {
+  .ellip_tb %>% 
+    unnest(ellip) %>%
+    unnest(area_df) %>%
+    
+    # nest by ancestor cell type to rescale area for all sig_sizes
+    nest(cell_data = - !!as.symbol(pre(LEVEL))) %>%
+    mutate(cell_data = map(cell_data, ~ .x %>% 
+                             mutate(rescaled_area = area %>% 
+                                      scale(center = F))
+    )) %>%
+    
+    # nest by ancestor cell type to summarise areas for each real_size/sig_size
+    mutate(plot_data = map(cell_data, ~ .x %>%
+                             # sum all areas for each real_size for an ancestor node
+                             group_by(real_size) %>%
+                             summarise(sig_size,
+                                       stded_sum=sum(area, na.rm = T),
+                                       wted_sum = sum(weighted_area, na.rm = T),
+                                       rescaled_sum= sum(rescaled_area, na.rm = T)) %>%
+                             # remove duplicate rows
+                             distinct(real_size, sig_size, stded_sum, wted_sum, rescaled_sum) %>% 
+                             pivot_longer(ends_with("sum"), names_to='area_type', values_to="area_value")
+    ))
+}
+
+## 6 Silhouette score calculation for a series of sig_sizes
+sil_func <- function(.markers, .level, .method){
+  .markers %>%
+    nest(rdim = - !!as.symbol(pre(.level))) %>%
+    mutate(rdim = map(rdim, ~ .x %>%
+                        distinct(sample, symbol, count_scaled, !!as.symbol(.level)))) %>%
+    mutate(rdim = map(rdim, ~ .x %>%
+                        reduce_dimensions(sample, symbol, count_scaled,
+                                          method = .method,
+                                          action = "add",
+                                          transform = log1p,
+                                          # check_duplicates is for Rtsne method
+                                          check_duplicates = FALSE) %>% 
+                        
+                        # save symbols for calculating real_size while reducing replicated rows resulted from symbol
+                        nest(data_symbol = c(symbol, count_scaled))
+    )) %>%
+    
+    # calculate the dissimilarity matrix with PC values
+    mutate(distance = map(rdim, ~ .x %>%
+                            select(contains(str_sub(.method, end = -2L))) %>%
+                            factoextra::get_dist(method = "euclidean")
+    )) %>%
+    
+    # calculate silhouette score
+    mutate(sil = map2(rdim, distance,
+                      ~ silhouette(as.numeric(as.factor(`$`(.x, !!as.symbol(.level)))), .y)
+    )) %>%
+    mutate(sil = map(sil, ~ .x %>% summary())) %>%
+    mutate(sil = map(sil, ~ .x %>% 
+                       `$`(avg.width) ))%>% 
+    mutate(sil = unlist(sil)) %>% 
+    
+    # obtain the actual number of signature genes
+    mutate(real_size = map_int(rdim, ~ .x$data_symbol %>% 
+                                 map_int(~ n_distinct(.x$symbol)) %>% 
+                                 unlist() %>% 
+                                 unique() ))
+  
+}
+
+# signature size optimation functions:
+ratio <- function(.plot_data) {
+  .plot_data %>% 
+    
+    # too few markers won't be able to resolve cell types in a large mixed cohort hence remove them
+    filter(real_size > 10) %>%
+    
+    # use min_max scaler to rescale real_size to the same scale as silhouette score (between 0 and 1)
+    mutate(rs_rescaled = rescale(real_size, c(0, 1))) %>% 
+    
+    # calculate the difference between rescaled size of the max sil point with that of all other points
+    # the bigger different the better (even for negative numbers)
+    mutate(diff_size = rs_rescaled[which.max(sil)] - rs_rescaled) %>%
+    
+    # calculate the difference between silhouette score of the max sil point and that of all other points
+    # the smaller the better
+    mutate(diff_sil = max(sil) - sil) %>%
+    
+    # calculate the ratio between diff_size/diff_sil, the bigger the better
+    mutate(ratio = ifelse(diff_sil==0, diff_sil, diff_size / diff_sil))
+}
+
+optim_size <- function(.plot_data) {
+  
+  # if the highest silhouette score is the first point then select this point (no left points)
+  if (which.max(.plot_data$sil) == 1) {
+    op_size <- c(sig_size = .plot_data$sig_size[1], 
+                 real_size = .plot_data$real_size[1])
+    
+    # if the highest silhouette score is the last point then select the best left point (no right points)
+  } else if (which.max(.plot_data$sil) == nrow(.plot_data)) {
+    
+    # find the index of the point that gives the best ratio to the left of max silhouette score point
+    lop_index <- which.max(.plot_data$ratio[.plot_data$ratio > 0])
+    
+    op_size <- c(sig_size = .plot_data$sig_size[lop_index],
+                 real_size = .plot_data$real_size[lop_index])
+    
+  } else {
+    
+    # find the index that gives the optimal point to the left of max silhouette score point
+    lop_index <- which.max(.plot_data$ratio[.plot_data$ratio > 0])
+    
+    # find the index that gives the optimal point to the right of max silhouette score point
+    rop_index <- which.max(.plot_data$sil) +
+      which.max(.plot_data$ratio[.plot_data$ratio < 0])
+    
+    # choose the sizes of the optimal left point if its silhouette score is bigger than the optimal right point
+    if (.plot_data$sil[lop_index] >= .plot_data$sil[rop_index]) {
+      op_size <- c(sig_size = .plot_data$sig_size[lop_index],
+                   real_size = .plot_data$real_size[lop_index])
+    } else {
+      # choose the max silhouette point if silhouette score of the optim right point is bigger than that of the left
+      op_size <- c(sig_size = .plot_data$sig_size[which.max(.plot_data$sil)],
+                   real_size = .plot_data$real_size[which.max(.plot_data$sil)])
+    }
+  }
+  return(op_size)
+}
+
+penalized_sil <- function(.plot_data) {
+  .plot_data %>% 
+    
+    # too few markers won't be able to resolve cell types in a large mixed cohort hence remove them
+    filter(real_size > 10) %>%
+    
+    # use min_max scaler to rescale real_size to the same scale as silhouette score (between 0 and 1)
+    mutate(rs_rescaled = rescale(real_size, c(0, 1))) %>% 
+    
+    mutate(penalized_sil = sil - 0.1 * rs_rescaled)
+}
+
+optim_size2 <- function(.plot_data) {
+  index <- which.max(.plot_data$penalized_sil)
+  op_size <- c(sig_size = .plot_data$sig_size[index], 
+               real_size = .plot_data$real_size[index])
+  return(op_size)
+}
+```
+
+
+# 1 Pre-analysis
+
+## 1.1 Preprocess data
+```{r preprocess, message=F, warning = FALSE}
+# 1 Setup data frame & preprocessing
+
+# tt_L1 <- counts %>% 
+#   # create an ancestor node for cell types on level_1
+#   mutate(level_0 = "cell") %>% 
+#   preprocess(LEVEL)
+
+```
+
+```{r cell_types, message=F, warning=F}
+# View cell types on ancestor level_0
+tt_L1 %>% 
+  unnest(data) %>% 
+  select(!!as.symbol(pre(LEVEL))) %>% 
+  distinct()
+```
+
+<!-- ## 1.2 Cluster without marker selection for contrast -->
+
+<!-- ```{r naive, results = FALSE, warning = FALSE, message=F} -->
+<!-- # 2 No selection of markers -->
+<!-- tt_naive_L1 <- -->
+<!--   tt_L1 %>% -->
+
+<!--   # Scale and reduce dimensions -->
+<!--   mutate(data = map( -->
+<!--     data, -->
+<!--     ~ .x %>% -->
+<!--       reduce_dimensions(method=METHOD) -->
+<!--       # reduce_dimensions(method="MDS") %>% -->
+<!--       # reduce_dimensions(method="tSNE") -->
+<!--   )) -->
+
+<!-- ``` -->
+
+<!-- ```{r PCA_naive_cell, message=F} -->
+<!-- PCA_naive_cell <- tt_naive_L1 %>%  -->
+<!--   pluck("data", 1) %>%  -->
+<!--   ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) +  -->
+<!--   geom_point() + -->
+<!--   stat_ellipse(type = 't')+ -->
+<!--   theme_bw() -->
+
+<!-- PCA_naive_cell -->
+<!-- ``` -->
+
+# 2 Hierarchy + Pairwise Analysis
+
+## 2.0 Generate pairwise contrast
+
+```{r pairwise_contrast, message=F, results = FALSE, warning = FALSE}
+contrast_PW_L1 <- tt_L1 %>% 
+  contrast_PW(LEVEL)
+```
+
+<!-- ## 2.1 Ellipse Area Analysis -->
+
+<!-- ```{r ellipse, message=F, results = FALSE, warning = FALSE,} -->
+<!-- sig_size <- 20 -->
+
+<!-- # create a tibble that stores the confidence ellipse area output for each signature size -->
+<!-- ellip_tb <- -->
+<!--   tibble(sig_size = 1:sig_size) %>% -->
+<!--   # slice(1) %>% -->
+<!--   mutate(ellip = map(sig_size, ~ sig_select(contrast_PW_L1, LEVEL, .x))) %>% -->
+<!--   mutate(ellip = map(ellip, ~ ellip_func(.x, LEVEL, METHOD) )) -->
+
+<!-- # rescale areas and plot total areas vs the total number of markers selected from cell types in a level -->
+<!-- ellip_data <- ellip_tb %>% ellip_scale(LEVEL) -->
+<!-- ``` -->
+
+<!-- ### 2.1.1 Signature size selection & PCA plot for cell -->
+
+<!-- Signature size selection plot for cell: -->
+
+<!-- ```{r cell_elli, message=F} -->
+<!-- cell_elli <- ellip_data %>%  -->
+<!--   pluck("plot_data", 1) %>%  -->
+<!--   ggplot(aes(real_size, area_value, colour=area_type)) +  -->
+<!--   geom_line() + -->
+<!--   geom_point() + -->
+<!--   # scale_x_continuous(sec.axis = sec_axis(as.factor())) + -->
+<!--   # facet_grid(rows = vars(area_type), scales = "free_y") -->
+<!--   facet_wrap(~ area_type, scales = "free_y") -->
+
+<!-- cell_elli -->
+<!-- ``` -->
+
+<!-- The elbow point indicates optimal sig_size is $7$. PCA at sig_size = $7$:  -->
+
+<!-- ```{r PCA1_cell_elli, message=F, warning = FALSE} -->
+<!-- sig_size <- 7 -->
+
+<!-- PCA1_cell_elli <- ellip_tb %>%  -->
+<!--   pluck("ellip", 7) %>%  -->
+<!--   pluck("rdim", 1) %>%  -->
+<!--   ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) +  -->
+<!--   geom_point() + -->
+<!--   stat_ellipse(type = 't')+ -->
+<!--   theme_bw() -->
+
+<!-- PCA1_cell_elli -->
+<!-- ``` -->
+
+## 2.2 Silhouette Analysis
+
+```{r silhouette, message=F, warning = FALSE}
+sig_size <- 60
+
+sil_tb_pw <-
+  tibble(sig_size = 1:sig_size) %>%
+  # slice(1) %>%
+  mutate(sil_df = map(sig_size, ~ sig_select(contrast_PW_L1, LEVEL, .x))) %>%
+  mutate(sil_df = map(sil_df, ~.x %>% sil_func(LEVEL, METHOD)))
+```
+
+### 2.2.1 Signature size optimisation with Naive Silhouette Score Approach
+
+```{r,  warning=FALSE, message=F}
+sil_data_NSS <- sil_tb_pw %>%
+  unnest(sil_df) %>%
+  nest(plot_data = - !!as.symbol(pre(LEVEL)))
+```
+
+#### 2.2.1 NSS Signature size selection & PCA plot for cell
+
+Signature size selection Trend Plot for cell:
+
+```{r , warning=FALSE, message=F}
+cell_sil <- sil_data_NSS %>%
+  # select ancestor cell type
+  pluck("plot_data", 1) %>% 
+  ggplot(aes(real_size, sil)) +
+  geom_line() +
+  geom_point() +
+  ggtitle("level_1 cell PW NSS")
+
+cell_sil
+```
+
+Which sig_size gives maximum NSS:
+
+```{r max_sig, warning=F, message=F}
+sil_data_NSS %>% 
+  pluck("plot_data", 1) %>%
+  pull(sil) %>% 
+  which.max()
+```
+
+What is the max silhouette score of NSS & real_size:
+
+```{r, warning=F, message=F}
+sil_data_NSS %>% 
+  pluck("plot_data", 1) %>%
+  slice(44)
+```
+
+The peak is reached when sig_size = $44$. PCA at sig_size = $44$:
+
+```{r , message=F, warning = FALSE}
+# sig_size = 44
+
+PCA1_cell_sil <- sil_data_NSS %>% 
+  # select ancestor cell type
+  pluck("plot_data", 1) %>% 
+  # select data at optimal size
+  pluck("rdim", 44) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
+  geom_point() +
+  stat_ellipse(type = 't')+
+  theme_bw() +
+  ggtitle("level_1 cell sig_size = 44")
+
+PCA1_cell_sil
+```
+
+### 2.2.2 Signature size optimisation with Penalized Silhouette Score Approach
+
+```{r}
+sil_data_PSS <- sil_tb_pw %>%
+  unnest(sil_df) %>%
+  nest(plot_data = - !!as.symbol(pre(LEVEL))) %>% 
+  mutate(plot_data = map(plot_data, ~ .x %>% penalized_sil()) ) %>% 
+  mutate(optim_size = map(plot_data, ~ .x %>% optim_size2()))
+
+```
+
+#### 2.2.2 PSS Signature size selection & PCA plot for cell
+
+Signature size selection Trend Plot for cell:
+
+```{r , warning=FALSE, message=F}
+cell_sil <- sil_data_PSS %>%
+  pluck("plot_data", 1) %>% 
+  ggplot(aes(real_size, sil)) +
+  geom_line() +
+  geom_point() +
+  ggtitle("level_1 cell PW PSS")
+
+cell_sil
+```
+
+What is the optimal sig_size & real_size using PSS:
+```{r}
+sil_data_PSS %>% mutate(optim_size = map_df(optim_size, ~.x %>% unlist()))
+```
+
+What is the max silhouette score of PSS:
+
+```{r, warning=F, message=F}
+sil_data_PSS %>% 
+  pluck("plot_data", 1) %>%
+  pull(sil) %>% 
+  max()
+```
+
+PCA at sig_size = $23$, real_size= $209$:
+
+```{r , message=F, warning = FALSE}
+# sig_size = 23, real_size = 209
+
+PCA1_cell_sil <- sil_data_PSS %>% 
+  # select ancestor cell type
+  pluck("plot_data", 1) %>% 
+  # select data at optimal size
+  pluck("rdim", 23) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
+  geom_point() +
+  stat_ellipse(type = 't')+
+  theme_bw() +
+  ggtitle("level_1 cell sig_size = 23, real_size =209")
+
+PCA1_cell_sil
+```
+
+### 2.2.3 Signature size optimisation with Distance Raito Approach
+
+```{r}
+sil_data_DR <- sil_tb_pw %>%
+  unnest(sil_df) %>%
+  nest(plot_data = - !!as.symbol(pre(LEVEL))) %>% 
+  mutate(plot_data = map(plot_data, ~ .x %>% ratio()) ) %>% 
+  mutate(optim_size = map(plot_data, ~ .x %>% optim_size()))
+
+```
+
+#### 2.2.3 DR Signature size selection & PCA plot for cell
+
+Signature size selection Trend Plot for cell:
+
+```{r , warning=FALSE, message=F}
+cell_sil <- sil_data_DR %>%
+  pluck("plot_data", 1) %>% 
+  ggplot(aes(real_size, sil)) +
+  geom_line() +
+  geom_point() +
+  ggtitle("level_1 cell PW DR")
+
+cell_sil
+```
+
+What is the optimal sig_size & real_size using DR:
+
+```{r, warning=FALSE, message=F}
+sil_data_DR %>% mutate(optim_size = map_df(optim_size, ~.x %>% unlist()))
+```
+
+What is the max silhouette score of DR:
+
+```{r, warning=F, message=F}
+sil_data_DR %>% 
+  pluck("plot_data", 1) %>%
+  pull(sil) %>% 
+  max()
+```
+
+The peak is reached when sig_size = $39$. PCA at sig_size = $342$:
+
+```{r , message=F, warning = FALSE}
+
+PCA1_cell_sil <- sil_data_DR %>% 
+  # select ancestor cell type
+  pluck("plot_data", 1) %>% 
+  # select data at optimal size
+  pluck("rdim", 39) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
+  geom_point() +
+  stat_ellipse(type = 't')+
+  theme_bw() +
+  ggtitle("level_1 cell sig_size = 39")
+
+PCA1_cell_sil
+```
+
+# 3 Hierarchy + mean contrast analysis
+
+## 3.0 Generate mean contrast
+
+```{r mean_contrast, message=F, warning=F}
+contrast_MC_L1 <- tt_L1 %>% 
+  contrast_MC(LEVEL)
+```
+
+<!-- ## 3.1 Ellipse Area Analysis -->
+
+<!-- ```{r ellipse_3.1, warning = FALSE, message=F} -->
+<!-- sig_size <- 20 -->
+
+<!-- # create a tibble that stores the confidence ellipse area output for each signature size -->
+<!-- ellip_tb <- -->
+<!--   tibble(sig_size = 1:sig_size) %>% -->
+<!--   # slice(1) %>% -->
+<!--   mutate(ellip = map(sig_size, ~ sig_select(contrast_MC_L1, LEVEL, .x))) %>% -->
+<!--   mutate(ellip = map(ellip, ~ ellip_func(.x, LEVEL, METHOD))) -->
+
+<!-- # rescale areas and plot total areas vs the total number of markers selected from cell types in a level -->
+<!-- ellip_data <- ellip_tb %>% ellip_scale(LEVEL) -->
+<!-- ``` -->
+
+<!-- ### 3.1.1 Signature size selection & PCA plot for cell -->
+
+<!-- Signature size selection plot for cell: -->
+
+<!-- ```{r cell_elli_3.1.1, message=F} -->
+<!-- cell_elli <- ellip_data %>%  -->
+<!--   pluck("plot_data", 1) %>%  -->
+<!--   ggplot(aes(real_size, area_value, colour=area_type)) +  -->
+<!--   geom_line() + -->
+<!--   geom_point() + -->
+<!--   # scale_x_continuous(sec.axis = sec_axis(as.factor())) + -->
+<!--   # facet_grid(rows = vars(area_type), scales = "free_y") -->
+<!--   facet_wrap(~ area_type, scales = "free_y") -->
+
+<!-- cell_elli -->
+<!-- ``` -->
+
+<!-- The elbow point indicates optimal sig_size is $7$. PCA at sig_size = $7$:  -->
+
+<!-- ```{r PCA5_tCD4_memory_3.1.1, warning = FALSE, message=F} -->
+<!-- sig_size <- 7 -->
+
+<!-- PCA1_cell_elli <- ellip_tb %>%  -->
+<!--   pluck("ellip", 7) %>%  -->
+<!--   pluck("rdim", 1) %>%  -->
+<!--   ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) +  -->
+<!--   geom_point() + -->
+<!--   stat_ellipse(type = 't')+ -->
+<!--   theme_bw() -->
+
+<!-- PCA1_cell_elli -->
+<!-- ``` -->
+
+## 3.2 Silhouette Analysis
+
+```{r , warning = FALSE, message=F}
+sig_size <- 60
+
+sil_tb_mc <-
+  tibble(sig_size = 1:sig_size) %>%
+  # slice(1) %>%
+  mutate(sil_df = map(sig_size, ~ sig_select(contrast_MC_L1, LEVEL, .x))) %>%
+  mutate(sil_df = map(sil_df, ~.x %>% sil_func(LEVEL, METHOD)))
+```
+
+### 2.2.1 Signature size optimisation with Naive Silhouette Score Approach
+
+```{r,  warning=FALSE, message=F}
+sil_data_NSS <- sil_tb_mc %>%
+  unnest(sil_df) %>%
+  nest(plot_data = - !!as.symbol(pre(LEVEL)))
+```
+
+#### 2.2.1 NSS Signature size selection & PCA plot for cell
+
+Signature size selection Trend Plot for cell:
+
+```{r , warning=FALSE, message=F}
+cell_sil <- sil_data_NSS %>%
+  # select ancestor cell type
+  pluck("plot_data", 1) %>% 
+  ggplot(aes(real_size, sil)) +
+  geom_line() +
+  geom_point() +
+  ggtitle("level_1 cell MC NSS")
+
+cell_sil
+```
+
+Which sig_size gives maximum NSS:
+
+```{r , warning=F, message=F}
+sil_data_NSS %>% 
+  pluck("plot_data", 1) %>%
+  pull(sil) %>% 
+  which.max()
+```
+
+What is the max silhouette score of NSS & real_size:
+
+```{r, warning=F, message=F}
+sil_data_NSS %>% 
+  pluck("plot_data", 1) %>%
+  slice(60)
+```
+
+The peak is reached when sig_size = $60$. PCA at sig_size = $60$:
+
+```{r , message=F, warning = FALSE}
+# sig_size = 60
+
+PCA1_cell_sil <- sil_data_NSS %>% 
+  # select ancestor cell type
+  pluck("plot_data", 1) %>% 
+  # select data at optimal size
+  pluck("rdim", 60) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
+  geom_point() +
+  stat_ellipse(type = 't')+
+  theme_bw() +
+  ggtitle("level_1 cell sig_size = 60")
+
+PCA1_cell_sil
+```
+
+### 2.2.2 Signature size optimisation with Penalized Silhouette Score Approach
+
+```{r}
+sil_data_PSS <- sil_tb_mc %>%
+  unnest(sil_df) %>%
+  nest(plot_data = - !!as.symbol(pre(LEVEL))) %>% 
+  mutate(plot_data = map(plot_data, ~ .x %>% penalized_sil()) ) %>% 
+  mutate(optim_size = map(plot_data, ~ .x %>% optim_size2()))
+
+```
+
+#### 2.2.2 PSS Signature size selection & PCA plot for cell
+
+Signature size selection Trend Plot for cell:
+
+```{r , warning=FALSE, message=F}
+cell_sil <- sil_data_PSS %>%
+  pluck("plot_data", 1) %>% 
+  ggplot(aes(real_size, sil)) +
+  geom_line() +
+  geom_point() +
+  ggtitle("level_1 cell MC PSS")
+
+cell_sil
+```
+
+What is the optimal sig_size & real_size using PSS:
+```{r}
+sil_data_PSS %>% mutate(optim_size = map_df(optim_size, ~.x %>% unlist()))
+```
+
+What is the max silhouette score of PSS:
+
+```{r, warning=F, message=F}
+sil_data_PSS %>% 
+  pluck("plot_data", 1) %>%
+  pull(sil) %>% 
+  max()
+```
+
+PCA at sig_size = $8$, real_size= $32$:
+
+```{r , message=F, warning = FALSE}
+# sig_size = 8, real_size = 32
+
+PCA1_cell_sil <- sil_data_PSS %>% 
+  # select ancestor cell type
+  pluck("plot_data", 1) %>% 
+  # select data at optimal size
+  pluck("rdim", 8) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
+  geom_point() +
+  stat_ellipse(type = 't')+
+  theme_bw() +
+  ggtitle("level_1 cell sig_size = 8, real_size =32")
+
+PCA1_cell_sil
+```
+
+### 2.2.3 Signature size optimisation with Distance Raito Approach
+
+```{r}
+sil_data_DR <- sil_tb_mc %>%
+  unnest(sil_df) %>%
+  nest(plot_data = - !!as.symbol(pre(LEVEL))) %>% 
+  mutate(plot_data = map(plot_data, ~ .x %>% ratio()) ) %>% 
+  mutate(optim_size = map(plot_data, ~ .x %>% optim_size()))
+
+```
+
+#### 2.2.3 DR Signature size selection & PCA plot for cell
+
+Signature size selection Trend Plot for cell:
+
+```{r , warning=FALSE, message=F}
+cell_sil <- sil_data_DR %>%
+  pluck("plot_data", 1) %>% 
+  ggplot(aes(real_size, sil)) +
+  geom_line() +
+  geom_point() +
+  ggtitle("level_1 cell MC DR")
+
+cell_sil
+```
+
+What is the optimal sig_size & real_size using DR:
+
+```{r, warning=FALSE, message=F}
+sil_data_DR %>% mutate(optim_size = map_df(optim_size, ~.x %>% unlist()))
+```
+
+What is the max silhouette score of DR:
+
+```{r, warning=F, message=F}
+sil_data_DR %>% 
+  pluck("plot_data", 1) %>%
+  pull(sil) %>% 
+  max()
+```
+
+The peak is reached when sig_size = $49$. PCA at sig_size = $196$:
+
+```{r , message=F, warning = FALSE}
+
+PCA1_cell_sil <- sil_data_DR %>% 
+  # select ancestor cell type
+  pluck("plot_data", 1) %>% 
+  # select data at optimal size
+  pluck("rdim", 49) %>% 
+  ggplot(aes(x = PC1, y = PC2, colour = !!as.symbol(LEVEL), label = sample)) + 
+  geom_point() +
+  stat_ellipse(type = 't')+
+  theme_bw() +
+  ggtitle("level_1 cell sig_size = 49, real_size=196")
+
+PCA1_cell_sil
+```
+

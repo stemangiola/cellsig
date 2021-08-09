@@ -1,4 +1,36 @@
-
+#' @importFrom tidyr nest
+#' @importFrom tidyr unnest
+#' @importFrom tibble enframe
+generate_quantities_standalone = function(fit, G){
+  
+  
+  rstan::gqs(
+    stanmodels$generated_quantities,
+    #rstan::stan_model("inst/stan/generated_quantities.stan"),
+    draws =  as.matrix(fit),
+    data = list(G)
+  ) %>%
+    
+    rstan::extract("counts") %$% counts %>%
+    as.data.frame() %>%
+    setNames(1:G) %>%
+    as_tibble(rownames = "draw") %>%
+    gather(G, generated_quantity, -draw) %>%
+    mutate(G = as.integer(G)) %>%
+    nest(data = -G) %>%
+    mutate(quantiles = map(
+      data, 
+      ~ quantile(
+        .x$generated_quantity, 
+        probs = c(0.025, 0.25, 0.5, 0.75, 0.975)
+      ) %>% 
+        enframe() %>% 
+        spread(name, value)
+    )) %>%
+    unnest(quantiles) %>%
+    select(-data)
+  
+}
 
 #' ref_intercept_only
 #'
@@ -43,188 +75,45 @@
 #' @export
 #'
 ref_intercept_only = function(reference,
-                              level,
+                              sample_abundance_multiplier,
                               cores = 8,
                               approximate_posterior = F
 ) {
-  # Former parameters
-  X = matrix(rep(1, 1))
-  do_regression = F
-  full_bayesian = T
-  omit_regression =                   T
-  save_fit =                          T
-  seed =                              NULL
-  iterations = 250
-  sampling_iterations = 100
-  levels = 1:4
 
-  # Add fake lambda, sigma
-  reference =
-    reference %>%
-    mutate(lambda = 1, sigma_raw = 1)
+  exposure_rate_col = enquo(sample_abundance_multiplier)
 
-  shards = cores #* 2
-  is_level_in = shards %>% `>` (0) %>% as.integer
-
-  # Global properties - derived by previous analyses of the whole reference dataset
-  sigma_intercept = 1.3420415
-  sigma_slope = -0.3386389
-  sigma_sigma = 1.1720851
-  lambda_mu_mu = 5.612671
-  lambda_sigma = 7.131593
-
-  # Non centered
-  lambda_mu_prior = c(6.2, 1)
+  # Non centred
+  lambda_mu_prior = c(8, 2)
   lambda_sigma_prior =  c(log(3.3) , 1)
-  lambda_skew_prior =  c(-2.7, 1)
-  sigma_intercept_prior = c(1.9 , 0.1)
-
-  # Set up tree structure
-  levels_in_the_tree = 1:4
-
-  tree =
-    tree %>%
-    data.tree::Clone() %>%	{
-      # Filter selected levels
-      data.tree::Prune(., function(x)
-        x$level <= max(levels_in_the_tree) + 1)
-      .
-    }
-
-  ct_in_nodes =
-    tree %>%
-    data.tree::ToDataFrameTree("name", "level", "C", "count", "isLeaf") %>%
-    as_tibble %>%
-    arrange(level, C) %>%
-    filter(!isLeaf) %>%
-    pull(count)
-
-  # Get the number of leafs for every level
-  ct_in_levels = foreach(l = levels_in_the_tree + 1, .combine = c) %do% {
-    data.tree::Clone(tree) %>%
-      when((.) %>% data.tree::ToDataFrameTree("level") %>% pull(2) %>% max %>% `>` (l)  ~ {
-                    (.)
-                    data.tree::Prune(., function(x)
-                      x$level <= l)
-                    (.)
-                  }, ~(.)
-        )  %>%
-      data.tree::Traverse(., filterFun = isLeaf) %>%
-      length()
-  }
-
-  n_nodes = ct_in_nodes %>% length
-  n_levels = ct_in_levels %>% length
-
-  singles_lv2 = tree$Get("C1", filterFun = isLeaf) %>% na.omit %>% as.array
-  SLV2 = length(singles_lv2)
-  parents_lv2 = tree$Get("C1", filterFun = isNotLeaf) %>% na.omit %>% as.array
-  PLV2 = length(parents_lv2)
-
-  singles_lv3 = tree$Get("C2", filterFun = isLeaf) %>% na.omit %>% as.array
-  SLV3 = length(singles_lv3)
-  parents_lv3 = tree$Get("C2", filterFun = isNotLeaf) %>% na.omit %>% as.array
-  PLV3 = length(parents_lv3)
-
-  singles_lv4 = tree$Get("C3", filterFun = isLeaf) %>% na.omit %>% as.array
-  SLV4 = length(singles_lv4)
-  parents_lv4 = tree$Get("C3", filterFun = isNotLeaf) %>% na.omit %>% as.array
-  PLV4 = length(parents_lv4)
-
-
-  # Prepare data frames -
-  # For G house keeing first
-
-  reference_filtered =
-    reference %>%
-    select(
-      level,
-      sample,
-      symbol,
-      `cell_type`,
-      `count`,
-      lambda,
-      sigma_raw,
-      `house_keeping`
-    ) %>%
-
-    # Bug after I deleted FANTOM5 I have to rerun infer NB. Some genes are not in all cell types anynore
-    # Other bug
-    filter(`cell_type` %>% is.na %>% `!`) %>%
-
-    # Check if this is still important
-    group_by(level) %>%
-    do((.) %>% inner_join(
-      (.) %>%
-        distinct(symbol, `cell_type`) %>%
-        count(symbol) %>%
-        filter(n == max(n))
-    )) %>%
-    ungroup() %>%
-
-
-    # left_join(n_markers, by=c("ct1", "ct2")) %>%
-    # filter_reference(mix) %>%
-    # select(-ct1, -ct2, -rank, -`n markers`) %>%
-    # distinct %>%
-
-    # Select cell types in hierarchy
-    inner_join(
-      tree %>%
-        data.tree::ToDataFrameTree("cell_type", "C", "C1", "C2", "C3", "C4") %>%
-        as_tibble %>%
-        select(-1)
-
+  lambda_skew_prior =  c(-2.7, 2)
+  sigma_intercept_prior = c(1.9 , 0.5)
+  
+  res1 = 
+    
+    run_model_ref(
+      reference,
+      !!exposure_rate_col,
+      cores,
+      approximate_posterior
+      #iterations = iterations,
+      #sampling_iterations = sampling_iterations
     )
 
-  res1 = run_model_ref(
-    tree,
-    reference_filtered,
-    shards,
-    level,
-    T,
-    approximate_posterior,
-    iterations = iterations,
-    sampling_iterations = sampling_iterations
-  )
-
-  res1[[1]] %>% filter(!query) %>% distinct(symbol, `cell_type`, G, S, sample) %>%
+  G = res1[[1]] %>% distinct(cell_type, symbol, G) %>% nrow
+  
+  generated_quantities = 
+    
+    # Run model
+    generate_quantities_standalone( res1[[2]], G  ) 
+  
+  res1[[1]] %>% 
+    nanny::subset(c(symbol, cell_type)) %>%
+    select(-starts_with("level_")) %>%
 
     # Attach lambda sigma
-    left_join(
-      res1[[2]] %>% rstan::summary(c("lambda_log", "sigma_inv_log")) %$% summary %>%
-        as_tibble(rownames = "par") %>%
-        separate(par, c("par", "G"), sep = "\\[|\\]", extra = "drop") %>%
-        mutate(G = G %>% as.integer) %>%
-        select(par, G, "50%") %>%
-        spread(par, `50%`),
-      by = c("G")
-    ) %>%
+    left_join(  generated_quantities,    by = c("G")  ) %>%
+    select(-GM) 
 
-    # Attach exposure
-    left_join(
-      res1[[2]] %>%	rstan::summary("exposure_rate") %$% summary %>%
-        as_tibble(rownames="par") %>%
-        separate(par, c("par", "S"), sep="\\[|\\]", extra = "drop") %>%
-        mutate(S = S %>% as.integer) %>%
-        select(par, S, "50%") %>%
-        rename(exposure = `50%`) %>%
-        select(-par)
-    ) %>%
-
-    # Replace the category house_keeping
-    mutate(`house_keeping` = `cell_type` == "house_keeping") %>%
-    rename(temp = `cell_type`) %>%
-    left_join(
-      (.) %>%
-        filter(temp != "house_keeping") %>%
-        distinct(sample, S, temp) %>%
-        rename(`cell_type` = temp)
-    ) %>%
-    select(-temp) %>%
-
-    # attach fit
-    add_attr(res1[[2]], "fit")
 }
 
 #' Add attribute to abject
@@ -246,53 +135,28 @@ add_attr = function(var, attribute, name) {
 #'
 #' @export
 #'
-run_model_ref = function(tree,
+run_model_ref = function(
                          reference_filtered,
+                         exposure_rate_col,
                          shards,
-                         lv,
-                         full_bayesian,
                          approximate_posterior,
-                         exposure_posterior = tibble(.mean = 0, .sd = 0)[0,],
                          iterations = 250,
                          sampling_iterations = 100) {
 
+  
+  exposure_rate_col = enquo(exposure_rate_col)
+  
+  df = ref_format(reference_filtered ) 
 
-  reference_filtered =
-    reference_filtered %>%
-    inner_join(
-      # Filter on level considered
-      tree %>%
-        data.tree::Clone() %>%
-        {
-          # Filter selected levels
-          data.tree::Prune(., function(x)
-            x$level <= lv + 1)
-          .
-        } %>%
-        {
-          .$Get("name", filterFun  = isLeaf)
-        } %>%
-        as_tibble() %>%
-        setNames("cell_type"),
-      by = "cell_type"
-    )
-
-  # Check if there are not house_keeping
-  if (reference_filtered %>% filter(`house_keeping`) %>% nrow %>% equals(0))
-    stop("No house_keeping genes in your reference data frame")
-
-  df = ref_format(reference_filtered) %>% distinct()
-
-  G = df %>% filter(!`query`) %>% distinct(G) %>% nrow()
-  GM = df %>% filter(!`house_keeping`) %>% distinct(symbol) %>% nrow()
+  G = df %>% distinct(G) %>% nrow()
+  GM = df %>% distinct(symbol) %>% nrow()
   S = df %>% distinct(sample) %>% nrow()
-  counts_linear = df %>%  pull(`count`)
-  G_linear = df %>% pull(G)
-  S_linear = df %>% pull(S)
+  CL = df %>% nrow
 
-  CL = length(counts_linear)
-  S = df %>% distinct(S) %>% nrow
-
+  counts_linear = df %>%  pull(count)
+  G_to_counts_linear = df %>% pull(G)
+  exposure_rate = df %>% pull(!!exposure_rate_col)
+  
 
   # library(rstan)
   # fileConn<-file("~/.R/Makevars")
@@ -300,14 +164,25 @@ run_model_ref = function(tree,
   # close(fileConn)
   # ARMET_tc_model = rstan::stan_model("~/PhD/deconvolution/ARMET/inst/stan/ARMET_ref.stan", auto_write = F)
 
-  Sys.setenv("STAN_NUM_THREADS" = shards)
-
+  if(shards > 1) Sys.setenv("STAN_NUM_THREADS" = shards)
+  
   list(df,
-       switch(
-         approximate_posterior %>% sum(1),
-
-         # HMC
-         sampling(
+       approximate_posterior %>%
+         when(
+           # Variational
+           (.) == TRUE ~  vb_iterative(
+             stanmodels$ARMET_ref,
+             #rstan::stan_model("inst/stan/ARMET_ref.stan"),
+             output_samples = 5000,
+             iter = 50000,
+             tol_rel_obj = 0.01,
+             algorithm = "meanfield"
+             #,
+             #save_warmup = FALSE
+           ),  
+             
+          # HMC
+           ~ sampling(
            stanmodels$ARMET_ref,
            #rstan::stan_model("inst/stan/ARMET_ref.stan"),
            chains = 3,
@@ -316,80 +191,280 @@ run_model_ref = function(tree,
            warmup = iterations - sampling_iterations,
            save_warmup = FALSE
          ) %>%
-           {
-             (.)  %>% rstan::summary() %$% summary %>% as_tibble(rownames = "par") %>% arrange(Rhat %>% desc) %>% print
-             (.)
-           },
-
-         vb_iterative(
-           stanmodels$ARMET_ref,
-           #rstan::stan_model("inst/stan/ARMET_ref.stan"),
-           output_samples = 500,
-           iter = 50000,
-           tol_rel_obj = 0.005,
-           algorithm = "meanfield"
-
-         )
+         {
+           (.)  %>% rstan::summary() %$% summary %>% as_tibble(rownames = "par") %>% arrange(Rhat %>% desc) %>% print
+           (.)
+         }
        ))
 
 }
 
+
+
+#' @importFrom tidyr nest
+#' @importFrom tidyr unnest
 #' @export
 #'
 ref_format = function(ref) {
   # Get reference based on mix genes
-  ref %>% mutate(`query` = FALSE)	%>%
+  ref %>% 
 
-    # Add marker symbol indeces
-    left_join((.) %>%
-                filter(!`house_keeping`) %>%
-                distinct(`symbol`) %>%
-                mutate(M = 1:n()),
-              by = "symbol") %>%
+    # Add marker symbol indexes
+    nest(data = -c(symbol, cell_type)) %>%
+    rowid_to_column(var = "G") %>%
+    unnest(data) %>%
 
     # Add sample indeces
-    arrange(!`query`) %>% # query first
-    mutate(S = factor(sample, levels = .$sample %>% unique) %>% as.integer) %>%
-
-    # Add house_keeping into Cell type label
-    mutate(`cell_type` = ifelse(`house_keeping`, "house_keeping", `cell_type`)) %>%
-
-    # # Still needed? NOT because I have sample, ct unique, no redundancy
-    # anti_join(
-    # 	(.) %>%
-    # 		filter(`house_keeping` & !`query`) %>%
-    # 		distinct(symbol, level) %>%
-    # 		group_by(symbol) %>%
-    # 		arrange(level) %>%
-    # 		slice(2:max(n(), 2)) %>% # take away house_keeping from level 2 above
-    # 		ungroup()
-    # ) %>%
-
-  # If house_keeping delete level infomation
-  mutate(level = ifelse(`house_keeping`, NA, level)) %>%
-
-    # Create unique symbol ID
-    unite(ct_symbol, c("cell_type", "symbol"), remove = F) %>%
-
-    # Add gene idx
-    left_join(
-      (.) %>%
-        filter(!`query`) %>%
-        distinct(`cell_type`, ct_symbol, `house_keeping`) %>%
-        arrange(!`house_keeping`, ct_symbol) %>% # house_keeping first
-        mutate(G = 1:n()),
-      by = c("ct_symbol", "cell_type", "house_keeping")
-    ) %>%
-    left_join(
-      (.) %>%
-        filter(!`house_keeping` & !`query`) %>%
-        distinct(level, symbol) %>%
-        arrange(level, symbol) %>%
-        mutate(GM = 1:n()) %>%
-        select(-level),
-      by = "symbol"
-    )
+    nest(data = -sample) %>%
+    rowid_to_column(var = "S") %>%
+    unnest(data) %>%
+    
+    # Add sample indeces
+    nest(data = -symbol) %>%
+    rowid_to_column(var = "GM") %>%
+    unnest(data) 
 
 }
 
+#' @importFrom tidyr nest
+#' @importFrom tidyr unnest
+#' @export
+infer_sequencing_depth_bias = function(counts, shards = 10, hk600){
+  
+  model_input = 
+    counts %>%
+    
+    filter(level_1 %>% is.na %>% `!`) %>%
+    mutate(cell_type = level_1) %>%
+    
+    # Get only house keeping genes
+    filter(symbol %in% hk600) %>%
+    
+    # Add sample indexes
+    nest(data = -sample) %>%
+    rowid_to_column(var = "S") %>%
+    unnest(data) %>%
+    
+    # Add feature indexes
+    nest(data = -symbol) %>%
+    rowid_to_column(var = "GM") %>%
+    unnest(data) 
+  
+  # Input data
+  GM = model_input %>% distinct(symbol) %>% nrow()
+  S = model_input %>% distinct(sample) %>% nrow()
+  CL = model_input %>% nrow
+  
+  counts_linear = model_input %>% pull(count)
+  GM_to_counts_linear = model_input %>% pull(GM)
+  S_linear = model_input %>% pull(S)
+  
+  # Non centered
+  lambda_mu_prior = c(8, 2)
+  lambda_sigma_prior =  c(log(3.3) , 1)
+  lambda_skew_prior =  c(-2.7, 2)
+  sigma_intercept_prior = c(1.9 , 0.5)
+  
+  Sys.setenv("STAN_NUM_THREADS" = shards)
+  
+  
+  fit = 
+    vb_iterative(
+      #stanmodels$ARMET_ref,
+      rstan::stan_model("inst/stan/infer_exposure.stan"),
+      output_samples = 500,
+      iter = 50000,
+      tol_rel_obj = 0.01,
+      algorithm = "meanfield", data = list(
+        shards = 10,
+        
+        GM = model_input %>% distinct(symbol) %>% nrow(),
+        S = model_input %>% distinct(sample) %>% nrow(),
+        CL = model_input %>% nrow,
+        
+        counts_linear = model_input %>% pull(count),
+        GM_to_counts_linear = model_input %>% pull(GM),
+        S_linear = model_input %>% pull(S),
+        
+        # Non centered
+        lambda_mu_prior = c(8, 2),
+        lambda_sigma_prior =  c(log(3.3) , 1),
+        lambda_skew_prior =  c(-2.7, 2),
+        sigma_intercept_prior = c(1.9 , 0.5)
+        )
+    )
+  
+
+  fit %>%
+    summary_to_tibble("exposure_rate", "S") %>%
+    filter(.variable != "exposure_rate_minus_1") %>%
+    left_join(
+      model_input %>% distinct(sample, S),
+      by="S"
+    ) %>% 
+    select(sample, exposure_rate = mean) %>%
+    right_join(counts, by="sample")
+}
+
+#' @export
+impute_abundance_using_levels = function(.data, .abundance){
+  
+# Input dataset
+#   Rows: 28,455,434
+#   Columns: 11
+#   $ sample        <chr> "ENCFF060YNO", "ENCFF060YNO", "ENCFF060YNO", "ENCFF060YNO", "ENCFF060YNO", "ENCFF06…
+#   $ exposure_rate <dbl> -0.5029584, -0.5029584, -0.5029584, -0.5029584, -0.5029584, -0.5029584, -0.5029584,…
+#   $ cell_type     <chr> "dendritic_myeloid", "dendritic_myeloid", "dendritic_myeloid", "dendritic_myeloid",…
+#   $ count         <int> 20, 26, 0, 27635, 1, 0, 0, 0, 85, 0, 0, 78, 65, 0, 0, 0, 0, 0, 0, 0, 0, 398, 146, 1…
+#   $ symbol        <chr> "A1BG", "A1BG-AS1", "A1CF", "A2M", "A2M-AS1", "A2ML1", "A2MP1", "A3GALT2", "A4GALT"…
+#   $ database      <chr> "ENCODE", "ENCODE", "ENCODE", "ENCODE", "ENCODE", "ENCODE", "ENCODE", "ENCODE", "EN…
+#   $ level_1       <chr> "immune_cell", "immune_cell", "immune_cell", "immune_cell", "immune_cell", "immune_…
+#   $ level_2       <chr> "mono_derived", "mono_derived", "mono_derived", "mono_derived", "mono_derived", "mo…
+#   $ level_3       <chr> "dendritic_myeloid", "dendritic_myeloid", "dendritic_myeloid", "dendritic_myeloid",…
+#   $ level_4       <chr> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA,…
+#   $ level_5       <chr> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA,…
+
+  
+  # counts_imputed = 
+  #   counts %>% 
+  #   mutate(count_scaled = count / exp(exposure_rate)) %>% 
+  #   impute_abundance_using_levels(count_scaled)
+  # .abundance = enquo(.abundance)
+  
+  .abundance = enquo(.abundance)
+  
+  .data %>%
+  #mutate(count_scaled = count * exp(exposure_rate)) %>%
+  complete(nesting(sample, exposure_rate, cell_type, database, level_1 , level_2 , level_3 ,  level_4 ,level_5), symbol) %>%
+  
+  # Complete last level
+  nest(data = -c(symbol, cell_type)) %>%
+  mutate(count_median = map_dbl(data, ~  .x %>% pull(!!.abundance) %>%  median(na.rm = T) )) %>%
+  mutate(count_median = case_when(!is.na(cell_type) ~ count_median)) %>%
+  unnest(data) %>%
+  mutate(!!.abundance := case_when(is.na(!!.abundance) ~ count_median, TRUE ~ !!.abundance)) %>%
+  select(-count_median) %>%
+  
+  # Complete level 5
+  nest(data = -c(symbol, level_5 )) %>%
+  mutate(count_median = map_dbl(data, ~  .x %>% pull(!!.abundance) %>%  median(na.rm = T) )) %>%
+  mutate(count_median = case_when(!is.na(level_5 ) ~ count_median)) %>%
+  unnest(data) %>%
+  mutate(!!.abundance := case_when(is.na(!!.abundance) ~ count_median, TRUE ~ !!.abundance)) %>%
+  select(-count_median) %>%
+  
+  # Complete level 4
+  nest(data = -c(symbol, level_4 )) %>%
+  mutate(count_median = map_dbl(data, ~  .x %>% pull(!!.abundance) %>%  median(na.rm = T) )) %>%
+  mutate(count_median = case_when(!is.na(level_4 ) ~ count_median)) %>%
+  unnest(data) %>%
+  mutate(!!.abundance := case_when(is.na(!!.abundance) ~ count_median, TRUE ~ !!.abundance)) %>%
+  select(-count_median) %>%
+  
+  # Complete level 3
+  nest(data = -c(symbol, level_3 )) %>%
+  mutate(count_median = map_dbl(data, ~  .x %>% pull(!!.abundance) %>%  median(na.rm = T) )) %>%
+  mutate(count_median = case_when(!is.na(level_3 ) ~ count_median)) %>%
+  unnest(data) %>%
+  mutate(!!.abundance := case_when(is.na(!!.abundance) ~ count_median, TRUE ~ !!.abundance)) %>%
+  select(-count_median) %>%
+  
+  # Complete level 2
+  nest(data = -c(symbol, level_2 )) %>%
+  mutate(count_median = map_dbl(data, ~  .x %>% pull(!!.abundance) %>%  median(na.rm = T) )) %>%
+  mutate(count_median = case_when(!is.na(level_2 ) ~ count_median)) %>%
+  unnest(data) %>%
+  mutate(!!.abundance := case_when(is.na(!!.abundance) ~ count_median, TRUE ~ !!.abundance)) %>%
+  select(-count_median) %>%
+  
+  # Complete level 1
+  nest(data = -c(symbol, level_1 )) %>%
+  mutate(count_median = map_dbl(data, ~  .x %>% pull(!!.abundance) %>%  median(na.rm = T) )) %>%
+  mutate(count_median = case_when(!is.na(level_1 ) ~ count_median)) %>%
+  unnest(data) %>%
+  mutate(!!.abundance := case_when(is.na(!!.abundance) ~ count_median, TRUE ~ !!.abundance)) %>%
+  select(-count_median)
+}
+
+#' @export
+ToDataFrameTypeColFull = function(tree, fill = T, ...) {
+  t = tree %>% data.tree::Clone()
+  
+  tree_df = 
+    1:(t %$% Get("level") %>% max) %>%
+    map_dfr(
+      ~ data.tree::Clone(t) %>%
+        {
+          data.tree::Prune(., function(x)
+            x$level <= .x +1)
+          .
+        } %>%
+        data.tree::ToDataFrameTypeCol() %>%
+        as_tibble
+      
+    ) %>%
+    distinct() 
+  
+  tree_df_filled = 
+    tree_df %>%
+    
+    purrr::when(
+      1 & ("level_2" %in% colnames(.)) ~ mutate(., level_2 = ifelse(level_2 %>% is.na, level_1, level_2)),
+      TRUE ~ (.)
+    ) %>%
+    purrr::when(
+      1 & ("level_3" %in% colnames(.)) ~ mutate(., level_3 = ifelse(level_3 %>% is.na, level_2, level_3)),
+      TRUE ~ (.)
+    ) %>%
+    purrr::when(
+      1 & ("level_4" %in% colnames(.)) ~ mutate(., level_4 = ifelse(level_4 %>% is.na, level_3, level_4)),
+      TRUE ~ (.)
+    ) %>%
+    purrr::when(
+      1 & ("level_5" %in% colnames(.)) ~ mutate(., level_5 = ifelse(level_5 %>% is.na, level_4, level_5)),
+      TRUE ~ (.)
+    ) %>%
+    purrr::when(
+      1 & ("level_6" %in% colnames(.)) ~ mutate(., level_6 = ifelse(level_6 %>% is.na, level_5, level_6)),
+      TRUE ~ (.)
+    ) %>%
+    dplyr::select(..., everything())
+  
+  tree_df %>%
+    select(-1) %>%
+    setNames(tree_df %>% colnames %>% .[-ncol(tree_df)]) %>%
+    mutate(cell_type = tree_df_filled %>% pull(ncol(tree_df)))
+  
+}
+
+#' @export
+tree_and_signatures_to_database = function(tree, signatures, .sample, .cell_type, .symbol, .count){
+  .sample = enquo(.sample)
+  .cell_type = enquo(.cell_type)
+  .symbol = enquo(.symbol)
+  .count = enquo(.count)
+  
+  signatures %>%
+    
+    # Add tree info
+    left_join(
+      tree %>%
+        data.tree::Clone() %>%
+        ToDataFrameTypeColFull(fill=NA) ,
+      by = quo_name(.cell_type)
+    ) %>%
+    filter(level_1 %>% is.na %>% `!`) %>%
+    
+    # Reduce size
+    mutate_if(is.character, as.factor) %>% 
+    droplevels %>% 
+    mutate(!!.count := !!.count %>% as.integer) %>%
+    
+    # Filter only symbol existing
+    filter(!!.symbol %>% is.na %>% `!`) %>%
+    
+    # Aggregate
+    aggregate_duplicates(!!.sample, !!.symbol, !!.count) %>% 
+    select(-one_of("merged_transcripts"))
+}
 
