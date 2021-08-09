@@ -383,7 +383,7 @@ infer_sequencing_depth_bias = function(counts, shards = 10, hk600){
     rowid_to_column(var = "S") %>%
     unnest(data) %>%
     
-    # Add sample indexes
+    # Add feature indexes
     nest(data = -symbol) %>%
     rowid_to_column(var = "GM") %>%
     unnest(data) 
