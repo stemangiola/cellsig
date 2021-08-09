@@ -84,6 +84,8 @@ get_idx_level = function(tree, my_level) {
 
 #' format_for_MPI
 #'
+#' @importFrom tibble rowid_to_column
+#'
 #' @description Format reference data frame for MPI
 format_for_MPI = function(df, shards) {
   df %>%
@@ -157,7 +159,6 @@ parse_baseline = function(.data, shards_in_levels, lv) {
     format_for_MPI_from_linear()
 }
 
-
 #' @import magrittr
 #' @importFrom tibble rowid_to_column
 format_for_MPI_from_linear = function(df) {
@@ -198,38 +199,7 @@ get_ancestor_child = function(tree){
     filter(ancestor != `cell_type`)
 }
 
-#' ToDataFrameTypeColFull
-#'
-#' @description Extension of data.tree package. It converts the tree into data frame
-#'
-#' @export
-ToDataFrameTypeColFull = function(tree, fill = T, ...) {
-  t = tree %>% data.tree::Clone()
-
-  1:(t %$% Get("level") %>% max) %>%
-    map_dfr(
-      ~ data.tree::Clone(t) %>%
-        {
-          data.tree::Prune(., function(x)
-            x$level <= .x + 1)
-          .
-        } %>%
-        data.tree::ToDataFrameTypeCol() %>%
-        as_tibble
-
-    ) %>%
-    distinct() %>%
-    when(
-      fill & "level_3" %in% colnames(.) ~ (.) %>% mutate(level_3 = ifelse(level_3 %>% is.na, level_2, level_3)),
-      fill & "level_4" %in% colnames(.) ~ (.) %>% mutate(level_4 = ifelse(level_4 %>% is.na, level_3, level_4)),
-      fill & "level_5" %in% colnames(.) ~ (.) %>% mutate(level_5 = ifelse(level_5 %>% is.na, level_4, level_5)),
-      fill & "level_6" %in% colnames(.) ~ (.) %>% mutate(level_6 = ifelse(level_6 %>% is.na, level_5, level_6)),
-      ~ (.)
-    ) %>%
-    select(..., everything())
-
-}
-
+#' @importFrom tibble rowid_to_column
 format_for_MPI_from_linear_dec = function(df, lv) {
   shards = df %>% arrange(shards %>% desc) %>% slice(1) %>% pull(shards)
   if (shards %>% length %>% equals(0))
@@ -299,4 +269,41 @@ vb_iterative = function(model,
   }
 
   return(res)
+}
+
+draws_to_tibble = function(fit, par, x) {
+  
+  par_names = names(fit) %>% grep(sprintf("%s", par), ., value = T)
+  
+  fit %>%
+    rstan::extract(par_names, permuted=F) %>% 
+    as.data.frame %>% 
+    as_tibble() %>%
+    mutate(.iteration = 1:n()) %>% 
+    pivot_longer(
+      names_to = c("dummy", ".chain", ".variable", x),  
+      cols = contains(par), 
+      names_sep = "\\.|\\[|,|\\]|:",
+      values_to = ".value"
+    ) %>%
+    mutate(.chain = as.integer(.chain), !!as.symbol(x) := as.integer(!!as.symbol(x))) %>%
+    select(-dummy) %>%
+    arrange(.variable, !!as.symbol(x),  .chain) %>%
+    group_by(.variable, !!as.symbol(x)) %>%
+    mutate(.draw = 1:n()) %>%
+    ungroup() %>%
+    select(!!as.symbol(x), .chain, .iteration, .draw ,.variable ,     .value)
+  
+}
+
+summary_to_tibble = function(fit, par, x) {
+  
+  par_names = names(fit) %>% grep(sprintf("%s", par), ., value = T)
+  
+  fit %>%
+    rstan::summary(par_names) %$%
+    summary %>%
+    as_tibble(rownames = ".variable") %>% tidyr::extract(col = .variable, into = c(".variable", x), "(.+)\\[(.+)\\]", convert = T) 
+  
+  
 }
