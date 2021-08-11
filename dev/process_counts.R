@@ -18,11 +18,13 @@ counts_third_db_raw <- counts_third_db_raw %>%
   select(sample, symbol, count, database=dataset, cell_type)
 
  
-
 "AF1_NK_PDGF_DD"
+# tree with level_5
 data("tree")
+# tree without level_5
+load("dev/raw_data/tree.rda")
 
-counts =  
+counts.test =  
   
   # Merge dataset
   counts_first_db_raw %>%
@@ -42,10 +44,13 @@ counts =
 #   arrange(desc(n))
 
   
-save(counts, file="dev/counts.rda", compress = "xz")
+save(counts.test, file="dev/counts.test.rda", compress = "xz")
 
-counts_imputed =
-  counts %>%
+counts_imputed.test =
+  
+  counts.test %>%
+  
+  mutate(level_5 = NA) %>% 
   
   mutate(count_scaled = count / exp(exposure_rate)) %>%
   
