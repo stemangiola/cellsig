@@ -5,3 +5,5 @@ cibersortx/*
 topInf_scaleFALSE
 counts.rda
 counts_imputed.rda
+counts.test.rda
+signature.test.rds
