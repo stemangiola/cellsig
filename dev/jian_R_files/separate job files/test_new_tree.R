@@ -108,7 +108,7 @@ preprocess <- function(.transcript, .level) {
     tidybulk(sample, symbol, count) %>%
     
     # aggregate duplicate sample/gene pairs in the data
-    aggregate_duplicates(sample, symbol, count) %>% 
+    # aggregate_duplicates(sample, symbol, count) %>% 
     
     # rectangularise data
     nest(data = -c(symbol, cell_type)) %>%
@@ -835,7 +835,7 @@ format_output <- function(.optimised, .is_complete=FALSE){
 transcriptome <- readRDS("transcriptome.rds")
 
 
-signature.test <- counts %>% 
+signature.test <- counts.test %>% 
   
   # tree_and_signatures_to_database(tree = tree, 
   #                                 .sample = sample, 
