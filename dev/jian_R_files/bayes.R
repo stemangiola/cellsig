@@ -91,7 +91,7 @@ do_ranking <- function(.preprocessed, .contrast_method, .ranking_method, .bayes)
   
 }
 
-bayes <- readRDS("raw_data/cellsig_theoretical_transcript_abundance_distribution.rds") %>% 
+bayes <- readRDS("dev/cellsig_theoretical_transcript_abundance_distribution.rds") %>% 
   
   # take the first row of the duplicated data so that each gene in a cell type has only one set of quantiles
   nest(data = - c(symbol, cell_type)) %>% 
@@ -103,6 +103,8 @@ bayes <- readRDS("raw_data/cellsig_theoretical_transcript_abundance_distribution
 
   unnest(data)
 
+bayes_ranked_L4 <- tt_L4 %>% 
+  rank_by_bayes(mean_contrast, bayes)
 
 
 bayes_tibble_L4 <- tt_L4 %>% 

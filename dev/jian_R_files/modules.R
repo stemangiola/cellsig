@@ -370,22 +370,6 @@ hypothesis_test_edgeR
 
 hypothesis_test_bayes
 
-generate_contrast <- function(.preprocessed, .contrast_method){
-  
-  .preprocessed %>%
-    unnest(tt) %>% 
-    
-    # Differential transcription
-    mutate(markers = map2(
-      data, level,
-      ~ .x %>% 
-        test_differential_abundance(
-          as.formula(sprintf("~ 0 + %s", .y)),
-          .contrasts = .contrast_method(.x, .y),
-          action="only") 
-    ))
-}
-
 pairwise_contrast = function(.data, .level){
   
   .data %>% 
@@ -422,6 +406,22 @@ mean_contrast <- function(.data, .level){
     pull(contrast)
 }
 
+# OBSOLETE, combined with do_ranking now
+generate_contrast <- function(.preprocessed, .contrast_method){
+  
+  .preprocessed %>%
+    unnest(tt) %>% 
+    
+    # Differential transcription
+    mutate(markers = map2(
+      data, level,
+      ~ .x %>% 
+        test_differential_abundance(
+          as.formula(sprintf("~ 0 + %s", .y)),
+          .contrasts = .contrast_method(.x, .y),
+          action="only") 
+    ))
+}
 
 # Test
 tt_L4 %>% 
@@ -452,30 +452,75 @@ saveRDS(contrast_PW_H, "contrast_PW_H.rds", compress = "xz")
 
 # Rank ==========================================
 
-do_ranking <- function(.contrast, .ranking_method){
+do_ranking <- function(.preprocessed, .ranking_method, .contrast_method, .rank_stat="PValue", .bayes=NULL){
   
-  if (.ranking_method == "logFC") {
     
-    .contrast %>% 
-      
-      # Select markers from each contrast by rank of stats
-      mutate(markers = map(markers, ~ rank_by_logFC(.x) )) %>% 
-      
-      # filter out potential nodes in which no genes are considered significant by rank_by_logFC
-      filter(map_int(markers, ~ .x %>% unnest(stat_df) %>% nrow()) != 0) %>% 
-      
-      # remove prefixes from contrast expressions
-      mutate(markers = map2(
-        markers, level,
-        ~ .x %>% 
-          mutate(contrast = map2_chr(contrast, .y, ~ str_replace_all(.x, .y, "")))
-      ))
+  .preprocessed %>%
     
-  }
-  
+    .ranking_method(.contrast_method, .rank_stat, .bayes) %>% 
+    
+    # filter out potential nodes in which no genes are considered significant by rank_by_logFC
+    filter(map_int(markers, ~ .x %>% unnest(stat_df) %>% nrow()) != 0)
+    
 }
 
-rank_by_logFC <-  function(.markers){
+rank_edgR_quasi_likelihood <- function(.preprocessed, .contrast_method, .rank_stat){
+  
+  .preprocessed %>%
+    unnest(tt) %>% 
+    
+    # Differential transcription: generate contrast
+    mutate(markers = map2(
+      data, level,
+      ~ .x %>% 
+        test_differential_abundance(
+          as.formula(sprintf("~ 0 + %s", .y)),
+          .contrasts = .contrast_method(.x, .y),
+          method = "edgeR_quasi_likelihood",
+          action="only") 
+    )) %>% 
+    
+    # Select markers from each contrast by rank of stats
+    mutate(markers = map(markers, ~ rank_by_stat(.x, .rank_stat) )) %>% 
+    
+    # remove prefixes from contrast expressions
+    mutate(markers = map2(
+      markers, level,
+      ~ .x %>% 
+        mutate(contrast = map2_chr(contrast, .y, ~ str_replace_all(.x, .y, "")))
+    ))
+}
+
+rank_edgR_robust_likelihood_ratio <- function(.preprocessed, .contrast_method){
+  
+  .preprocessed %>%
+    unnest(tt) %>% 
+    
+    # Differential transcription: generate contrast
+    mutate(markers = map2(
+      data, level,
+      ~ .x %>% 
+        test_differential_abundance(
+          as.formula(sprintf("~ 0 + %s", .y)),
+          .contrasts = .contrast_method(.x, .y),
+          method = "edger_robust_likelihood_ratio",
+          test_above_log2_fold_change = 1,
+          action="only") 
+    )) %>% 
+    
+    # Select markers from each contrast by rank of stats
+    mutate(markers = map(markers, ~ rank_by_stat(.x, "PValue") )) %>% 
+    
+    # remove prefixes from contrast expressions
+    mutate(markers = map2(
+      markers, level,
+      ~ .x %>% 
+        mutate(contrast = map2_chr(contrast, .y, ~ str_replace_all(.x, .y, "")))
+    ))
+}
+
+
+rank_by_stat <-  function(.markers, .rank_stat){
   
   .markers %>%
     
@@ -499,14 +544,89 @@ rank_by_logFC <-  function(.markers){
     mutate(stat_df = map(stat_df, ~.x %>%
                            filter(FDR < 0.05 & logFC > 2) %>%
                            filter(logCPM > mean(logCPM)) %>%
-                           dplyr::arrange(desc(logFC))
+                           dplyr::arrange(desc(!!as.symbol(.rank_stat)))
     ))
+}
+
+rank_by_bayes <- function(.preprocessed, .contrast_method, .bayes){
+  
+  .preprocessed %>% 
+    
+    unnest(tt) %>% 
+    
+    mutate(descendants = map2(data, level, ~ .contrast_method(.x, .y))) %>% 
+    
+    unnest(descendants) %>% 
+    mutate(descendants = str_remove_all(descendants, "level_\\d")) %>% 
+    separate(descendants, into = c("target", "background"), sep = " - ") %>% 
+    
+    mutate(background = str_split(background, "\\+")) %>% 
+    mutate(background = map(background, ~ .x %>% str_remove_all("\\W|\\d$"))) %>% 
+    
+    mutate(lower_quantile = map(
+      target,
+      ~ .bayes %>% 
+        filter(cell_type == .x) %>% 
+        select(symbol, lower_quantile='25%') %>% 
+        arrange(symbol)
+    )) %>% 
+    
+    mutate(mean_upper_quantile = map(
+      background,
+      ~ .bayes %>% 
+        # calculate the mean 75% quantile of each gene over all background cell types
+        filter(cell_type %in% .x) %>% 
+        group_by(symbol) %>% 
+        summarise(symbol, mean_upper_quantile = mean(`75%`)) %>% 
+        distinct() %>% 
+        ungroup()
+    )) %>% 
+    
+    mutate(stat_df = map2(
+      lower_quantile, mean_upper_quantile,
+      ~ inner_join(.x, .y, by= "symbol")
+    )) %>% 
+    select(-c(lower_quantile, mean_upper_quantile)) %>% 
+    
+    mutate(stat_df = map(
+      stat_df,
+      ~ .x %>% 
+        mutate(difference = lower_quantile - mean_upper_quantile) %>% 
+        arrange(desc(difference))
+    )) %>% 
+    
+    nest(markers = -c(level, ancestor, data))
+  
+}
+
+# OBSOLETE
+do_ranking <- function(.contrast, .ranking_method){
+  
+  if (.ranking_method == "logFC") {
+    
+    .contrast %>% 
+      
+      # Select markers from each contrast by rank of stats
+      mutate(markers = map(markers, ~ rank_by_logFC(.x) )) %>% 
+      
+      # filter out potential nodes in which no genes are considered significant by rank_by_logFC
+      filter(map_int(markers, ~ .x %>% unnest(stat_df) %>% nrow()) != 0) %>% 
+      
+      # remove prefixes from contrast expressions
+      mutate(markers = map2(
+        markers, level,
+        ~ .x %>% 
+          mutate(contrast = map2_chr(contrast, .y, ~ str_replace_all(.x, .y, "")))
+      ))
+    
+  }
+  
 }
 
 # Test
 
-ranked_PW_L4 <- contrast_MC_L4 %>% 
-  do_ranking(.ranking_method = "logFC")
+ranked_PW_L4 <- tt_L4 %>% 
+  do_ranking(.ranking_method = "logFC", .contrast_method = mean_contrast)
 
 # Selection =======================================
 
@@ -573,8 +693,9 @@ naive_selection <- function(.ranked, .k) {
         unnest(stat_df)
     )) %>% 
     
-    # Add original data info to the markers selected
-    mutate(markers = map2(markers, data, ~ left_join(.x, .y, by="symbol"))) %>%
+    # Add original data info to the markers selected, 
+    # use inner_join to ensure symbols are present in both markers and data
+    mutate(markers = map2(markers, data, ~ inner_join(.x, .y, by="symbol"))) %>%
     
     # remove unnecessary column
     select(-data) %>% 
@@ -625,6 +746,7 @@ dimension_reduction <- function(.markers, .level, .reduction_method) {
     reduce_dimensions(sample, symbol, count_scaled, 
                       action = "get",
                       method = .reduction_method,
+                      # .dims = 2,
                       transform = log1p,
                       top = Inf,
                       scale = FALSE,
@@ -670,10 +792,10 @@ xx <- naive_PW_L4 %>%
 xx <- ranked_PW_L4 %>% 
   do_naive_selection(5, METHOD)
 
-naive_MC_L4 <- x_L4 %>% 
+naive_MC_L4 <- bayes_ranked_L4 %>% 
   naive_selection(5)
 
-xx <- naive_MC_L4 %>% 
+bayes_naive_selected <- naive_MC_L4 %>% 
   silhouette_function(METHOD)
 
 ## Silhouette selection =========================================
