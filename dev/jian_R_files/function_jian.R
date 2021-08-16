@@ -2,12 +2,10 @@ devtools::install_github("stemangiola/nanny@convert-to-S3", force = TRUE)
 devtools::install_github("stemangiola/tidybulk@dev", force = TRUE)
 
 
-library(tidyverse)
+
 # library(plotly)
 # library(future)
 # library(furrr)
-library(tidybulk)
-library(cluster)
 # library(proxy)
 library(factoextra)
 library(stringr)
@@ -15,7 +13,9 @@ library(scales)
 library(KernSmooth)
 library(splus2R)
 library(data.tree)
-
+library(cluster)
+library(tidyverse)
+library(tidybulk)
 
 # OLD Functions for data of old format===============================================================================
 ## 1 preprocess data
