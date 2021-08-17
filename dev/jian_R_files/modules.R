@@ -452,11 +452,13 @@ saveRDS(contrast_PW_H, "contrast_PW_H.rds", compress = "xz")
 
 # Rank ==========================================
 
-do_ranking <- function(.preprocessed, .ranking_method, .contrast_method, .rank_stat="PValue", .bayes=NULL){
+do_ranking <- function(.preprocessed, .ranking_method, .contrast_method, .rank_stat=NULL, 
+                       .bayes=NULL){
   
-    
+  # rank_stat takes either "Pvalue" or "logFC" 
   .preprocessed %>%
     
+    # .bayes = .cellsig_theoretical_transcript_abundace_distribution
     .ranking_method(.contrast_method, .rank_stat, .bayes) %>% 
     
     # filter out potential nodes in which no genes are considered significant by rank_by_logFC
@@ -464,7 +466,7 @@ do_ranking <- function(.preprocessed, .ranking_method, .contrast_method, .rank_s
     
 }
 
-rank_edgR_quasi_likelihood <- function(.preprocessed, .contrast_method, .rank_stat){
+rank_edgR_quasi_likelihood <- function(.preprocessed, .contrast_method, .rank_stat, .bayes=NULL){
   
   .preprocessed %>%
     unnest(tt) %>% 
@@ -491,7 +493,8 @@ rank_edgR_quasi_likelihood <- function(.preprocessed, .contrast_method, .rank_st
     ))
 }
 
-rank_edgR_robust_likelihood_ratio <- function(.preprocessed, .contrast_method){
+rank_edgR_robust_likelihood_ratio <- function(.preprocessed, .contrast_method, .rank_stat="PValue",
+                                              .bayes=NULL){
   
   .preprocessed %>%
     unnest(tt) %>% 
@@ -508,7 +511,7 @@ rank_edgR_robust_likelihood_ratio <- function(.preprocessed, .contrast_method){
           action="only") 
     )) %>% 
     
-    # Select markers from each contrast by rank of stats
+    # Select markers from each contrast by rank of Pvalue
     mutate(markers = map(markers, ~ rank_by_stat(.x, "PValue") )) %>% 
     
     # remove prefixes from contrast expressions
@@ -519,8 +522,9 @@ rank_edgR_robust_likelihood_ratio <- function(.preprocessed, .contrast_method){
     ))
 }
 
-
 rank_by_stat <-  function(.markers, .rank_stat){
+  
+  # .rank_stat = enquo(.rank_stat)
   
   .markers %>%
     
@@ -541,14 +545,25 @@ rank_by_stat <-  function(.markers, .rank_stat){
     # Filter out insignificant genes and rank the significant ones
     
     # THIS WILL HAVE TO CHANGE
-    mutate(stat_df = map(stat_df, ~.x %>%
-                           filter(FDR < 0.05 & logFC > 2) %>%
-                           filter(logCPM > mean(logCPM)) %>%
-                           dplyr::arrange(desc(!!as.symbol(.rank_stat)))
+    mutate(stat_df = map(
+      stat_df, 
+      ~ .x %>%
+        filter(FDR < 0.05 & logFC > 2) %>%
+        filter(logCPM > mean(logCPM)) )) %>% 
+    
+    mutate(stat_df = map(
+      stat_df,
+      ~ if(.rank_stat == "logFC"){
+        .x %>% dplyr::arrange(desc(logFC))
+      }else{
+        .x %>% dplyr::arrange(PValue)
+        }
     ))
+  
 }
 
-rank_by_bayes <- function(.preprocessed, .contrast_method, .bayes){
+
+rank_by_bayes <- function(.preprocessed, .contrast_method, .rank_stat=NULL, .bayes){
   
   .preprocessed %>% 
     
@@ -626,7 +641,9 @@ do_ranking <- function(.contrast, .ranking_method){
 # Test
 
 ranked_PW_L4 <- tt_L4 %>% 
-  do_ranking(.ranking_method = "logFC", .contrast_method = mean_contrast)
+  do_ranking(.ranking_method = rank_edgR_quasi_likelihood, 
+             .contrast_method = mean_contrast,
+             .rank_stat = "PValue")
 
 # Selection =======================================
 
@@ -699,6 +716,9 @@ naive_selection <- function(.ranked, .k) {
     
     # remove unnecessary column
     select(-data) %>% 
+    
+    # collect from which contrasts signature genes are extracted
+    # mutate(contrast = map(markers, ~ .x %>% distinct(contrast, symbol))) %>% 
     
     # collect signature genes selected
     mutate(signature = map(markers, ~ .x$symbol %>% unique())) %>% 
@@ -784,7 +804,7 @@ silhouette_score <- function(.reduced_dimensions, .distance, .level){
 # Test
 
 naive_PW_L4 <- ranked_PW_L4 %>% 
-  naive_selection(5)
+  naive_selection(1)
 
 xx <- naive_PW_L4 %>% 
   silhouette_function(METHOD)
@@ -1228,15 +1248,15 @@ x %>% format_output()
 # use the complete output from format_output as input
 
 # import summary data from all methods
-naive <- list.files("topInf_scaleFALSE/", pattern = ".*naive\\..*\\..*")
-silhouette <- list.files("topInf_scaleFALSE/", pattern = ".*silhouette\\..*\\..*")
+naive <- list.files("dev/topInf_scaleFALSE/", pattern = ".*naive\\..*\\..*")
+silhouette <- list.files("dev/topInf_scaleFALSE/", pattern = ".*silhouette\\..*\\..*")
 
-naive_df <- map_dfr(naive, ~ readRDS(paste0("topInf_scaleFALSE/", .x))) %>% 
+naive_df <- map_dfr(naive, ~ readRDS(paste0("dev/topInf_scaleFALSE/", .x))) %>% 
   select(level, ancestor, real_size, signature, silhouette) %>% 
   mutate(method = rep(str_replace_all(naive, '\\.rds', ''), c(14, 1, 14, 1)))
 
 o <- rep(str_replace_all(silhouette, '\\.rds', ''), c(14, 1, 14))
-silhouette_df <- map_dfr(silhouette, ~ readRDS(paste0("topInf_scaleFALSE/", .x))) %>% 
+silhouette_df <- map_dfr(silhouette, ~ readRDS(paste0("dev/topInf_scaleFALSE/", .x))) %>% 
   select(level, ancestor, real_size, signature=cumulative_signature, silhouette) %>% 
   mutate(method = o)
 rm(o)
@@ -1261,13 +1281,14 @@ all_methods_silhouette <- full_df %>%
   unnest(silhouette)
 
 
-cibersortx <- readRDS("topInf_scaleFALSE/cibersortx.new.rds")
+cibersortx <- readRDS("dev/topInf_scaleFALSE/cibersortx.new.rds")
 
 
 # summary table comparing all methods using silhouette score
 
 all_methods_comparison <- all_methods_silhouette %>% 
   bind_rows(cibersortx) %>% 
+  mutate(method = str_remove_all(method, "\\.new"))
   arrange(desc(silhouette))
 
 all_methods_comparison
@@ -1277,6 +1298,7 @@ saveRDS(all_methods_comparison, "all_methods_comparison.new.rds", compress = 'xz
 # summary bar plot comparing all methods using silhouette score
 
 all_methods_comparison %>% 
+  
   ggplot(aes(reorder(method, silhouette), silhouette, fill = method)) +
   geom_col() +
   geom_text(aes(label = round(silhouette, 3)), vjust = 1.5) + 

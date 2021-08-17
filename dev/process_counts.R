@@ -24,11 +24,12 @@ data("tree")
 # tree without level_5
 load("dev/raw_data/tree.rda")
 
-counts.test =  
+counts =  
   
   # Merge dataset
   counts_first_db_raw %>%
-  bind_rows(counts_second_db_raw, counts_third_db_raw) %>% 
+  bind_rows(counts_second_db_raw) %>% 
+  bind_rows(counts_third_db_raw) %>%
   select(sample, cell_type, symbol, count, database) %>%
   
   # Add tree structure
@@ -44,13 +45,13 @@ counts.test =
 #   arrange(desc(n))
 
   
-save(counts.test, file="dev/counts.test.rda", compress = "xz")
+save(counts, file="dev/count.rda", compress = "xz")
 
-counts_imputed.test =
+counts_imputed =
   
-  counts.test %>%
+  counts %>%
   
-  mutate(level_5 = NA) %>% 
+  # mutate(level_5 = NA) %>% 
   
   mutate(count_scaled = count / exp(exposure_rate)) %>%
   
