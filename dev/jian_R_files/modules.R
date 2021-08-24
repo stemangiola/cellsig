@@ -364,6 +364,28 @@ saveRDS(tt_L4, "tt_L4.rds", compress = "xz")
 saveRDS(tt_hierarchy, "tt_hierarchy.rds", compress = "xz")
 tt_L4
 
+# summary output of preprocessed counts ===============
+counts_preprocessed <- counts_preprocessed %>% 
+  unnest(data) %>% 
+  select(-c(level.copy, markers))
+
+counts_summary <- counts_preprocessed %>% 
+  summarise_counts()
+
+counts_summary %>% 
+  nest(data = -cell_type)
+
+summarise_counts <- function(.preprocessed){
+  .preprocessed %>% 
+    unnest(data) %>% 
+    dplyr::rename("gene" = "symbol") %>% 
+    group_by(cell_type, gene) %>% 
+    summarise(cell_type, gene, median_scaled_abundance = median(count_scaled) %>% ceiling()) %>% 
+    distinct(cell_type, gene, median_scaled_abundance) %>% 
+    ungroup()
+}
+  
+
 # Generate contrast for ranking ===================
 
 hypothesis_test_edgeR
@@ -563,7 +585,7 @@ rank_by_stat <-  function(.markers, .rank_stat){
 }
 
 
-rank_by_bayes <- function(.preprocessed, .contrast_method, .rank_stat=NULL, .bayes){
+rank_bayes <- function(.preprocessed, .contrast_method, .rank_stat=NULL, .bayes){
   
   .preprocessed %>% 
     
@@ -642,8 +664,8 @@ do_ranking <- function(.contrast, .ranking_method){
 
 ranked_PW_L4 <- tt_L4 %>% 
   do_ranking(.ranking_method = rank_edgR_quasi_likelihood, 
-             .contrast_method = mean_contrast,
-             .rank_stat = "PValue")
+             .contrast_method = pairwise_contrast,
+             .rank_stat = "logFC")
 
 # Selection =======================================
 
@@ -842,6 +864,7 @@ single_marker_pw_selection_using_silhouette <-
       ancestor = character(),
       new_challengers = list(),
       winner = list(),
+      winning_contrast = list(),
       signature = list(),
       # reduced_dimensions = list(),
       silhouette = double()
@@ -859,6 +882,15 @@ single_marker_pw_selection_using_silhouette <-
       dplyr::rename("new_challengers" = "signature") %>% 
       
       mutate(winner = map(new_challengers, ~ unique(.x))) %>% 
+      
+      mutate(winning_contrast = map(
+        markers,
+        ~ .x %>% pull(contrast) %>% unique()
+          # distinct(contrast, symbol) %>% 
+          # mutate(contrast = contrast %>% str_extract(".*(?=\\s\\-)")) %>% 
+          # mutate(contrast_symbol = map2_chr(contrast, symbol, ~ paste(.x, .y, sep = "."))) %>% 
+          # pull(contrast_symbol)
+      )) %>% 
       
       mutate(signature = winner) %>% 
       
@@ -958,6 +990,12 @@ single_marker_pw_selection_using_silhouette <-
         # check if the biggest silhouette score is greater than previous score, if true we have a winner, else no winner
         mutate(winner = map(data, ~ if(.x[1, ]$is_greater){
           .x[1, ]$new_challenger
+        } else {NA}
+        )) %>% 
+        
+        # record which contrast the winner comes from
+        mutate(winning_contrast = map(data, ~ if(.x[1, ]$is_greater){
+          .x[1, ]$contrast # %>% str_extract(".*(?=\\s\\-)")
         } else {NA}
         )) %>% 
         
@@ -1109,9 +1147,19 @@ do_optimisation <- function(.selected,
       
       unnest(data) %>% 
       
-      filter(real_size == optimal_size) %>% 
+      filter(real_size <= optimal_size) %>% 
       
-      select(-c(size.rescaled, smoothed))
+      select(-c(size.rescaled, smoothed)) %>% 
+      
+      nest(data = -c(level, ancestor, signature)) %>% 
+      
+      mutate(data = map(
+        data,
+        ~ .x %>% 
+          unnest(winner, winning_contrast) %>% 
+          nest(enriched = -winning_contrast) %>% 
+          mutate(enriched = map(enriched, ~ .x %>% pull(winner) %>% unique()))
+      ))
   }
   
 }
