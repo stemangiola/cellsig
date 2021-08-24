@@ -2689,3 +2689,298 @@ single_marker_pw_selection_using_silhouette <-
     
     return(output)
   }
+
+
+signature.optimised <- signature.unoptimised %>% do_optimisation("curvature")
+
+
+
+signature.optimised <- signature.unoptimised %>% 
+  
+  curvature_of_kernel_smoothed_trend() %>% 
+  
+  unnest(data) %>% 
+  
+  filter(real_size <= optimal_size) %>% 
+  
+  select(-c(size.rescaled, smoothed)) %>% 
+  
+  nest(data = -c(level, ancestor)) %>% 
+  
+  mutate(signature = map(data, ~ .x %>% tail(1) %>% pull(signature) %>% unlist() )) %>% 
+  
+  mutate(data = map(
+    data,
+    ~ .x %>% 
+      unnest(winner, winning_contrast) %>% 
+      nest(enriched = -winning_contrast) %>% 
+      mutate(enriched = map(enriched, ~ .x %>% pull(winner) %>% unique()))
+  ))
+
+x <- signature.unoptimised %>% 
+  mutate(data = map(data, 
+                    ~ .x %>% 
+                      mutate(winning_contrast = map(
+                        winning_contrast, ~ 
+                          if(str_detect(.x, "\\.")){
+                            .x %>% 
+                              str_extract(".*(?=\\.)") %>% 
+                              unlist()
+                          }else{.x}
+                        ))
+                      ))
+
+
+silhouette_score <- function(.reduced_dimensions, .distance, .level){
+  
+  .reduced_dimensions %>% 
+    
+    pull(!!as.symbol(.level)) %>% 
+    
+    as.factor() %>% 
+    
+    as.numeric() %>% 
+    
+    silhouette(.distance) %>% 
+    
+    summary()
+  
+}
+
+silhouette_function <- function(.selected, .reduction_method){
+  
+  .selected %>% 
+    
+    # reduce dimensions
+    mutate(reduced_dimensions = map2(
+      markers, level, 
+      ~ dimension_reduction(.x, .y, .reduction_method)
+    )) %>% 
+    
+    # calculate distance matrix using PC1 & PC2
+    mutate(distance = map(
+      reduced_dimensions,
+      ~ distance_matrix(.x, .reduction_method)
+    )) %>% 
+    
+    # calculate silhouette score
+    mutate(silhouette = pmap(
+      list(reduced_dimensions, distance, level),
+      ~ silhouette_score(..1, ..2, ..3)
+    )) %>% 
+    
+    # remove unnecessary columns
+    select(-c(markers, distance))
+  
+}
+
+yy <- full_df %>% 
+  nest(signature = -method) %>% 
+  mutate(signature = map(signature, ~.x %>% pull(signature) %>% unlist() %>% unique())) %>% 
+  mutate(silhouette = map(
+    signature, 
+    ~ tt_non_hierarchy %>% 
+      unnest(tt) %>% 
+      unnest(data) %>% 
+      filter(symbol %in% .x) %>% 
+      nest(markers = -c(level, ancestor)) %>% 
+      # calculate silhouette score for all signatures combined in each method
+      silhouette_function(METHOD) %>% 
+      select(reduced_dimensions, silhouette)
+  )) %>% 
+  unnest(silhouette)
+
+cibersortx <- readRDS("dev/topInf_scaleFALSE/cibersortx.new.rds")
+cibersort_signature <- cibersortx$signature[[1]]
+
+cibersortx <- tibble(method = "cibersortx") %>% 
+  mutate(signature = list(cibersort_signature)) %>% 
+  mutate(silhouette = map(
+    signature, 
+    ~ tt_non_hierarchy %>% 
+      unnest(tt) %>% 
+      unnest(data) %>% 
+      filter(symbol %in% .x) %>% 
+      nest(markers = -c(level, ancestor)) %>% 
+      # calculate silhouette score
+      silhouette_function(METHOD) %>% 
+      select(reduced_dimensions, silhouette)
+  )) %>% 
+  unnest(silhouette)
+
+yy <- yy %>% bind_rows(cibersortx)
+
+yy %>% 
+  mutate(cluster.silhouette = map(silhouette, ~ .x$clus.avg.widths)) %>% 
+  mutate(avg.silhouette = map_dbl(silhouette, ~ .x$avg.width)) %>% 
+  select(-c(reduced_dimensions, silhouette)) %>% 
+  unnest(cluster.silhouette) %>% 
+  ggplot(aes(x=reorder(method, avg.silhouette), y=cluster.silhouette, colour=method)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(position=position_jitter(0.2), alpha=0.5) +
+  theme(axis.text.x = element_blank())
+
+
+
+all_methods_silhouette <- full_df %>%
+  mutate(data = map(data, ~ if ("cumulative_signature" %in% names(.x))
+  {rename(.x, signature=cumulative_signature)}else(.x))) %>% 
+  nest(signature = -method) %>% 
+  mutate(signature = map(signature, ~ .x %>% do_optimisation("penalised", 0.4))) %>% 
+  mutate(signature = map(signature, ~.x %>% pull(signature) %>% unlist() %>% unique())) %>% 
+  mutate(silhouette = map(
+    signature, 
+    ~ tt_non_hierarchy %>% 
+      unnest(tt) %>% 
+      unnest(data) %>% 
+      filter(symbol %in% .x) %>% 
+      nest(markers = -c(level, ancestor)) %>% 
+      # calculate silhouette score for all signatures combined in each method
+      silhouette_function(METHOD) %>% 
+      select(reduced_dimensions, silhouette)
+  )) %>% 
+  unnest(silhouette)
+
+cibersortx <- readRDS("topInf_scaleFALSE/cibersortx.new.rds")
+
+all_methods_comparison <- all_methods_silhouette %>% 
+  bind_rows(cibersortx) %>% 
+  arrange(desc(silhouette))
+
+all_methods_comparison
+
+all_methods_comparison %>% 
+  ggplot(aes(reorder(method, silhouette), silhouette, fill = method)) +
+  geom_col() +
+  geom_text(aes(label = round(silhouette, 3)), vjust = 1.5) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        plot.title = element_text(hjust = 0.5)
+  ) +
+  ggtitle("All methods comparison using silhouette score, penalty_rate=1.2")
+
+signature_hierarchial_methods %>% 
+  mutate(signature = map(benchmark, ~ .x$signature %>% unlist() %>% unique()))
+
+evaluation <- function(.signature, .reduction_method, .preprocessed_non_hierarchy){
+  
+  # modified silhouette_function and silhouette_score for evaluation
+  
+  silhouette_score <- function(.reduced_dimensions, .distance, .level){
+    
+    .reduced_dimensions %>% 
+      
+      pull(!!as.symbol(.level)) %>% 
+      
+      as.factor() %>% 
+      
+      as.numeric() %>% 
+      
+      silhouette(.distance) %>% 
+      
+      summary()
+    
+  }
+  
+  silhouette_function <- function(.selected, .reduction_method){
+    
+    .selected %>% 
+      
+      # reduce dimensions
+      mutate(reduced_dimensions = map2(
+        markers, level, 
+        ~ dimension_reduction(.x, .y, .reduction_method)
+      )) %>% 
+      
+      # calculate distance matrix using PC1 & PC2
+      mutate(distance = map(
+        reduced_dimensions,
+        ~ distance_matrix(.x, .reduction_method)
+      )) %>% 
+      
+      # calculate silhouette score
+      mutate(silhouette = pmap(
+        list(reduced_dimensions, distance, level),
+        ~ silhouette_score(..1, ..2, ..3)
+      )) %>% 
+      
+      # remove unnecessary columns
+      select(-c(markers, distance))
+    
+  }
+  
+  .preprocessed_non_hierarchy %>% 
+    unnest(tt) %>% 
+    unnest(data) %>% 
+    filter(symbol %in% .signature) %>% 
+    nest(markers = -c(level, ancestor)) %>% 
+    # calculate silhouette score for all signatures combined in each method
+    silhouette_function(.reduction_method = .reduction_method) %>% 
+    select(reduced_dimensions, silhouette)
+}
+
+x <- signature_hierarchial_methods %>% 
+  mutate(stream = "mean_contrast_edgR_logFC_naive_penalty") %>%
+  select(benchmark, stream) %>% 
+  mutate(signature = map(benchmark, ~ .x$signature %>% unlist() %>% unique())) %>% 
+  mutate(silhouette = map(signature, ~ evaluation(.x, "PCA", counts_non_hierarchy)))
+
+  unnest(silhouette) %>% 
+  select(-reduced_dimensions) %>% 
+  mutate(cluster_silhouette = map(silhouette, ~ .x$clus.avg.widths)) %>% 
+  mutate(avg_silhouette = map_dbl(silhouette, ~ .x$avg.width)) %>% 
+  unnest(cluster_silhouette) %>% 
+  
+  ggplot(aes(x=reorder(stream, avg_silhouette), y=cluster_silhouette, colour=stream)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(position=position_jitter(0.2), alpha=0.5) +
+  theme(axis.text.x = element_blank())
+
+  
+cibersortx <- tibble(method = "cibersortx") %>% 
+  mutate(signature = list(cibersort_signature)) %>% 
+  mutate(silhouette = map(
+    signature, 
+    ~ tt_non_hierarchy %>% 
+      unnest(tt) %>% 
+      unnest(data) %>% 
+      filter(symbol %in% .x) %>% 
+      nest(markers = -c(level, ancestor)) %>% 
+      # calculate silhouette score
+      silhouette_function(METHOD) %>% 
+      select(reduced_dimensions, silhouette)
+  )) %>% 
+  unnest(silhouette)
+  
+x <- 
+tibble(
+  contrast = c(mean_contrast, pairwise_contrast, NA),
+  contrast_name = c("mean_contrast", "pairwise_contrast", NA), 
+  rank = c(rank_edgR_quasi_likelihood, rank_edgR_robust_likelihood_ratio, rank_bayes),
+  rank_name = c("edgR", "edgR_robust", "bayes"),
+  rank_stat = c("logFC", "PValue", NA),
+  selection = c("silhouette", "naive", NA),
+  optimisation = c("penalty", "curvature", NA)
+  ) %>% 
+  tidyr::expand(nesting(contrast, contrast_name), nesting(rank, rank_name), rank_stat, selection, optimisation) %>%
+  
+  # Drop arguments for some methods
+  filter(!( rank_name == "edgR_robust" & rank_stat == "logFC")) %>%
+  filter(!(selection == "naive" & optimisation == "curvature")) %>% 
+  mutate(rank_stat = map2(
+    rank_stat, rank_name,
+    ~ if (.y == "bayes"){.x = NULL} else {.x}
+  )) %>%
+  
+  filter(!(is.na(contrast) | is.na(rank_stat) | is.na(selection) | is.na(optimisation)) ) %>% 
+  distinct()
+
+# How to call this file
+# From bash
+# Rscript database_plus_tree_as_input_benchmark_plot_as_output.R
+#
+# Output -> a PDF file
+# Input nothing
+#
+# What does it do
+# Produce a pdf running the whole pipeline, including all methods, and testing with sihuette and deconvolution
