@@ -13,13 +13,10 @@ library(tidybulk)
 all_methods_comparison <- readRDS("topInf_scaleFALSE/all_methods_comparison.new.rds")
 all_methods_comparison
 
-tt_non_hierarchy <- readRDS("intermediate_data/tt_non_hierarchy.rds")
-
-load("raw_data/counts_imputed.rda")
+counts_non_hierarchy <- readRDS("./dev/intermediate_data/counts_non_hierarchy.rds")
 
 
-mix_base = 
-  counts_imputed %>%
+mix_base = readRDS("./dev/counts_imputed.rds") %>% 
   
   # keep genes present in all
   filter(count_scaled %>% is.na %>% `!`) %>%
@@ -29,10 +26,7 @@ mix_base =
   unnest(data) %>% 
   select(-n)
 
-saveRDS(mix_base, "mix_base.rds")
-
-
-rm(counts_imputed)
+saveRDS(mix_base, "./dev/intermediate_data/mix_base.rds", compress = "xz")
 
 
 # have a 100 mixtures future map
@@ -44,9 +38,9 @@ library(furrr)
 plan(multisession, workers = 15)
 options(future.globals.maxSize= +Inf)
 
-
-
-deconvolution_all_methods <- tibble(mixture_ID = 1:100) %>%
+mix100 <- 
+  
+  tibble(mixture_ID = 1:100) %>%
   
   # mix
   mutate(mix = map(mixture_ID, ~ {
@@ -56,7 +50,13 @@ deconvolution_all_methods <- tibble(mixture_ID = 1:100) %>%
       setNames(unique(mix_base$cell_type))
     
     cellsig::generate_mixture_from_proportion_matrix(mix_base, proportions)
-  })) %>% 
+  }))
+    
+saveRDS(mix100, "./dev/intermediate_data/mix100.rds", compress = "xz")
+
+deconvolution_all_methods <-
+  
+  mix100 %>% 
   
   # for each mixture, combine with the signatures from 8 methods
   tidyr::expand(
