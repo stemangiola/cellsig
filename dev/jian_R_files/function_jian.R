@@ -1696,8 +1696,15 @@ do_ranking <- function(.preprocessed, .ranking_method, .contrast_method, .rank_s
     # .bayes = .cellsig_theoretical_transcript_abundace_distribution
     .ranking_method(.contrast_method=.contrast_method, .rank_stat=.rank_stat, .bayes=.bayes) %>% 
     
+    unnest(markers) %>% 
+    
     # filter out potential nodes in which no genes are considered significant by rank_by_logFC
-    filter(map_int(markers, ~ .x %>% unnest(stat_df) %>% nrow()) != 0)
+    filter(map_int(stat_df, ~nrow(.x)) != 0) %>% 
+    
+    # assign ranks to genes
+    mutate(stat_df = map(stat_df, ~ mutate(.x, rank = 1:nrow(.x)))) %>% 
+    
+    nest(markers = -c(level, ancestor, data))
   
 }
 
@@ -1794,8 +1801,8 @@ rank_by_stat <-  function(.markers, .rank_stat){
         .x %>% dplyr::arrange(PValue)
       }
     ))
-  
 }
+
 
 
 rank_bayes <- function(.preprocessed, .contrast_method, .bayes, .rank_stat=NULL){
@@ -1804,32 +1811,36 @@ rank_bayes <- function(.preprocessed, .contrast_method, .bayes, .rank_stat=NULL)
     
     unnest(tt) %>% 
     
-    mutate(descendants = map2(data, level, ~ .contrast_method(.x, .y))) %>% 
+    mutate(contrast = map2(data, level, ~ .contrast_method(.x, .y))) %>% 
     
-    unnest(descendants) %>% 
-    mutate(descendants = str_remove_all(descendants, "level_\\d")) %>% 
-    separate(descendants, into = c("target", "background"), sep = " - ") %>% 
-    
-    mutate(background = str_split(background, "\\+")) %>% 
-    mutate(background = map(background, ~ .x %>% str_remove_all("\\W|\\d$"))) %>% 
+    unnest(contrast) %>% 
+    mutate(contrast = str_remove_all(contrast, "level_\\d")) %>% 
     
     mutate(lower_quantile = map(
-      target,
+      contrast,
       ~ .bayes %>% 
-        filter(cell_type == .x) %>% 
-        select(symbol, lower_quantile='25%') %>% 
-        arrange(symbol)
+        filter(cell_type == str_extract(.x, ".*(?=\\s\\-)")) %>% 
+        select(symbol, lower_quantile='25%')
+      # arrange(symbol)
     )) %>% 
     
     mutate(mean_upper_quantile = map(
-      background,
-      ~ .bayes %>% 
-        # calculate the mean 75% quantile of each gene over all background cell types
-        filter(cell_type %in% .x) %>% 
-        group_by(symbol) %>% 
-        summarise(symbol, mean_upper_quantile = mean(`75%`)) %>% 
-        distinct() %>% 
-        ungroup()
+      contrast,
+      ~ {
+        background <- .x %>% 
+          str_extract("(?<=\\-\\s).*") %>% 
+          str_split("\\+") %>% 
+          unlist() %>% 
+          str_remove_all("(?<=\\/).*|\\W")
+        
+        .bayes %>% 
+          # calculate the mean 75% quantile of each gene over all background cell types
+          filter(cell_type %in% background) %>% 
+          group_by(symbol) %>% 
+          summarise(symbol, mean_upper_quantile = mean(`75%`)) %>% 
+          distinct() %>% 
+          ungroup()
+      }
     )) %>% 
     
     mutate(stat_df = map2(
@@ -1914,15 +1925,18 @@ naive_selection <- function(.ranked, .k) {
         unnest(stat_df)
     )) %>% 
     
-    # Add original data info to the markers selected, 
+    # collect from which contrasts signature genes are extracted
+    mutate(children = map(markers, ~ .x %>% 
+                            select(contrast, symbol, rank) %>% 
+                            nest(enriched = - contrast)
+    )) %>% 
+    
+    # Add original expression data info to the markers selected for dimension reduction, 
     # use inner_join to ensure symbols are present in both markers and data
     mutate(markers = map2(markers, data, ~ inner_join(.x, .y, by="symbol"))) %>%
     
     # remove unnecessary column
     select(-data) %>% 
-    
-    # collect from which contrasts signature genes are extracted
-    # mutate(contrast = map(markers, ~ .x %>% distinct(contrast, symbol))) %>% 
     
     # collect signature genes selected
     mutate(signature = map(markers, ~ .x$symbol %>% unique())) %>% 
@@ -2028,7 +2042,7 @@ single_marker_pw_selection_using_silhouette <-
       ancestor = character(),
       new_challengers = list(),
       winner = list(),
-      winning_contrast = list(),
+      children = list(),
       signature = list(),
       # reduced_dimensions = list(),
       silhouette = double()
@@ -2047,14 +2061,14 @@ single_marker_pw_selection_using_silhouette <-
       
       mutate(winner = map(new_challengers, ~ unique(.x))) %>% 
       
-      mutate(winning_contrast = map(
-        markers,
-        ~ .x %>% pull(contrast) %>% unique()
-        # distinct(contrast, symbol) %>% 
-        # mutate(contrast = contrast %>% str_extract(".*(?=\\s\\-)")) %>% 
-        # mutate(contrast_symbol = map2_chr(contrast, symbol, ~ paste(.x, .y, sep = "."))) %>% 
-        # pull(contrast_symbol)
-      )) %>% 
+      # mutate(winning_contrast = map(
+      #   markers,
+      #   ~ .x %>% pull(contrast) %>% unique()
+      #   # distinct(contrast, symbol) %>% 
+      #   # mutate(contrast = contrast %>% str_extract(".*(?=\\s\\-)")) %>% 
+      #   # mutate(contrast_symbol = map2_chr(contrast, symbol, ~ paste(.x, .y, sep = "."))) %>% 
+      #   # pull(contrast_symbol)
+      # )) %>% 
       
       mutate(signature = winner) %>% 
       
@@ -2111,14 +2125,18 @@ single_marker_pw_selection_using_silhouette <-
         naive_selection(1) %>% 
         
         # pick the one new challenger from each contrast
-        mutate(markers = map(
-          markers,
-          ~ .x %>% 
-            nest(new_challenger = - contrast) %>% 
-            mutate(new_challenger = map_chr(new_challenger, ~.x %>% distinct(symbol) %>% pull()))
-        )) %>% 
-        unnest(markers) %>% 
-        select(-c(signature, real_size)) %>% 
+        # mutate(markers = map(
+        #   markers,
+        #   ~ .x %>% 
+        #     nest(new_challenger = - contrast) %>% 
+        #     mutate(new_challenger = map_chr(new_challenger, ~.x %>% distinct(symbol) %>% pull()))
+        # )) %>% 
+        # unnest(markers) %>% 
+        # select(-c(signature, real_size)) %>% 
+        select(-c(markers, signature, real_size)) %>% 
+        unnest(children) %>% 
+        unnest(enriched) %>% 
+        dplyr::rename(new_challenger = symbol) %>% 
         
         # append the new challenger from each contrast to the base markers for that ancestor node
         mutate(challengers_for_silhouette = map2(
@@ -2158,10 +2176,13 @@ single_marker_pw_selection_using_silhouette <-
         )) %>% 
         
         # record which contrast the winner comes from
-        mutate(winning_contrast = map(data, ~ if(.x[1, ]$is_greater){
-          .x[1, ]$contrast # %>% str_extract(".*(?=\\s\\-)")
+        mutate(children = map(data, ~ if(.x[1, ]$is_greater){
+          .x[1, ] %>% 
+            select(contrast, symbol=new_challenger, rank) %>% 
+            nest(enriched = -contrast)
         } else {NA}
-        )) %>% 
+        )) %>%
+        
         
         # cummulative signature: winner + previously selected
         mutate(signature = pmap(
@@ -2272,41 +2293,41 @@ do_optimisation <- function(.selected,
                             .kernel = "normal", 
                             .bandwidth = 0.05, 
                             .gridsize = 100){
-  
-  if(.optimisation_method == "penalty") {
+  {
+    if (.optimisation_method == "penalty"){
+      
+      .selected %>% 
+        mutate(optimal_size = map_int(data, ~ penalised_silhouette(.x, .penalty_rate=.penalty_rate)))
+      
+    } else if(.optimisation_method == "curvature") {
+      
+      .selected %>% 
+        curvature_of_kernel_smoothed_trend(.kernel=.kernel, .bandwidth=.bandwidth, .gridsize=.gridsize)
+    }
     
-    .selected %>% 
-      
-      mutate(optimal_size = map_int(data, ~ penalised_silhouette(.x, .penalty_rate=.penalty_rate))) %>% 
-      
-      unnest(data) %>% 
-      
-      filter(real_size == optimal_size)
+  } %>% 
     
-  } else if (.optimisation_method == "curvature") {
+    unnest(data) %>% 
     
-    .selected %>% 
-      
-      curvature_of_kernel_smoothed_trend(.kernel=.kernel, .bandwidth=.bandwidth, .gridsize=.gridsize) %>% 
-      
-      unnest(data) %>% 
-      
-      filter(real_size <= optimal_size) %>% 
-      
-      select(-c(size.rescaled, smoothed)) %>% 
-      
-      nest(data = -c(level, ancestor, signature)) %>% 
-      
-      mutate(data = map(
-        data,
-        ~ .x %>% 
-          unnest(winner, winning_contrast) %>% 
-          nest(enriched = -winning_contrast) %>% 
-          mutate(enriched = map(enriched, ~ .x %>% pull(winner) %>% unique()))
-      ))
-  }
+    filter(real_size <= optimal_size) %>% 
+    
+    nest(children = -c(level, ancestor)) %>% 
+    
+    mutate(signature = map(children, ~ .x %>% tail(1) %>% pull(signature) %>% unlist() )) %>% 
+    
+    mutate(silhouette = map_dbl(children, ~ .x %>% tail(1) %>% pull(silhouette) %>% unlist() )) %>% 
+    
+    mutate(children = map(
+      children,
+      ~ .x %>% 
+        unnest(children) %>% 
+        unnest(enriched) %>% 
+        distinct(contrast, symbol, rank) %>% 
+        nest(enriched = -contrast)
+    ))
   
 }
+
 
 curvature <- function(.drv1, .drv2){
   abs(.drv2) / (1 + .drv1^2)^(3/2)

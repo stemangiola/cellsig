@@ -2471,7 +2471,7 @@ single_marker_pw_selection_using_silhouette <-
       ancestor = character(),
       new_challengers = list(),
       winner = list(),
-      winning_contrast = list(),
+      children = list(),
       signature = list(),
       # reduced_dimensions = list(),
       silhouette = double()
@@ -2491,14 +2491,14 @@ single_marker_pw_selection_using_silhouette <-
       # there might be a bug (although unlikely) when there are only two contrasts and the top ranked gene are in both contrasts
       mutate(winner = map(new_challengers, ~ unique(.x))) %>% 
       
-      mutate(winning_contrast = map(
-        markers,
-        ~ .x %>% 
-          distinct(contrast, symbol) %>% 
-          mutate(contrast = contrast %>% str_extract(".*(?=\\s\\-)")) %>% 
-          mutate(contrast_symbol = map2_chr(contrast, symbol, ~ paste(.x, .y, sep = "."))) %>% 
-          pull(contrast_symbol)
-          )) %>% 
+      # mutate(winning_contrast = map(
+      #   markers,
+      #   ~ .x %>% pull(contrast) %>% unique()
+      #   # distinct(contrast, symbol) %>% 
+      #   # mutate(contrast = contrast %>% str_extract(".*(?=\\s\\-)")) %>% 
+      #   # mutate(contrast_symbol = map2_chr(contrast, symbol, ~ paste(.x, .y, sep = "."))) %>% 
+      #   # pull(contrast_symbol)
+      # )) %>%
       
       mutate(signature = winner) %>% 
       
@@ -2554,15 +2554,19 @@ single_marker_pw_selection_using_silhouette <-
         # select top 1 markers from each contrast, ignore the signature output
         naive_selection(1) %>% 
         
-        # pick the one new challenger from each contrast
-        mutate(markers = map(
-          markers,
-          ~ .x %>% 
-            nest(new_challenger = - contrast) %>% 
-            mutate(new_challenger = map_chr(new_challenger, ~.x %>% distinct(symbol) %>% pull()))
-        )) %>% 
-        unnest(markers) %>% 
-        select(-c(signature, real_size)) %>% 
+        # # pick the one new challenger from each contrast
+        # mutate(markers = map(
+        #   markers,
+        #   ~ .x %>% 
+        #     nest(new_challenger = - contrast) %>% 
+        #     mutate(new_challenger = map_chr(new_challenger, ~.x %>% distinct(symbol) %>% pull()))
+        # )) %>% 
+        # unnest(markers) %>% 
+        # select(-c(signature, real_size)) %>% 
+        select(-c(markers, signature, real_size)) %>% 
+        unnest(children) %>% 
+        unnest(enriched) %>% 
+        dplyr::rename(new_challenger = symbol) %>% 
         
         # append the new challenger from each contrast to the base markers for that ancestor node
         mutate(challengers_for_silhouette = map2(
@@ -2602,11 +2606,13 @@ single_marker_pw_selection_using_silhouette <-
         )) %>% 
         
         # record which contrast the winner comes from
-        mutate(winning_contrast = map(data, ~ if(.x[1, ]$is_greater){
-          .x[1, ]$contrast %>% 
-            str_extract(".*(?=\\s\\-)")
+        mutate(children = map(data, ~ if(.x[1, ]$is_greater){
+          .x[1, ] %>% 
+            select(contrast, symbol=new_challenger, rank) %>% 
+            nest(enriched = -contrast)
         } else {NA}
-        )) %>% 
+        )) %>%
+
         
         # cummulative signature: winner + previously selected
         mutate(signature = pmap(
@@ -2693,29 +2699,43 @@ single_marker_pw_selection_using_silhouette <-
 
 signature.optimised <- signature.unoptimised %>% do_optimisation("curvature")
 
+# for naive optimisation
+optimised1 <- xx %>% 
+  
+  mutate(optimal_size = map_int(data, ~ penalised_silhouette(.x))) %>% 
+  
+  unnest(data) %>% 
+  
+  filter(real_size == optimal_size) %>% 
+  
+  select(level, ancestor, children, signature, silhouette)
 
 
-signature.optimised <- signature.unoptimised %>% 
+optimised <- xx %>% 
   
   curvature_of_kernel_smoothed_trend() %>% 
+  
+  # mutate(optimal_size = map_int(data, ~ penalised_silhouette(.x))) %>%
   
   unnest(data) %>% 
   
   filter(real_size <= optimal_size) %>% 
   
-  select(-c(size.rescaled, smoothed)) %>% 
+  nest(children = -c(level, ancestor)) %>% 
   
-  nest(data = -c(level, ancestor)) %>% 
+  mutate(signature = map(children, ~ .x %>% tail(1) %>% pull(signature) %>% unlist() )) %>% 
   
-  mutate(signature = map(data, ~ .x %>% tail(1) %>% pull(signature) %>% unlist() )) %>% 
+  mutate(silhouette = map_dbl(children, ~ .x %>% tail(1) %>% pull(silhouette) %>% unlist() )) %>% 
   
-  mutate(data = map(
-    data,
+  mutate(children = map(
+    children,
     ~ .x %>% 
-      unnest(winner, winning_contrast) %>% 
-      nest(enriched = -winning_contrast) %>% 
-      mutate(enriched = map(enriched, ~ .x %>% pull(winner) %>% unique()))
+      unnest(children) %>% 
+      unnest(enriched) %>% 
+      distinct(contrast, symbol, rank) %>% 
+      nest(enriched = -contrast)
   ))
+
 
 x <- signature.unoptimised %>% 
   mutate(data = map(data, 
@@ -2984,3 +3004,65 @@ tibble(
 #
 # What does it do
 # Produce a pdf running the whole pipeline, including all methods, and testing with sihuette and deconvolution
+
+naive_selection <- function(.ranked, .k) {
+  
+  # Args:
+  # .ranked: output from do_ranking()
+  # .k: the number of genes selected from each cell_type contrast
+  x <- 
+  ranked_PW_L4 %>% 
+    
+    # selection markers from each contrast
+    mutate(markers = map(
+      markers,
+      ~ .x %>% 
+        mutate(stat_df = map(stat_df, ~ .x %>% dplyr::slice(1: 7)
+                             )) %>% 
+        unnest(stat_df)
+    )) %>% 
+    
+    # collect from which contrasts signature genes are extracted
+    mutate(children = map(markers, ~ .x %>% 
+                            select(contrast, symbol, rank) %>% 
+                            nest(enriched = - contrast)
+                            )) %>% 
+    
+    # Add original data info to the markers selected, 
+    # use inner_join to ensure symbols are present in both markers and data
+    mutate(markers = map2(markers, data, ~ inner_join(.x, .y, by="symbol"))) %>%
+    
+    # remove unnecessary column
+    select(-data) %>% 
+    
+    # collect signature genes selected
+    mutate(signature = map(markers, ~ .x$symbol %>% unique())) %>% 
+    
+    # number of the signature genes
+    mutate(real_size = map_int(signature, ~ length(.x)))
+  
+}
+
+do_naive_selection <- function(.ranked, .kmax, .reduction_method) {
+  
+  # Args:
+  # .ranked: output from do_ranking
+  # .kmax: maximum number of markers selected from each cell type contrast
+  # .reduction_method: method used to reduce dimensions such as "PCA", "tSNE", "MSA"
+  
+  tibble(number_of_markers_from_each_contrast = 1: .kmax) %>% 
+    
+    # select signature and calculate silhouette score 
+    mutate(data = map(
+      number_of_markers_from_each_contrast,
+      ~ naive_selection(.ranked=.ranked, .x) %>% 
+        silhouette_function(.reduction_method=.reduction_method)
+    )) %>% 
+    
+    # nest by ancestor nodes/cell types
+    unnest(data) %>%
+    nest(data = - c(level, ancestor))
+  
+}
+
+source("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/jian_R_files/function_jian.R")
