@@ -4,11 +4,12 @@ set.tempdir(t)
 
 library(tidyverse)
 library(magrittr)
-library(cellsig)
-library(future)
-library("future.batchtools")
-library(furrr)
-
+# library(cellsig)
+# library(future)
+# library("future.batchtools")
+# library(furrr)
+library(tidybulk)
+library(tidySummarizedExperiment)
 cores = 8
 
 local_dir = "/stornext/Bioinf/data/bioinf-data/Papenfuss_lab/projects/mangiola.s/PostDoc/cellsig"
@@ -64,7 +65,10 @@ create_partitions = function(.data, .level, .partitions = 30){
 }
 
 # Create files
-load("dev/counts.rda")
+options("tidybulk_do_validate"= FALSE) 
+
+
+
 #sys("rm modeling_files/*rds")
 tibble(level=1:5) %>%
   mutate(partitions = map(
