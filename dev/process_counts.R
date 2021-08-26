@@ -45,7 +45,7 @@ counts =
 #   arrange(desc(n))
 
   
-save(counts, file="dev/count.rda", compress = "xz")
+saveRDS(counts, file="dev/count.rds", compress = "xz")
 
 counts_imputed =
   
@@ -55,9 +55,9 @@ counts_imputed =
   
   mutate(count_scaled = count / exp(exposure_rate)) %>%
   
-  impute_abundance_using_levels(count_scaled)
+  cellsig::impute_abundance_using_levels(count_scaled)
 
-save(counts_imputed, file="dev/counts_imputed.rda", compress = "xz")
+saveRDS(counts_imputed, file="dev/counts_imputed.rds", compress = "xz")
 
 # symbol   level_1         n
 # <chr>    <chr>       <int>
