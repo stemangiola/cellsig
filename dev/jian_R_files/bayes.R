@@ -102,6 +102,7 @@ bayes <- readRDS("dev/cellsig_theoretical_transcript_abundance_distribution.rds"
   filter(n == max(n)) %>%
 
   unnest(data)
+  
 
 bayes_ranked_L4 <- tt_L4 %>% 
   rank_by_bayes(mean_contrast, bayes)

@@ -125,54 +125,41 @@ saveRDS()
 
 # Main ============================
 
-main <- function(.tree, .transcript, .sample, .cell_type, .symbol, .count,
-                 .is_hierarchy=TRUE, .level=NULL, 
-                 .contrast_method, .ranking_method, .selection_method,
-                 .kmax = NULL, .discard_number = NULL, .reduction_method = "PCA",
-                 .optimisation_method="penalised_silhouette", .penalty_rate = 0.2,
+main <- function(.transcript, .is_hierarchy=TRUE, .level=NULL, 
+                 .contrast_method, .ranking_method, .rank_stat=NULL, .bayes=NULL, 
+                 .selection_method, .kmax=60, .discard_number=2000, .reduction_method = "PCA",
+                 .optimisation_method, .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
                  .is_complete = FALSE) {
-  
-  # mao the given developmental tree to a data frame
-  counts <- .transcript %>% 
-    tree_and_signatures_to_database(tree = tree, 
-                                    .sample = sample, 
-                                    .cell_type = cell_type,
-                                    .symbol = symbol,
-                                    .count = count)
   
   
   if ( (!.is_hierarchy)|(.selection_method == "naive")) {
     
-    .counts %>% 
+    .transcript %>%
       
       # Input: data.frame columns_1 <int> | ...
       # Output: 
-      scale_input_counts(.is_hierarchy, .level) %>% 
+      # scale_input_counts(.is_hierarchy=.is_hierarchy, .level=.level) %>% 
+      
+      # Input: data.frame columns_1 <int> | ...
+      do_ranking(.ranking_method=.ranking_method, .contrast_method=.contrast_method, .rank_stat=.rank_stat, .bayes=.bayes) %>%  
       
       # Input: data.frame columns_1 <int> | ...
       # Output: 
-      generate_contrast(.contrast_method) %>% 
+      do_selection(.selection_method=.selection_method, .reduction_method=.reduction_method, .discard_number=.discard_number, .kmax=.kmax) %>% 
       
-      # Input: data.frame columns_1 <int> | ...
-      do_ranking(.ranking_method) %>% 
+      do_optimisation(.optimisation_method=.optimisation_method) %>% 
       
-      # Input: data.frame columns_1 <int> | ...
-      # Output: 
-      do_selection(.selection_method, .kmax, .reduction_method) %>% 
-      
-      do_optimisation(.optimisation_method, .penalty_rate) %>% 
-      
-      format_output(.is_complete)
+      format_output(.is_complete = .is_complete)
     
   } else {
     
-    counts %>% 
+    .transcript %>%
       
-      scale_input_counts(.is_hierarchy, .level) %>% 
+      # Input: data.frame columns_1 <int> | ...
+      # Output: 
+      # scale_input_counts(.is_hierarchy=.is_hierarchy, .level=.level) %>%
       
-      generate_contrast(.contrast_method) %>% 
-      
-      do_ranking(.ranking_method) %>% 
+      do_ranking(.ranking_method=.ranking_method, .contrast_method=.contrast_method, .rank_stat=.rank_stat, .bayes=.bayes) %>% 
       
       mutate(level.copy = level) %>% 
       nest(data = -level.copy) %>% 
@@ -181,11 +168,11 @@ main <- function(.tree, .transcript, .sample, .cell_type, .symbol, .count,
         data,
         ~ .x %>% 
           
-          do_selection(.selection_method, .discard_number, .reduction_method) %>%
+          do_selection(.selection_method=.selection_method, .reduction_method=.reduction_method, .discard_number=.discard_number, .kmax=.kmax) %>%
           
-          do_optimisation(.optimisation_method, .penalty_rate) %>%
+          do_optimisation(.optimisation_method = .optimisation_method) %>%
           
-          format_output(.is_complete)
+          format_output(.is_complete = .is_complete)
         
       )) %>% 
       
@@ -474,18 +461,25 @@ saveRDS(contrast_PW_H, "contrast_PW_H.rds", compress = "xz")
 
 # Rank ==========================================
 
-do_ranking <- function(.preprocessed, .ranking_method, .contrast_method, .rank_stat=NULL, 
-                       .bayes=NULL){
+do_ranking <- function(.preprocessed, .ranking_method, .contrast_method, .rank_stat, 
+                       .bayes){
   
   # rank_stat takes either "Pvalue" or "logFC" 
   .preprocessed %>%
     
     # .bayes = .cellsig_theoretical_transcript_abundace_distribution
-    .ranking_method(.contrast_method, .rank_stat, .bayes) %>% 
+    .ranking_method(.contrast_method=.contrast_method, .rank_stat=.rank_stat, .bayes=.bayes) %>% 
+    
+    unnest(markers) %>% 
     
     # filter out potential nodes in which no genes are considered significant by rank_by_logFC
-    filter(map_int(markers, ~ .x %>% unnest(stat_df) %>% nrow()) != 0)
+    filter(map_int(stat_df, ~nrow(.x)) != 0) %>% 
     
+    # assign ranks to genes
+    mutate(stat_df = map(stat_df, ~ mutate(.x, rank = 1:nrow(.x)))) %>% 
+    
+    nest(markers = -c(level, ancestor, data))
+  
 }
 
 rank_edgR_quasi_likelihood <- function(.preprocessed, .contrast_method, .rank_stat, .bayes=NULL){
@@ -579,44 +573,52 @@ rank_by_stat <-  function(.markers, .rank_stat){
         .x %>% dplyr::arrange(desc(logFC))
       }else{
         .x %>% dplyr::arrange(PValue)
-        }
+      }
     ))
-  
 }
 
 
-rank_bayes <- function(.preprocessed, .contrast_method, .rank_stat=NULL, .bayes){
+
+rank_bayes <- function(.preprocessed, .contrast_method, .bayes, .rank_stat=NULL){
   
   .preprocessed %>% 
     
     unnest(tt) %>% 
     
-    mutate(descendants = map2(data, level, ~ .contrast_method(.x, .y))) %>% 
+    mutate(contrast = map2(data, level, ~ .contrast_method(.x, .y))) %>% 
     
-    unnest(descendants) %>% 
-    mutate(descendants = str_remove_all(descendants, "level_\\d")) %>% 
-    separate(descendants, into = c("target", "background"), sep = " - ") %>% 
+    unnest(contrast) %>% 
+    mutate(contrast = str_remove_all(contrast, "level_\\d")) %>% 
     
-    mutate(background = str_split(background, "\\+")) %>% 
-    mutate(background = map(background, ~ .x %>% str_remove_all("\\W|\\d$"))) %>% 
+    # separate(descendants, into = c("target", "background"), sep = " - ") %>% 
+    # mutate(background = str_split(background, "\\+")) %>% 
+    # mutate(background = map(background, ~ .x %>% str_remove_all("\\W|\\d$"))) %>% 
     
     mutate(lower_quantile = map(
-      target,
+      contrast,
       ~ .bayes %>% 
-        filter(cell_type == .x) %>% 
-        select(symbol, lower_quantile='25%') %>% 
-        arrange(symbol)
+        filter(cell_type == str_extract(.x, ".*(?=\\s\\-)")) %>% 
+        select(symbol, lower_quantile='25%')
+        # arrange(symbol)
     )) %>% 
     
     mutate(mean_upper_quantile = map(
-      background,
-      ~ .bayes %>% 
+      contrast,
+      ~ {
+        background <- .x %>% 
+          str_extract("(?<=\\-\\s).*") %>% 
+          str_split("\\+") %>% 
+          unlist() %>% 
+          str_remove_all("(?<=\\/).*|\\W")
+        
+        .bayes %>% 
         # calculate the mean 75% quantile of each gene over all background cell types
-        filter(cell_type %in% .x) %>% 
+        filter(cell_type %in% background) %>% 
         group_by(symbol) %>% 
         summarise(symbol, mean_upper_quantile = mean(`75%`)) %>% 
         distinct() %>% 
         ungroup()
+        }
     )) %>% 
     
     mutate(stat_df = map2(
@@ -667,10 +669,15 @@ ranked_PW_L4 <- tt_L4 %>%
              .contrast_method = pairwise_contrast,
              .rank_stat = "logFC")
 
+ranked_PW_L4_bayes <- tt_L4 %>% 
+  do_ranking(.ranking_method = rank_bayes, 
+             .contrast_method = pairwise_contrast,
+             .bayes = bayes)
+
 # Selection =======================================
 
 do_selection <- 
-  function(.ranked, .selection_method, .kmax=NULL, .discard_number=NULL, .reduction_method="PCA") {
+  function(.ranked, .selection_method, .reduction_method, .kmax, .discard_number) {
     
     # .k is the number of genes selected from each cell_type contrast
     
@@ -678,13 +685,13 @@ do_selection <-
       
       .ranked %>% 
         
-        do_naive_selection(.kmax, .reduction_method)
+        do_naive_selection(.kmax=.kmax, .reduction_method=.reduction_method)
       
     } else {
       
       .ranked %>% 
         
-        single_marker_pw_selection_using_silhouette(.discard_number, .reduction_method)
+        single_marker_pw_selection_using_silhouette(.discard_number=.discard_number, .reduction_method=.reduction_method)
       
     }
     
@@ -706,8 +713,8 @@ do_naive_selection <- function(.ranked, .kmax, .reduction_method) {
     # select signature and calculate silhouette score 
     mutate(data = map(
       number_of_markers_from_each_contrast,
-      ~ naive_selection(.ranked, .x) %>% 
-        silhouette_function(.reduction_method)
+      ~ naive_selection(.ranked=.ranked, .x) %>% 
+        silhouette_function(.reduction_method=.reduction_method)
     )) %>% 
     
     # nest by ancestor nodes/cell types
@@ -732,15 +739,18 @@ naive_selection <- function(.ranked, .k) {
         unnest(stat_df)
     )) %>% 
     
-    # Add original data info to the markers selected, 
+    # collect from which contrasts signature genes are extracted
+    mutate(children = map(markers, ~ .x %>% 
+                            select(contrast, symbol, rank) %>% 
+                            nest(enriched = - contrast)
+    )) %>% 
+    
+    # Add original expression data info to the markers selected for dimension reduction, 
     # use inner_join to ensure symbols are present in both markers and data
     mutate(markers = map2(markers, data, ~ inner_join(.x, .y, by="symbol"))) %>%
     
     # remove unnecessary column
     select(-data) %>% 
-    
-    # collect from which contrasts signature genes are extracted
-    # mutate(contrast = map(markers, ~ .x %>% distinct(contrast, symbol))) %>% 
     
     # collect signature genes selected
     mutate(signature = map(markers, ~ .x$symbol %>% unique())) %>% 
@@ -759,13 +769,13 @@ silhouette_function <- function(.selected, .reduction_method){
     # reduce dimensions
     mutate(reduced_dimensions = map2(
       markers, level, 
-      ~ dimension_reduction(.x, .y, .reduction_method)
+      ~ dimension_reduction(.x, .y, .reduction_method=.reduction_method)
     )) %>% 
     
     # calculate distance matrix using PC1 & PC2
     mutate(distance = map(
       reduced_dimensions,
-      ~ distance_matrix(.x, .reduction_method)
+      ~ distance_matrix(.x, .reduction_method=.reduction_method)
     )) %>% 
     
     # calculate silhouette score
@@ -832,7 +842,10 @@ xx <- naive_PW_L4 %>%
   silhouette_function(METHOD)
 
 xx <- ranked_PW_L4 %>% 
-  do_naive_selection(5, METHOD)
+  do_naive_selection(30, METHOD)
+
+yy <- ranked_PW_L4_bayes %>% 
+  do_naive_selection(30, METHOD)
 
 naive_MC_L4 <- bayes_ranked_L4 %>% 
   naive_selection(5)
@@ -843,7 +856,7 @@ bayes_naive_selected <- naive_MC_L4 %>%
 ## Silhouette selection =========================================
 
 single_marker_pw_selection_using_silhouette <- 
-  function(.ranked, .discard_number=NULL, .reduction_method="PCA") {
+  function(.ranked, .discard_number, .reduction_method) {
     
     # initialize variables
     
@@ -864,7 +877,7 @@ single_marker_pw_selection_using_silhouette <-
       ancestor = character(),
       new_challengers = list(),
       winner = list(),
-      winning_contrast = list(),
+      children = list(),
       signature = list(),
       # reduced_dimensions = list(),
       silhouette = double()
@@ -883,18 +896,18 @@ single_marker_pw_selection_using_silhouette <-
       
       mutate(winner = map(new_challengers, ~ unique(.x))) %>% 
       
-      mutate(winning_contrast = map(
-        markers,
-        ~ .x %>% pull(contrast) %>% unique()
-          # distinct(contrast, symbol) %>% 
-          # mutate(contrast = contrast %>% str_extract(".*(?=\\s\\-)")) %>% 
-          # mutate(contrast_symbol = map2_chr(contrast, symbol, ~ paste(.x, .y, sep = "."))) %>% 
-          # pull(contrast_symbol)
-      )) %>% 
+      # mutate(winning_contrast = map(
+      #   markers,
+      #   ~ .x %>% pull(contrast) %>% unique()
+      #   # distinct(contrast, symbol) %>% 
+      #   # mutate(contrast = contrast %>% str_extract(".*(?=\\s\\-)")) %>% 
+      #   # mutate(contrast_symbol = map2_chr(contrast, symbol, ~ paste(.x, .y, sep = "."))) %>% 
+      #   # pull(contrast_symbol)
+      # )) %>% 
       
       mutate(signature = winner) %>% 
       
-      silhouette_function(.reduction_method) %>% 
+      silhouette_function(.reduction_method=.reduction_method) %>% 
       
       select(-c(reduced_dimensions, real_size))
     
@@ -947,14 +960,18 @@ single_marker_pw_selection_using_silhouette <-
         naive_selection(1) %>% 
         
         # pick the one new challenger from each contrast
-        mutate(markers = map(
-          markers,
-          ~ .x %>% 
-            nest(new_challenger = - contrast) %>% 
-            mutate(new_challenger = map_chr(new_challenger, ~.x %>% distinct(symbol) %>% pull()))
-        )) %>% 
-        unnest(markers) %>% 
-        select(-c(signature, real_size)) %>% 
+        # mutate(markers = map(
+        #   markers,
+        #   ~ .x %>% 
+        #     nest(new_challenger = - contrast) %>% 
+        #     mutate(new_challenger = map_chr(new_challenger, ~.x %>% distinct(symbol) %>% pull()))
+        # )) %>% 
+        # unnest(markers) %>% 
+        # select(-c(signature, real_size)) %>% 
+        select(-c(markers, signature, real_size)) %>% 
+        unnest(children) %>% 
+        unnest(enriched) %>% 
+        dplyr::rename(new_challenger = symbol) %>% 
         
         # append the new challenger from each contrast to the base markers for that ancestor node
         mutate(challengers_for_silhouette = map2(
@@ -966,7 +983,7 @@ single_marker_pw_selection_using_silhouette <-
         # calculate silhouette score for the challengers from each contrast
         mutate(silhouette = map2_dbl(
           challengers_for_silhouette, ancestor, 
-          ~ silhouette_for_markers(.ranked, .x, .y, .reduction_method) %>% 
+          ~ silhouette_for_markers(.ranked=.ranked, .signature=.x, .ancestor=.y, .reduction_method=.reduction_method) %>% 
             pull(silhouette)
         )) %>% 
         
@@ -994,10 +1011,13 @@ single_marker_pw_selection_using_silhouette <-
         )) %>% 
         
         # record which contrast the winner comes from
-        mutate(winning_contrast = map(data, ~ if(.x[1, ]$is_greater){
-          .x[1, ]$contrast # %>% str_extract(".*(?=\\s\\-)")
+        mutate(children = map(data, ~ if(.x[1, ]$is_greater){
+          .x[1, ] %>% 
+            select(contrast, symbol=new_challenger, rank) %>% 
+            nest(enriched = -contrast)
         } else {NA}
-        )) %>% 
+        )) %>%
+        
         
         # cummulative signature: winner + previously selected
         mutate(signature = pmap(
@@ -1077,6 +1097,8 @@ single_marker_pw_selection_using_silhouette <-
     output <- summary_tb %>% 
       mutate(real_size = map_int(signature, ~ length(.x))) %>% 
       nest(data = - c(level, ancestor))
+    # add the rank of the gene as in the order in which they are selected
+    # mutate(data = map(data, ~ .x %>% mutate(rank = 1: nrow(.x))))
     
     return(output)
   }
@@ -1096,9 +1118,12 @@ silhouette_for_markers <-function(.ranked, .signature, .ancestor, .reduction_met
     # format input
     dplyr::rename("markers" = "data") %>% 
     
-    silhouette_function(.reduction_method)
+    silhouette_function(.reduction_method = .reduction_method)
   
 }
+
+# Test
+output <- ranked_PW_L4 %>% single_marker_pw_selection_using_silhouette(.discard_number = 100, "PCA")
 
 ## CIBERSORTx selection ==========================================
 # use "cibersort_signature" from cibersortx.R
@@ -1128,39 +1153,38 @@ do_optimisation <- function(.selected,
                             .kernel = "normal", 
                             .bandwidth = 0.05, 
                             .gridsize = 100){
-  
-  if(.optimisation_method == "penalty") {
+  {
+    if (.optimisation_method == "penalty"){
+      
+      .selected %>% 
+        mutate(optimal_size = map_int(data, ~ penalised_silhouette(.x, .penalty_rate=.penalty_rate)))
+      
+    } else if(.optimisation_method == "curvature") {
+      
+      .selected %>% 
+        curvature_of_kernel_smoothed_trend(.kernel=.kernel, .bandwidth=.bandwidth, .gridsize=.gridsize)
+    }
     
-    .selected %>% 
-      
-      mutate(optimal_size = map_int(data, ~ penalised_silhouette(.x, .penalty_rate))) %>% 
-      
-      unnest(data) %>% 
-      
-      filter(real_size == optimal_size)
+  } %>% 
     
-  } else if (.optimisation_method == "curvature") {
+    unnest(data) %>% 
     
-    .selected %>% 
-      
-      curvature_of_kernel_smoothed_trend(.kernel, .bandwidth, .gridsize) %>% 
-      
-      unnest(data) %>% 
-      
-      filter(real_size <= optimal_size) %>% 
-      
-      select(-c(size.rescaled, smoothed)) %>% 
-      
-      nest(data = -c(level, ancestor, signature)) %>% 
-      
-      mutate(data = map(
-        data,
-        ~ .x %>% 
-          unnest(winner, winning_contrast) %>% 
-          nest(enriched = -winning_contrast) %>% 
-          mutate(enriched = map(enriched, ~ .x %>% pull(winner) %>% unique()))
-      ))
-  }
+    filter(real_size <= optimal_size) %>% 
+    
+    nest(children = -c(level, ancestor)) %>% 
+    
+    mutate(signature = map(children, ~ .x %>% tail(1) %>% pull(signature) %>% unlist() )) %>% 
+    
+    mutate(silhouette = map_dbl(children, ~ .x %>% tail(1) %>% pull(silhouette) %>% unlist() )) %>% 
+    
+    mutate(children = map(
+      children,
+      ~ .x %>% 
+        unnest(children) %>% 
+        unnest(enriched) %>% 
+        distinct(contrast, symbol, rank) %>% 
+        nest(enriched = -contrast)
+    ))
   
 }
 
@@ -1219,7 +1243,7 @@ curvature_of_kernel_smoothed_trend <- function(.plot_data,
       ~ .x %>% 
         mutate(curvature = map2_dbl(
           deriv1, deriv2,
-          ~ curvature(.x, .y)
+          ~ curvature(.drv1=.x, .drv2=.y)
         ))
     )) %>% 
     
@@ -1263,10 +1287,12 @@ penalised_silhouette <- function(.plot_data, .penalty_rate=0.2) {
     pull(real_size)
 }
 
+
 # Test
 
-mean_contrast.silhouette.hierarchy.unOP %>% 
-  do_optimisation("penalised", .penalty_rate = 0.61)
+xx %>% 
+# mean_contrast.silhouette.hierarchy.unOP %>% 
+  do_optimisation("penalty", .penalty_rate = 0.2)
 
 # Format output ===================================
 
