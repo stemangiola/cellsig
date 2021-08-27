@@ -108,7 +108,7 @@ sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s\nWALL_TIME=14000", cores)
     pull(command) %>%
     unlist()
   ) %>%
-  write_lines("dev/modeling_results/run_model.makeflow") 
+  write_lines("dev/modeling_code/run_model.makeflow") 
 #%>%
 #  saveRDS(sprintf("%s/dev/temp.rds", local_dir))
 
