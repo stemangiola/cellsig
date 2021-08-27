@@ -116,105 +116,106 @@ readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/counts_s
 #   identify_abundant(factor_of_interest = !!as.symbol(.level)) %>%
 #   scale_abundance()
 
-signature_stefano_optimised_by_penalty <- 
-signature_stefano_unoptimised %>% 
-  # mutate(data = map(data, ~ .x %>% mutate(rank = 1: nrow(.x)))) %>% 
-  do_optimisation(.optimisation_method = "penalty")
-
-saveRDS(signature_stefano_optimised_by_penalty, "./dev/signature_stefano_optimised_by_penalty.rds", compress="xz")
-
-signature_stefano_optimised_by_curvature <- 
-  signature_stefano_unoptimised %>% 
-  # mutate(data = map(data, ~ .x %>% mutate(rank = 1: nrow(.x)))) %>% 
-  do_optimisation(.optimisation_method = "curvature")
-
-saveRDS(signature_stefano_optimised_by_curvature, 
-        "./dev/signature_stefano_optimised_by_curvature.rds", compress = "xz")
-
-label <- signature_stefano_optimised_by_penalty %>% 
-  mutate(optimal_size = map_int(signature, ~ length(.x))) %>% 
-  mutate(stream = "penalty") %>% 
-  
-  bind_rows(
-    signature_stefano_optimised_by_curvature %>% 
-      mutate(optimal_size = map_int(signature, ~ length(.x))) %>% 
-      mutate(stream = "curvature")
-  )
-
-
-signature_stefano_unoptimised %>% 
-  mutate(stream = "hierarchy_mean_contrast_edgR_robust_logFC") %>% 
-  unnest(data) %>% 
-  ggplot(aes(real_size, silhouette, colour = stream))+
-  geom_point(size=0.1)+
-  geom_point(
-    data = label,
-    aes(x = optimal_size, y = silhouette, shape = stream),
-    colour = "black",
-    size=2
-  ) +
-  geom_line()+
-  xlim(0, 100)+
-  facet_wrap(~ ancestor) +
-  guides(color = guide_legend(
-    title.position = "left",
-    nrow = 2,
-    byrow = TRUE))+
-  theme(legend.position = "bottom",
-        legend.title = element_text(size=10),
-        legend.title.align = 0.5,
-        plot.title = element_text(hjust = 0.5)
-  ) +
-  ggtitle("signature size selection stefano tree")
-
-
-signature_stefano_optimised_by_curvature %>% 
-  mutate(stream = "mean_contrast_edgR_robust_logFC_silhouette_curvature") %>%
-  
-  bind_rows(
-    signature_stefano_optimised_by_penalty %>% 
-      mutate(stream = "mean_contrast_edgR_robust_logFC_silhouette_penalty") 
-  ) %>% 
-  
-  bind_rows(
-    signature_stefano_unoptimised %>% 
-      mutate(stream = "mean_contrast_edgR_robust_logFC_silhouette_unoptimised") %>% 
-      mutate(signature = map(data, ~ .x %>% 
-                               tail(1) %>% 
-                               pull(signature) %>% 
-                               unlist()
-      ))
-  ) %>% 
-  
-  nest(signature = -stream) %>% 
-  mutate(signature = map(signature, ~ .x$signature %>% unlist() %>% unique())) %>% 
-  
-  
-  bind_rows(cibersortx) %>% 
-  mutate(silhouette = map(signature, ~ evaluation(.x, "PCA", counts_non_hierarchy))) %>% 
-  
-  unnest(silhouette) %>% 
-  select(-reduced_dimensions) %>% 
-  mutate(cluster_silhouette = map(silhouette, ~ .x$clus.avg.widths)) %>% 
-  mutate(avg_silhouette = map_dbl(silhouette, ~ .x$avg.width)) %>% 
-  unnest(cluster_silhouette) %>% 
-  
-  ggplot(aes(x=reorder(stream, avg_silhouette), y=cluster_silhouette, colour=stream)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_jitter(position=position_jitter(0.2), alpha=0.5) +
-
-  guides(color = guide_legend(
-    title.position = "left",
-    nrow = 2,
-    byrow = TRUE))+
-  theme(legend.position = "bottom",
-        legend.title = element_text(size=10),
-        legend.title.align = 0.5,
-        axis.text.x = element_blank()
-  )
-
-
-signature_stefano_unoptimised <- signature_stefano_unoptimised %>% 
-  mutate(data = map(data, ~ .x %>% mutate(rank = 1: nrow(.x))))
-
-saveRDS(signature_stefano_unoptimised, "./dev/signature_stefano_unoptimised.rds", compress="xz")
+# plot =========
+# signature_stefano_optimised_by_penalty <- 
+# signature_stefano_unoptimised %>% 
+#   # mutate(data = map(data, ~ .x %>% mutate(rank = 1: nrow(.x)))) %>% 
+#   do_optimisation(.optimisation_method = "penalty")
+# 
+# saveRDS(signature_stefano_optimised_by_penalty, "./dev/signature_stefano_optimised_by_penalty.rds", compress="xz")
+# 
+# signature_stefano_optimised_by_curvature <- 
+#   signature_stefano_unoptimised %>% 
+#   # mutate(data = map(data, ~ .x %>% mutate(rank = 1: nrow(.x)))) %>% 
+#   do_optimisation(.optimisation_method = "curvature")
+# 
+# saveRDS(signature_stefano_optimised_by_curvature, 
+#         "./dev/signature_stefano_optimised_by_curvature.rds", compress = "xz")
+# 
+# label <- signature_stefano_optimised_by_penalty %>% 
+#   mutate(optimal_size = map_int(signature, ~ length(.x))) %>% 
+#   mutate(stream = "penalty") %>% 
+#   
+#   bind_rows(
+#     signature_stefano_optimised_by_curvature %>% 
+#       mutate(optimal_size = map_int(signature, ~ length(.x))) %>% 
+#       mutate(stream = "curvature")
+#   )
+# 
+# 
+# signature_stefano_unoptimised %>% 
+#   mutate(stream = "hierarchy_mean_contrast_edgR_robust_logFC") %>% 
+#   unnest(data) %>% 
+#   ggplot(aes(real_size, silhouette, colour = stream))+
+#   geom_point(size=0.1)+
+#   geom_point(
+#     data = label,
+#     aes(x = optimal_size, y = silhouette, shape = stream),
+#     colour = "black",
+#     size=2
+#   ) +
+#   geom_line()+
+#   xlim(0, 100)+
+#   facet_wrap(~ ancestor) +
+#   guides(color = guide_legend(
+#     title.position = "left",
+#     nrow = 2,
+#     byrow = TRUE))+
+#   theme(legend.position = "bottom",
+#         legend.title = element_text(size=10),
+#         legend.title.align = 0.5,
+#         plot.title = element_text(hjust = 0.5)
+#   ) +
+#   ggtitle("signature size selection stefano tree")
+# 
+# 
+# signature_stefano_optimised_by_curvature %>% 
+#   mutate(stream = "mean_contrast_edgR_robust_logFC_silhouette_curvature") %>%
+#   
+#   bind_rows(
+#     signature_stefano_optimised_by_penalty %>% 
+#       mutate(stream = "mean_contrast_edgR_robust_logFC_silhouette_penalty") 
+#   ) %>% 
+#   
+#   bind_rows(
+#     signature_stefano_unoptimised %>% 
+#       mutate(stream = "mean_contrast_edgR_robust_logFC_silhouette_unoptimised") %>% 
+#       mutate(signature = map(data, ~ .x %>% 
+#                                tail(1) %>% 
+#                                pull(signature) %>% 
+#                                unlist()
+#       ))
+#   ) %>% 
+#   
+#   nest(signature = -stream) %>% 
+#   mutate(signature = map(signature, ~ .x$signature %>% unlist() %>% unique())) %>% 
+#   
+#   
+#   bind_rows(cibersortx) %>% 
+#   mutate(silhouette = map(signature, ~ evaluation(.x, "PCA", counts_non_hierarchy))) %>% 
+#   
+#   unnest(silhouette) %>% 
+#   select(-reduced_dimensions) %>% 
+#   mutate(cluster_silhouette = map(silhouette, ~ .x$clus.avg.widths)) %>% 
+#   mutate(avg_silhouette = map_dbl(silhouette, ~ .x$avg.width)) %>% 
+#   unnest(cluster_silhouette) %>% 
+#   
+#   ggplot(aes(x=reorder(stream, avg_silhouette), y=cluster_silhouette, colour=stream)) +
+#   geom_boxplot(outlier.shape = NA) +
+#   geom_jitter(position=position_jitter(0.2), alpha=0.5) +
+# 
+#   guides(color = guide_legend(
+#     title.position = "left",
+#     nrow = 2,
+#     byrow = TRUE))+
+#   theme(legend.position = "bottom",
+#         legend.title = element_text(size=10),
+#         legend.title.align = 0.5,
+#         axis.text.x = element_blank()
+#   )
+# 
+# 
+# signature_stefano_unoptimised <- signature_stefano_unoptimised %>% 
+#   mutate(data = map(data, ~ .x %>% mutate(rank = 1: nrow(.x))))
+# 
+# saveRDS(signature_stefano_unoptimised, "./dev/signature_stefano_unoptimised.rds", compress="xz")
