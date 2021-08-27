@@ -7,3 +7,7 @@ counts.rda
 counts_imputed.rda
 counts.test.rda
 signature.test.rds
+
+makeflow*
+slurm*
+dev/benchmark_results*
