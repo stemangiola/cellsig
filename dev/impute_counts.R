@@ -3,6 +3,8 @@ library(magrittr)
 library(tidybulk)
 library(tidySummarizedExperiment)
 
+options("tidybulk_do_validate"= FALSE) 
+
 readRDS("dev/counts.rds") %>% 
   
   

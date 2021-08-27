@@ -9,6 +9,8 @@ counts_second_db_raw = new_data %>% select(sample, symbol, count, dataset, cell_
 
 data("tree")
 
+options("tidybulk_do_validate"= FALSE) 
+
 # Join datasets
 counts_first_db_raw %>%
   select(-cell_type_original) %>%
