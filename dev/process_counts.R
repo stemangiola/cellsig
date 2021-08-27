@@ -1,6 +1,7 @@
 library(tidyverse)
 library(cellsig)
 library(tidybulk)
+library(tidySummarizedExperiment)
 
 # Database #1
 counts_first_db_raw = readRDS("dev/raw_data/counts_first_db_raw.rds")
@@ -17,12 +18,7 @@ counts_third_db_raw <- readRDS("dev/raw_data/counts_third_db_raw.rds")
 counts_third_db_raw <- counts_third_db_raw %>% 
   select(sample, symbol, count, database=dataset, cell_type)
 
- 
-"AF1_NK_PDGF_DD"
-# tree with level_5
 data("tree")
-# tree without level_5
-load("dev/raw_data/tree.rda")
 
 counts =  
   
@@ -32,32 +28,75 @@ counts =
   bind_rows(counts_third_db_raw) %>%
   select(sample, cell_type, symbol, count, database) %>%
   
-  # Add tree structure
-  tree_and_signatures_to_database(tree, ., sample, cell_type, symbol, count) %>% 
+  # Parse into hierarchical dataset
+  tree_and_signatures_to_database(tree, signatures, sample, cell_type, symbol, count)  %>%
   
-  # Infer exposure rate  and scale
-  infer_sequencing_depth_bias(hk600 = readr::read_csv("dev/hk_600.txt", col_names = FALSE) %>% pull(X1))
+  # Remove redundant samples
+  remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+  droplevels() %>% 
   
-# counts %>% 
-#   distinct(sample, symbol) %>%
-#   dplyr::count(symbol)%>% 
-#   dplyr::count(n)%>% 
-#   arrange(desc(n))
+  # Eliminate suspicious samples
+  filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>%
+  
+  # eliminate genes that are not in all cell types level 1
+  nest(data = -c(level_1, symbol)) %>%
+  add_count( symbol) %>%
+  filter(n==4) %>%
+  select(-n) %>%
+  unnest(data) %>%
+  
+  # Convert to SE
+  as_SummarizedExperiment(sample, symbol, count)  %>%
+  
+  # Scale with first degree imputation. 
+  # This because there are no common genes to all samples
+  impute_missing_abundance(~ cell_type, suffix="") %>%
+  identify_abundant() %>%
+  scale_abundance() %>%
+  filter(!.imputed) %>%
+  select(-count_imputed, -.imputed )  %>%
+  
+  # Just needed for the old version
+  select(-one_of("exposure_rate")) %>%
+  
+  # Calculate exposure for Bayes model
+  mutate(exposure_rate = -log(multiplier)) %>%
+  
+  # Save
+  saveRDS("dev/counts.rds", compress = "xz")
+
+
+#   # Add tree structure
+#   tree_and_signatures_to_database(tree, ., sample, cell_type, symbol, count) %>% 
+#   
+#   # Infer exposure rate  and scale
+#   infer_sequencing_depth_bias(hk600 = readr::read_csv("dev/hk_600.txt", col_names = FALSE) %>% pull(X1))
+#   
+# # counts %>% 
+# #   distinct(sample, symbol) %>%
+# #   dplyr::count(symbol)%>% 
+# #   dplyr::count(n)%>% 
+# #   arrange(desc(n))
+# 
+#   
+# saveRDS(counts, file="dev/count.rds", compress = "xz")
+# 
+# counts_imputed =
+#   
+#   counts %>%
+#   
+#   # mutate(level_5 = NA) %>% 
+#   
+#   mutate(count_scaled = count / exp(exposure_rate)) %>%
+#   
+#   cellsig::impute_abundance_using_levels(count_scaled)
+# 
+# saveRDS(counts_imputed, file="dev/counts_imputed.rds", compress = "xz")
+
 
   
-saveRDS(counts, file="dev/count.rds", compress = "xz")
 
-counts_imputed =
-  
-  counts %>%
-  
-  # mutate(level_5 = NA) %>% 
-  
-  mutate(count_scaled = count / exp(exposure_rate)) %>%
-  
-  cellsig::impute_abundance_using_levels(count_scaled)
 
-saveRDS(counts_imputed, file="dev/counts_imputed.rds", compress = "xz")
 
 # symbol   level_1         n
 # <chr>    <chr>       <int>
@@ -176,35 +215,35 @@ saveRDS(counts_imputed, file="dev/counts_imputed.rds", compress = "xz")
 #   saveRDS(file="dev/database/ARMET/dev/counts_infer_NB.rds")
 
 
-# Plots and Study
-library(ttBulk)
-(
-  readRDS(file="counts_infer_NB.rds") %>%
-    dplyr::distinct(sample, symbol, `count`, `Cell type formatted`, `Data base`) %>%
-    ttBulk::ttBulk(sample, symbol, `count`) %>%
-    distinct() %>%
-    aggregate_duplicates() %>%
-    ttBulk::scale_abundance() %>%
-    distinct(`Data base`, sample, symbol, `Cell type formatted`, `count scaled`)  %>%
-    reduce_dimensions(sample, symbol, `count scaled`, method = "tSNE", .dims=2) %>%
-    select(contains("tSNE"), `Data base`, `Cell type formatted`) %>%
-    distinct %>%
-    ggplot(aes(x = `tSNE1`, y = `tSNE2`, color=`Cell type formatted`)) + geom_point(size=2) +
-    theme_bw() +
-    theme(
-      panel.border = element_blank(),
-      axis.line = element_line(),
-      panel.grid.major = element_line(size = 0.2),
-      panel.grid.minor = element_line(size = 0.1),
-      text = element_text(size=12),
-      legend.position="bottom",
-      aspect.ratio=1,
-      #axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
-      strip.background = element_blank(),
-      axis.title.x  = element_text(margin = margin(t = 10, r = 10, b = 10, l = 10)),
-      axis.title.y  = element_text(margin = margin(t = 10, r = 10, b = 10, l = 10))
-    )
-) %>% plotly::ggplotly()
+# # Plots and Study
+# library(ttBulk)
+# (
+#   readRDS(file="counts_infer_NB.rds") %>%
+#     dplyr::distinct(sample, symbol, `count`, `Cell type formatted`, `Data base`) %>%
+#     ttBulk::ttBulk(sample, symbol, `count`) %>%
+#     distinct() %>%
+#     aggregate_duplicates() %>%
+#     ttBulk::scale_abundance() %>%
+#     distinct(`Data base`, sample, symbol, `Cell type formatted`, `count scaled`)  %>%
+#     reduce_dimensions(sample, symbol, `count scaled`, method = "tSNE", .dims=2) %>%
+#     select(contains("tSNE"), `Data base`, `Cell type formatted`) %>%
+#     distinct %>%
+#     ggplot(aes(x = `tSNE1`, y = `tSNE2`, color=`Cell type formatted`)) + geom_point(size=2) +
+#     theme_bw() +
+#     theme(
+#       panel.border = element_blank(),
+#       axis.line = element_line(),
+#       panel.grid.major = element_line(size = 0.2),
+#       panel.grid.minor = element_line(size = 0.1),
+#       text = element_text(size=12),
+#       legend.position="bottom",
+#       aspect.ratio=1,
+#       #axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
+#       strip.background = element_blank(),
+#       axis.title.x  = element_text(margin = margin(t = 10, r = 10, b = 10, l = 10)),
+#       axis.title.y  = element_text(margin = margin(t = 10, r = 10, b = 10, l = 10))
+#     )
+# ) %>% plotly::ggplotly()
 #
 # (
 #   ARMET::ARMET_ref %>%

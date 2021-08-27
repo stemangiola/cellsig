@@ -25,6 +25,7 @@ Imports:
     rstantools (>= 2.1.0),
     dplyr,
     tidyr,
+    purrr,
     stringr,
     nanny,
     data.tree,
@@ -37,3 +38,5 @@ LinkingTo:
     rstan (>= 2.18.1),
     StanHeaders (>= 2.18.0)
 SystemRequirements: GNU make
+Suggests: 
+    testthat

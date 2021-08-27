@@ -177,6 +177,7 @@ data {
 
 	// reference counts
  	int<lower=0> counts_linear[CL] ;
+
 	int G_to_counts_linear[CL] ;
 
 	// Non-centered param
@@ -248,5 +249,6 @@ model {
   		real_data,
   		get_int_MPI( counts_linear, shards)
   	));
+
 
 }
