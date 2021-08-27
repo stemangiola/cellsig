@@ -101,7 +101,7 @@ sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s\nWALL_TIME=14000", cores)
     mutate(command = map2_chr(
       file, cores,
       ~sprintf(
-        "dev/modeling_results/%s: dev/modeling_results/%s\n\tRscript dev/modeling_code/core_run_model.R dev/modeling_results/%s dev/modeling_results/%s %s",
+        "dev/modeling_results/%s: dev/modeling_results/%s\n\tRscript dev/modeling_code/run_model.R dev/modeling_results/%s dev/modeling_results/%s %s",
           sprintf("%s_result.rds", basename(.x) %>%  sub("^([^.]*).*", "\\1", .)),
           .x,
           .x,  
