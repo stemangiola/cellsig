@@ -1,3 +1,7 @@
+# ~/third_party_sofware/cctools-7.2.0-x86_64-centos7/bin/makeflow_monitor makefile.makeflow.makeflowlog
+# ~/third_party_sofware/cctools-7.2.0-x86_64-centos7/bin/makeflow -T slurm -J 200  dev/TCGA_makeflow_pipeline/makefile_ARMET_TCGA.makeflow
+
+
 library(unixtools)
 dir.create(t <- paste(sprintf("~/.Rtemp/%s", basename(tempdir())), Sys.getpid(), sep='-'), FALSE, TRUE, "0700")
 set.tempdir(t)
@@ -97,7 +101,7 @@ sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s\nWALL_TIME=14000", cores)
     mutate(command = map2_chr(
       file, cores,
       ~sprintf(
-          "dev/modeling_results/%s: dev/modeling_results/%s\n\tRscript dev/modeling_results/core_run_model.R dev/modeling_results/%s dev/modeling_results/%s %s",
+        "dev/modeling_results/%s: dev/modeling_results/%s\n\tRscript dev/modeling_code/core_run_model.R dev/modeling_results/%s dev/modeling_results/%s %s",
           sprintf("%s_result.rds", basename(.x) %>%  sub("^([^.]*).*", "\\1", .)),
           .x,
           .x,  
