@@ -1593,35 +1593,30 @@ preprocess <- function(.transcript, .level) {
   # load data
   .transcript %>%
     
-    tidybulk(sample, symbol, count) %>%
+    tidybulk(sample, symbol, count_scaled) %>%
     
     # aggregate duplicate sample/gene pairs in the data
-    # aggregate_duplicates(sample, symbol, count) %>% 
-    
+    # aggregate_duplicates(sample, symbol, count) %>%
+
     # rectangularise data
     nest(data = -c(symbol, cell_type)) %>%
     add_count(symbol) %>%
     filter(n == max(n)) %>%
-    unnest(data) %>% 
-    
+    unnest(data) %>%
+
     # Imputation of missing data
     impute_missing_abundance(~ cell_type) %>%
-    
+
     # scale counts
     identify_abundant(factor_of_interest = !!as.symbol(.level)) %>%
-    scale_abundance() %>% 
+    scale_abundance() %>%
     
-    # filter for cells at the level of interest
+    # filter for cells at the level of interest. .level == level_1
     filter(is.na(!!as.symbol(.level))==FALSE) %>%
     
     # nest by ancestor
     nest(data = - !!as.symbol(pre(.level)))
   
-  # # scale count for further analysis
-  # mutate(data=map(data, ~ .x %>%
-  #                   identify_abundant(factor_of_interest = !!as.symbol(.level)) %>%
-  #                   scale_abundance()
-  # ))
 }
 
 pre <- function(.level) {
