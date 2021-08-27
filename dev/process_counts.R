@@ -3,6 +3,9 @@ library(cellsig)
 library(tidybulk)
 library(tidySummarizedExperiment)
 
+# Load cell differentiation tree
+data("tree")
+
 # Database #1
 counts_first_db_raw = readRDS("dev/raw_data/counts_first_db_raw.rds")
 counts_first_db_raw <- counts_first_db_raw %>% 
@@ -18,7 +21,6 @@ counts_third_db_raw <- readRDS("dev/raw_data/counts_third_db_raw.rds")
 counts_third_db_raw <- counts_third_db_raw %>% 
   select(sample, symbol, count, database=dataset, cell_type)
 
-data("tree")
 
 counts =  
   
