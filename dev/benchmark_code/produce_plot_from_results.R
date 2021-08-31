@@ -1,3 +1,4 @@
+# devtools::install_github("stemangiola/tidybulk@deconvolution-error-to-warning", force = TRUE)
 source("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/jian_R_files/function_jian.R")
 library(patchwork)
 library(tidyverse)
