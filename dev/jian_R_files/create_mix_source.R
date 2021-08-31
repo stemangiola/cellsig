@@ -18,6 +18,10 @@ counts_non_hierarchy <- readRDS("./dev/intermediate_data/counts_non_hierarchy.rd
 
 mix_base = readRDS("./dev/counts_imputed.rds") %>% 
   
+  # rename columns and calculate count_scaled
+  dplyr::rename(symbol = .feature, sample = .sample) %>% 
+  mutate(count_scaled = count / exp(exposure_rate)) %>% 
+  
   # keep genes present in all
   filter(count_scaled %>% is.na %>% `!`) %>%
   nest(data = -c(cell_type, symbol)) %>%

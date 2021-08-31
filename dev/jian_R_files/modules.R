@@ -129,7 +129,7 @@ main <- function(.transcript, .is_hierarchy=TRUE, .level=NULL,
                  .contrast_method, .ranking_method, .rank_stat=NULL, .bayes=NULL, 
                  .selection_method, .kmax=60, .discard_number=2000, .reduction_method = "PCA",
                  .optimisation_method, .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
-                 .is_complete = FALSE) {
+                 .is_complete = TRUE) {
   
   
   if ( (!.is_hierarchy)|(.selection_method == "naive")) {
@@ -285,7 +285,8 @@ preprocess <- function(.transcript, .level) {
   # load data
   .transcript %>%
     
-    tidybulk(sample, symbol, count_scaled) %>%
+    # tidybulk(sample, symbol, count_scaled) %>% for imputed counts data
+    tidybulk(sample, symbol, count) %>%
     
     # aggregate duplicate sample/gene pairs in the data
     # aggregate_duplicates(sample, symbol, count) %>% 
@@ -583,7 +584,7 @@ rank_bayes <- function(.preprocessed, .contrast_method, .bayes, .rank_stat=NULL)
     mutate(contrast = map2(data, level, ~ .contrast_method(.x, .y))) %>% 
     
     unnest(contrast) %>% 
-    mutate(contrast = str_remove_all(contrast, "level_\\d")) %>% 
+    mutate(contrast = str_remove_all(contrast, glue("{level}"))) %>% 
     
     # separate(descendants, into = c("target", "background"), sep = " - ") %>% 
     # mutate(background = str_split(background, "\\+")) %>% 
@@ -709,7 +710,9 @@ do_naive_selection <- function(.ranked, .kmax, .reduction_method) {
     mutate(data = map(
       number_of_markers_from_each_contrast,
       ~ naive_selection(.ranked=.ranked, .x) %>% 
-        silhouette_function(.reduction_method=.reduction_method)
+        silhouette_function(.reduction_method=.reduction_method) %>% 
+        # optional: remove reduced_dimensions matrix to save memory, if kept it can be used to plot PCA
+        select(-reduced_dimensions)
     )) %>% 
     
     # nest by ancestor nodes/cell types
@@ -1291,7 +1294,7 @@ xx %>%
 
 # Format output ===================================
 
-format_output <- function(.optimised, .is_complete=FALSE){
+format_output <- function(.optimised, .is_complete=TRUE){
   
   if (!.is_complete) {
     
