@@ -24,6 +24,7 @@ table_of_commands =
   # Drop arguments for some methods
   filter(!( rank_name == "edgR_robust" & rank_stat == "logFC")) %>%
   filter(!(selection == "naive" & optimisation == "curvature")) %>% 
+  filter(!(is_hierarchy == "non_hierarchical" & contrast_name == "pairwise_contrast" & selection == "silhouette")) %>% 
   mutate(rank_stat = map2_chr(
     rank_stat, rank_name,
     ~ if (.y == "bayes"){.x = "_"} else {.x}
@@ -37,11 +38,13 @@ table_of_commands =
   # Define output file
   mutate(output_file = glue("{result_directory}{is_hierarchy}_{contrast_name}_{rank_name}_{rank_stat}_{selection}_{optimisation}.rds")) %>%
   
-  # Add hierarchical argument
+  # Choose the R_script to run: hierarchical or non-hierarchical
   mutate(R_script = ifelse(is_hierarchy == "hierarchical", 
                            "Rscript dev/benchmark_code/produce_benchmark_from_database_plus_tree_hierarchy.R",
                            "Rscript dev/benchmark_code/produce_benchmark_from_database_plus_tree_non_hierarchy.R"
                            )) %>% 
+  
+  # Add the command line arguments and output file to the R_script
   unite("R_command", 
         c(R_script, is_hierarchy, contrast_name, rank_name, rank_stat, bayes, selection, optimisation, output_file), 
         remove=FALSE, sep=" ") %>% 
@@ -50,17 +53,22 @@ table_of_commands =
 
 table_of_commands %>%
   pull(makeflow_command) %>%
-  
+
   # Produce the plot from the results
-  # c(sprintf("dev/benchmark_results/benchmark_plot.pdf:%s:\n\tRscript ... dev/benchmark_results dev/benchmark_results/benchmark_plot.pdf", paste(table_of_commands$output_file, collapse=" "))) %>%
+  c(sprintf("dev/benchmark_results/benchmark_plot.pdf:%s:\n\t
+            Rscript dev/benchmark_code/produce_plot_from_results.R %s %sbenchmark_plot.pdf", 
+            paste(table_of_commands$output_file, collapse=" "),
+            result_directory,
+            result_directory)) %>%
   
   # Add SLURM requirements
-  prepend("CATEGORY=yes_no_hierarchy\nMEMORY=60024\nCORES=2\nWALL_TIME=10000") %>% 
+  purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=80000\nCORES=2\nWALL_TIME=86400") %>% 
   # 
   # mutate(SLURM_command = glue::glue("sbatch Rscript {R_command}")) %>% 
   # pull(SLURM_command) %>%
   write_lines("./dev/benchmark_code/benchmark_pipeline.makeflow")
-  
+
+
   # unite("R_command", 
   #       c("RScript", R_script, is_hierarchy, contrast_name, rank_name, rank_stat, selection, optimisation), 
   #       remove=FALSE, sep=" ")
