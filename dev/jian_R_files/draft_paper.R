@@ -3066,3 +3066,130 @@ do_naive_selection <- function(.ranked, .kmax, .reduction_method) {
 }
 
 source("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/jian_R_files/function_jian.R")
+
+signature_stefano <- 
+signature_stefano_unoptimised %>% 
+  mutate(method = "unoptimised", .before = 1) %>% 
+  mutate(data = map(data, ~ .x %>% 
+                      unnest(c(winner, winning_contrast)) %>% 
+                      select(winning_contrast, winner, rank) %>% 
+                      nest(enriched = -winning_contrast)
+                      )) %>% 
+  bind_rows(
+    signature_stefano_optimised_by_curvature %>% 
+      mutate(method = "curvature", .before = 1) %>% 
+      select(-c(signature, silhouette))
+  ) %>% 
+  
+  bind_rows(
+    signature_stefano_optimised_by_penalty %>% 
+      mutate(method = "penalty", .before = 1) %>% 
+      select(-c(signature, silhouette))
+  )
+ 
+signature_stefano %>% 
+  unnest(data) %>% 
+  unnest(enriched) %>% 
+  pivot_wider(names_from = method, values_from = rank) %>% 
+  saveRDS("./dev/signature_stefano.rds", compress = "xz")
+  # nest(data = -c(level, ancestor, winning_contrast)) %>% 
+  # pluck("data", 2) %>% print(n=30)
+  filter((level=="level_1" & unoptimised < 100) | (level=="level_2" & !is.na(curvature)))
+  
+ f <-  function(x){
+    when(x,
+         (.) < 0 ~ x+1,
+         (.) >= 0 ~ -x+1
+    )
+  }
+
+ f(3)
+ 
+readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/intermediate_data/counts_non_hierarchy.rds") %>% 
+ main(.is_hierarchy=FALSE,
+      .contrast_method = mean_contrast, .ranking_method = rank_bayes, .bayes = bayes,
+      .selection_method = "silhouette", .kmax = 60, .discard_number = 100, .reduction_method = "PCA",
+      .optimisation_method= "curvature") %>% 
+ saveRDS(file = glue("{output_file}", compress = "xz"))
+
+ranked_NH_bayes <- readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/intermediate_data/counts_non_hierarchy.rds") %>% 
+  do_ranking(.ranking_method=rank_bayes, .contrast_method=mean_contrast, .rank_stat=NULL, .bayes=bayes)
+
+selected_NH_bayes <- ranked_NH_bayes %>% 
+  do_selection(.selection_method = "naive", "PCA", .kmax = 60, .discard_number = NULL)
+
+selected_NH_bayes %>% 
+  do_optimisation("curvature")
+
+x <- dir(input_directory) %>%
+  `names<-`(dir(input_directory)) %>%
+  .[1:5] %>% 
+  map_dfr(~ readRDS(glue("{input_directory}{.x}")), .id = "stream") %>% 
+  mutate(stream = str_remove(stream, "\\.rds")) %>% 
+  nest(signature = - stream) %>% 
+  mutate(signature = map(signature, ~ .x$signature %>% unlist() %>% unique())) %>% 
+  
+  # silhouette evaluation
+  mutate(silhouette = map(
+    signature, 
+    ~ silhouette_evaluation(
+      .signature = .x,
+      .reduction_method = "PCA",
+      .preprocessed_non_hierarchy = counts_non_hierarchy)
+  ))
+
+yy <- x %>% 
+  mutate(silhouette = map(signature, ~ silhouette_evaluation(.x, "PCA", counts_non_hierarchy)))
+
+silhouette_score <- function(.reduced_dimensions, .distance, .level){
+  
+  .reduced_dimensions %>% 
+    
+    pull(!!as.symbol(.level)) %>% 
+    
+    as.factor() %>% 
+    
+    as.numeric() %>% 
+    
+    silhouette(.distance) %>% 
+    
+    summary()
+  
+}
+
+silhouette_function <- function(.selected, .reduction_method){
+  
+  .selected %>% 
+    
+    # reduce dimensions
+    mutate(reduced_dimensions = map2(
+      markers, level, 
+      ~ dimension_reduction(.x, .y, .reduction_method)
+    )) %>% 
+    
+    # calculate distance matrix using PC1 & PC2
+    mutate(distance = map(
+      reduced_dimensions,
+      ~ distance_matrix(.x, .reduction_method)
+    )) %>% 
+    
+    # calculate silhouette score
+    mutate(silhouette = pmap(
+      list(reduced_dimensions, distance, level),
+      ~ silhouette_score(..1, ..2, ..3)
+    )) %>% 
+    
+    # remove unnecessary columns
+    select(-c(markers, distance))
+  
+}
+
+non_hierarchical_mean_contrast_edgR_PValue_naive_penalty %>% 
+  expand_grid(mix100 %>% dplyr::slice(1), .) %>% 
+  mutate(deconvolution = map2(
+    signature, mix,
+    ~ deconvolution_evaluation(
+      .signature = .x, 
+      .mix= .y, 
+      .preprocessed_non_hierarchy = counts_non_hierarchy)
+  ))

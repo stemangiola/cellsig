@@ -12,9 +12,6 @@ bayes = args[5] %>% as.integer()
 .optimisation_method = args[7] 
 output_file = args[8]
 
-# output_file = glue(
-#   "{is_hierarchy}_{contrast_name}_{ranking_name}_{.rank_stat}_{.selection_method}_{.optimisation_method}.rds"
-#   )
 
 .is_hierarchy = is_hierarchy %>% when(
   (.)=="hierarchical" ~ TRUE,
@@ -38,7 +35,7 @@ output_file = args[8]
 )
 
 .bayes  =
-  if(bayes==1){
+  if(bayes==1L){
     readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/cellsig_theoretical_transcript_abundance_distribution.rds") %>% 
       # take the first row of the duplicated data so that each gene in a cell type has only one set of quantiles
       nest(data = - c(symbol, cell_type)) %>% 
@@ -53,8 +50,6 @@ output_file = args[8]
 readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/intermediate_data/counts_non_hierarchy.rds") %>% 
   main(.is_hierarchy=.is_hierarchy,
        .contrast_method = .contrast_method, .ranking_method = .ranking_method, .rank_stat = .rank_stat, .bayes = .bayes,
-       .selection_method = .selection_method, .kmax = 60, .discard_number = 10000, .reduction_method = "PCA",
-       .optimisation_method= .optimisation_method,
-       .is_complete = FALSE) %>% 
-  select(-bayes) %>% 
+       .selection_method = .selection_method, .kmax = 60, .discard_number = 5000, .reduction_method = "PCA",
+       .optimisation_method= .optimisation_method) %>% 
   saveRDS(file = glue("{output_file}", compress = "xz"))

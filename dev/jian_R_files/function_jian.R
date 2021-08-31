@@ -1476,7 +1476,7 @@ main <- function(.transcript, .is_hierarchy=TRUE, .level=NULL,
                  .contrast_method, .ranking_method, .rank_stat=NULL, .bayes=NULL, 
                  .selection_method, .kmax=60, .discard_number=2000, .reduction_method = "PCA",
                  .optimisation_method, .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
-                 .is_complete = FALSE) {
+                 .is_complete = TRUE) {
   
   
   if ( (!.is_hierarchy)|(.selection_method == "naive")) {
@@ -1593,7 +1593,7 @@ preprocess <- function(.transcript, .level) {
   # load data
   .transcript %>%
     
-    tidybulk(sample, symbol, count_scaled) %>%
+    tidybulk(sample, symbol, count) %>%
     
     # aggregate duplicate sample/gene pairs in the data
     # aggregate_duplicates(sample, symbol, count) %>%
@@ -1809,7 +1809,7 @@ rank_bayes <- function(.preprocessed, .contrast_method, .bayes, .rank_stat=NULL)
     mutate(contrast = map2(data, level, ~ .contrast_method(.x, .y))) %>% 
     
     unnest(contrast) %>% 
-    mutate(contrast = str_remove_all(contrast, "level_\\d")) %>% 
+    mutate(contrast = str_remove_all(contrast, glue("{level}"))) %>% 
     
     mutate(lower_quantile = map(
       contrast,
@@ -1895,7 +1895,9 @@ do_naive_selection <- function(.ranked, .kmax, .reduction_method) {
     mutate(data = map(
       number_of_markers_from_each_contrast,
       ~ naive_selection(.ranked=.ranked, .x) %>% 
-        silhouette_function(.reduction_method=.reduction_method)
+        silhouette_function(.reduction_method=.reduction_method) %>% 
+        # optional: remove reduced_dimensions matrix to save memory, if kept it can be used to plot PCA
+        select(-reduced_dimensions)
     )) %>% 
     
     # nest by ancestor nodes/cell types
@@ -2425,7 +2427,7 @@ penalised_silhouette <- function(.plot_data, .penalty_rate=0.2) {
 
 # Format output
 
-format_output <- function(.optimised, .is_complete=FALSE){
+format_output <- function(.optimised, .is_complete=TRUE){
   
   if (!.is_complete) {
     
@@ -2442,3 +2444,103 @@ format_output <- function(.optimised, .is_complete=FALSE){
   
 }
 
+# Benchmark evaluation
+silhouette_evaluation <- function(.signature, .reduction_method, .preprocessed_non_hierarchy){
+  
+  # modified silhouette_function and silhouette_score for evaluation
+  
+  silhouette_score <- function(.reduced_dimensions, .distance, .level){
+    
+    silhouette <- .reduced_dimensions %>% 
+      
+      pull(!!as.symbol(.level)) %>% 
+      
+      as.factor() %>% 
+      
+      as.numeric() %>% 
+      
+      silhouette(.distance)
+    
+    tibble(cluster = silhouette[, "cluster"], 
+           neighbor = silhouette[, "neighbor"], 
+           sil_width= silhouette[, "sil_width"]
+           ) %>% 
+      
+      mutate(cell_type = .reduced_dimensions %>% 
+               pull(!!as.symbol(.level)) %>% 
+               as.factor())
+    
+  }
+  
+  silhouette_function <- function(.selected, .reduction_method){
+    
+    .selected %>% 
+      
+      # reduce dimensions
+      mutate(reduced_dimensions = map2(
+        markers, level, 
+        ~ dimension_reduction(.x, .y, .reduction_method=.reduction_method)
+      )) %>% 
+      
+      # calculate distance matrix using PC1 & PC2
+      mutate(distance = map(
+        reduced_dimensions,
+        ~ distance_matrix(.x, .reduction_method=.reduction_method)
+      )) %>% 
+      
+      # calculate silhouette score
+      mutate(silhouette = pmap(
+        list(reduced_dimensions, distance, level),
+        ~ silhouette_score(.reduced_dimensions=..1, .distance=..2,  .level=..3)
+      )) %>% 
+      
+      # remove unnecessary columns
+      select(-c(markers, distance))
+    
+  }
+  
+  .preprocessed_non_hierarchy %>% 
+    unnest(tt) %>% 
+    unnest(data) %>% 
+    filter(symbol %in% .signature) %>% 
+    nest(markers = -c(level, ancestor)) %>% 
+    # calculate silhouette score for all signatures combined in each method
+    silhouette_function(.reduction_method = .reduction_method) %>% 
+    select(silhouette) %>% 
+    unnest(silhouette)
+}
+
+deconvolution_evaluation <- function(.signature, .mix, .preprocessed_non_hierarchy){
+  
+  # filter out data for signature genes
+  reference <- .preprocessed_non_hierarchy %>% 
+    unnest(tt) %>% 
+    unnest(data) %>% 
+    filter(symbol %in% .signature) %>% 
+    
+    # reshape the input matrix for deconvolve_cellularity(): 
+    select(symbol, cell_type, sample, count_scaled) %>% 
+    group_by(symbol, cell_type) %>% 
+    summarise(count_scaled_median = median(count_scaled)) %>% 
+    ungroup() %>% 
+    pivot_wider(id_cols = symbol, names_from = cell_type, values_from = count_scaled_median) %>% 
+    # must be a matrix
+    tidybulk::as_matrix(rownames = symbol)
+  
+  tidybulk::deconvolve_cellularity(
+    .data = .mix, replicate, symbol, count_mix,
+    reference = reference,
+    method = "llsr", 
+    prefix = "llsr_", 
+    action = "get") %>% 
+    
+    pivot_longer(cols=starts_with("llsr_"), 
+                 names_prefix ="llsr_", 
+                 names_to="cell_type", 
+                 values_to="estimated_proportion") %>%
+    
+    left_join(.mix %>% 
+                unnest(data_samples) %>% 
+                distinct(replicate, cell_type, proportion))
+  
+}
