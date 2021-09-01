@@ -18,7 +18,7 @@ counts_first_db_raw %>%
   select(sample, cell_type, symbol, count) %>%
   
   # Parse into hierarchical dataset
-  tree_and_signatures_to_database(tree, signatures, sample, cell_type, symbol, count)  %>%
+  tree_and_signatures_to_database(tree, ., sample, cell_type, symbol, count)  %>%
   
   # Remove redundant samples
   remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
