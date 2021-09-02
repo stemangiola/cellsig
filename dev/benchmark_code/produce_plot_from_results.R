@@ -1,6 +1,5 @@
 # devtools::install_github("stemangiola/tidybulk@deconvolution-error-to-warning", force = TRUE)
 source("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/jian_R_files/function_jian.R")
-library(patchwork)
 library(tidyverse)
 library(tidybulk)
 
@@ -14,17 +13,17 @@ mix100 <- readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/de
 counts_non_hierarchy <- 
   readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/intermediate_data/counts_non_hierarchy.rds")
 
-# TO BE DELETED!
-indices <- sample(1:length(dir(input_directory)), 7)
-input_directory = "dev/benchmark_results/"
-output_directory = "dev/benchmark_results/benchmark_plot.pdf"
+# # TO BE DELETED!
+# indices <- sample(1:length(dir(input_directory)), 7)
+# input_directory = "dev/benchmark_results/"
+# output_directory = "dev/benchmark_results/benchmark_plot.pdf"
 
 
-plot_data <- dir(input_directory) %>% 
-  `names<-`(dir(input_directory)) %>% 
+plot_data <- dir(input_directory, pattern = ".*rds") %>% 
+  `names<-`(dir(input_directory, pattern = ".*rds")) %>% 
   
-  # TO BE DELETED!
-  .[indices] %>% 
+  # # TO BE DELETED!
+  # .[indices] %>% 
   
   map_dfr(~ readRDS(glue("{input_directory}{.x}")), .id = "stream") %>% 
   mutate(stream = str_remove(stream, "\\.rds")) %>% 
@@ -62,7 +61,7 @@ plot_data <- dir(input_directory) %>%
   
   # deconvolution evaluation
   # for each mixture, combine with the signatures from all methods
-  expand_grid(mix100 %>% dplyr::slice(1:10), .) %>% 
+  expand_grid(mix100, .) %>% 
   
   mutate(deconvolution = map2(
     signature, mix, 
@@ -111,10 +110,19 @@ boxplot_silhouette <- plot_data %>%
        caption = "(streams are arranged by mean silhoutte score ascendingly.)"
        ) +
   
-  theme(axis.text.x = element_text(angle=45, vjust=1, hjust = 1, face = "bold"),
+  guides(color = guide_legend(
+        title.position = "left",
+        ncol = 7,
+        byrow = FALSE))+
+  
+  theme(axis.text.x = element_text(angle=50, vjust=1, hjust = 1, face = "bold", size = 7),
         axis.title.x = element_blank(),
         plot.title = element_text(hjust = 0.5),
-        legend.position = "none"
+        legend.position = "bottom",
+        legend.title.align = 0.5,
+        legend.spacing = unit(0, "cm"),
+        legend.box.spacing = unit(0, "lines"),
+        plot.margin=unit(c(0, 2, 0, 1.5), "cm")
         )
 
   
@@ -134,10 +142,19 @@ boxplot_deconvolution_by_cell_type <- plot_data %>%
        caption = "(streams are arranged by mean deconvolution MSE over 100 mixes descendingly.)"
   ) +
   
-  theme(axis.text.x = element_text(angle=45, vjust=1, hjust = 1, face = "bold"),
+  guides(color = guide_legend(
+    title.position = "left",
+    ncol = 7,
+    byrow = FALSE))+
+  
+  theme(axis.text.x = element_text(angle=55, vjust=1, hjust = 1, face = "bold", size = 7),
         axis.title.x = element_blank(),
         plot.title = element_text(hjust = 0.5),
-        legend.position = "none"
+        legend.position = "bottom",
+        legend.title.align = 0.5,
+        legend.spacing = unit(0, "cm"),
+        legend.box.spacing = unit(0, "lines"),
+        plot.margin=unit(c(0, 2, 0, 1.5), "cm")
   )
 
 
@@ -152,21 +169,29 @@ boxplot_deconvolution_by_method <- plot_data %>%
        tag = "C",
        caption = "(streams are arranged by mean deconvolution MSE over 100 mixes descendingly.)"
   ) +
-  theme(axis.text.x = element_blank(),
+  theme(axis.text.x = element_text(angle=50, vjust=1, hjust = 1, face = "bold", size = 7),
         axis.title.x = element_blank(),
-        plot.title = element_text(hjust = 0.5)
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "none",
+        plot.margin=unit(c(0, 2, 0, 1.5), "cm")
   )
 
 
-patch1 <- boxplot_silhouette + boxplot_deconvolution_by_cell_type + theme(legend.position = "right")
+# patch1 <- boxplot_silhouette + 
+#   boxplot_deconvolution_by_cell_type + 
+#   theme(legend.position = "bottom",
+#         legend.spacing.x = unit(0, "lines")
+#           )
 
 
-pdf(file = output_directory,   # The directory you want to save the file in
-    width = 4, # The width of the plot in inches
-    height = 4) # The height of the plot in inches
+pdf(file = output_directory, paper = "a4r", height = 8.3, width = 11.7) # The height of the plot in inches
 
 # Step 2: Create the plot with R code
-patch1 / boxplot_deconvolution_by_method
+boxplot_silhouette
+
+boxplot_deconvolution_by_cell_type
+
+boxplot_deconvolution_by_method
 
 # Step 3: Run dev.off() to create the file!
 dev.off()
