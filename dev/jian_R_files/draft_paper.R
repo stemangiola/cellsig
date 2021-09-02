@@ -3193,3 +3193,21 @@ non_hierarchical_mean_contrast_edgR_PValue_naive_penalty %>%
       .mix= .y, 
       .preprocessed_non_hierarchy = counts_non_hierarchy)
   ))
+
+
+
+  
+  # Produce the plot from the results
+c(sprintf(
+  "dev/benchmark_results/benchmark_plot.pdf:\n\tRscript dev/benchmark_code/produce_plot_from_results.R %s %sbenchmark_plot.pdf", 
+  result_directory, 
+  result_directory)) %>%
+  
+  # Add SLURM requirements
+  purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=80000\nCORES=2\nWALL_TIME=86400") %>% 
+  
+  write_lines("./dev/benchmark_code/benchmark_plot.makeflow")
+
+
+
+  
