@@ -55,9 +55,7 @@ table_of_commands %>%
   pull(makeflow_command) %>%
 
   # Produce the plot from the results
-  c(sprintf("dev/benchmark_results/benchmark_plot.pdf:%s:\n\t
-            Rscript dev/benchmark_code/produce_plot_from_results.R %s %sbenchmark_plot.pdf", 
-            paste(table_of_commands$output_file, collapse=" "),
+  c(sprintf("dev/benchmark_results/benchmark_plot.pdf:\n\tRscript dev/benchmark_code/produce_plot_from_results.R %s %sbenchmark_plot.pdf", 
             result_directory,
             result_directory)) %>%
   
