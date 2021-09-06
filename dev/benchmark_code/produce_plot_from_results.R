@@ -48,13 +48,13 @@ plot_data <- dir(input_directory, pattern = ".*rds") %>%
       .preprocessed_non_hierarchy = counts_non_hierarchy)
     )) %>% 
   
-  mutate(avg_silhouette = map_dbl(silhouette, ~ mean(.x$sil_width))) %>% 
+  mutate(avg_silhouette = map_dbl(silhouette, ~ mean(.x$sil_width))) %>%
   
   mutate(silhouette = map(
     silhouette, 
     ~ .x %>% 
       group_by(cell_type) %>% 
-      summarise(cluster_silhouette = mean(sil_width)) %>% 
+      summarise(cluster_silhouette = mean(sil_width), cluster_size = n()) %>% 
       distinct() %>% 
       ungroup()
     )) %>% 
@@ -77,15 +77,14 @@ plot_data <- dir(input_directory, pattern = ".*rds") %>%
     ~ mean((.x$estimated_proportion - .x$proportion)^2)
   )) %>% 
   nest(data=-stream) %>% 
-  # mutate(median_MSE_over_mixes = map_dbl(data, ~ median(.x$MSE))) %>% 
-  mutate(mean_MSE_over_mixes = map_dbl(data, ~ mean(.x$MSE))) %>% 
+  # mutate(median_MSE_over_mixes = map_dbl(data, ~ median(.x$MSE))) %>%
+  mutate(mean_MSE_over_mixes = map_dbl(data, ~ mean(.x$MSE))) %>%
   unnest(data) %>% 
   
   # mse by cell type
   unnest(deconvolution) %>% 
   mutate(squared_error = (estimated_proportion - proportion)^2) %>% 
   nest(data = -c(stream, cell_type)) %>% 
-  # mutate(median_MSE_for_cell_type = map_dbl(data, ~ median(.x$squared_error))) %>% 
   mutate(mean_MSE_for_cell_type = map_dbl(data, ~ mean(.x$squared_error))) %>% 
   unnest(data) %>% 
   
@@ -100,9 +99,10 @@ boxplot_silhouette <- plot_data %>%
   select(-data) %>%
   unnest(silhouette) %>%
   
-  ggplot(aes(x=reorder(stream, avg_silhouette), y=cluster_silhouette)) +
+  # ggplot(aes(x=reorder(stream, avg_silhouette), y=cluster_silhouette)) +
+  ggplot(aes(x=reorder(stream, cluster_silhouette, median), y=cluster_silhouette)) +
   geom_boxplot(outlier.shape = NA) +
-  geom_jitter(aes(color = cell_type), 
+  geom_jitter(aes(color = cell_type, size = cluster_size), 
               position=position_jitter(0.2)) +
   labs(y = "silhouette score of cell type clusters",
        title = "benchmark by silhouette score",
@@ -131,15 +131,15 @@ boxplot_deconvolution_by_cell_type <- plot_data %>%
   nest(data = -c(stream, cell_type, mean_MSE_for_cell_type, mean_MSE_over_mixes)) %>% 
   select(-data) %>% 
   
-  ggplot(aes(x=reorder(stream, -mean_MSE_over_mixes), y=log(mean_MSE_for_cell_type))) +
-  # ggplot(aes(x=reorder(method, -median), y=log(mse.cell))) +
+  # ggplot(aes(x=reorder(stream, -mean_MSE_over_mixes), y=log(mean_MSE_for_cell_type))) +
+  ggplot(aes(x=reorder(stream, -mean_MSE_for_cell_type, median), y=log(mean_MSE_for_cell_type))) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(aes(color = cell_type), 
               position=position_jitter(0.2)) +
   
   labs(title = "benchmark by mean deconvolution MSE over 100 mixes for cell types",
        tag = "B",
-       caption = "(streams are arranged by mean deconvolution MSE over 100 mixes descendingly.)"
+       caption = "(streams are arranged by median deconvolution MSE over 100 mixes descendingly.)"
   ) +
   
   guides(color = guide_legend(
@@ -162,12 +162,13 @@ boxplot_deconvolution_by_method <- plot_data %>%
   nest(data = -c(stream, MSE, mean_MSE_over_mixes)) %>% 
   select(-data) %>% 
   
-  ggplot(aes(x=reorder(stream, -mean_MSE_over_mixes), y=log(MSE), colour = stream)) +
+  # ggplot(aes(x=reorder(stream, -mean_MSE_over_mixes), y=log(MSE), colour = stream)) +
+  ggplot(aes(x=reorder(stream, -MSE, median), y=log(MSE), colour = stream)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(position=position_jitter(0.2), alpha=0.5) +
   labs(title = "benchmark by deconvolution MSE over 100 mixes",
        tag = "C",
-       caption = "(streams are arranged by mean deconvolution MSE over 100 mixes descendingly.)"
+       caption = "(streams are arranged by median deconvolution MSE over 100 mixes descendingly.)"
   ) +
   theme(axis.text.x = element_text(angle=50, vjust=1, hjust = 1, face = "bold", size = 7),
         axis.title.x = element_blank(),
