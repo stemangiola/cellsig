@@ -293,6 +293,7 @@ preprocess <- function(.transcript, .level) {
     
     # # rectangularise data
     # nest(data = -c(symbol, cell_type)) %>%
+    # group by symbol, means counting how many cell types each symbol has
     # add_count(symbol) %>%
     # filter(n == max(n)) %>%
     # unnest(data) %>% 
