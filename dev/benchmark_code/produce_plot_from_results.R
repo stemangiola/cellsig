@@ -87,39 +87,59 @@ plot_data <- dir(input_directory, pattern = ".*rds") %>%
   nest(data = -c(stream, cell_type)) %>% 
   mutate(mean_MSE_for_cell_type = map_dbl(data, ~ mean(.x$squared_error))) %>% 
   unnest(data) %>% 
+
+  # for differentiating hierarchical and non_hierarchical methods
+  mutate(is_hierarchy = case_when(
+    str_detect(stream, "^hierarchical") ~ "hierarchical",
+    str_detect(stream, "non") ~ "non_hierarchical",
+    TRUE ~ "cibersortx"
+  )) %>% 
   
   select(-c(signature, mixture_ID, mix, replicate, estimated_proportion, proportion, squared_error))
+  
 
 
 # silhouette plot
 
 boxplot_silhouette <- plot_data %>%
 
-  nest(data = -c(stream, silhouette, avg_silhouette)) %>%
+  nest(data = -c(stream, is_hierarchy, silhouette, avg_silhouette)) %>%
   select(-data) %>%
   unnest(silhouette) %>%
   
   # ggplot(aes(x=reorder(stream, avg_silhouette), y=cluster_silhouette)) +
   ggplot(aes(x=reorder(stream, cluster_silhouette, median), y=cluster_silhouette)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_jitter(aes(color = cell_type, size = cluster_size), 
+  geom_boxplot(aes(fill = is_hierarchy),
+               alpha = 0.2, 
+               outlier.shape = NA) +
+  geom_jitter(aes(colour = cell_type
+                  # size = cluster_size
+                  ), 
               position=position_jitter(0.2)) +
   labs(y = "silhouette score of cell type clusters",
        title = "benchmark by silhouette score",
        tag = "A",
-       caption = "(streams are arranged by mean silhoutte score ascendingly.)"
+       caption = "(streams are arranged by median silhouette score ascendingly.)"
        ) +
   
-  guides(color = guide_legend(
-        title.position = "left",
-        ncol = 7,
-        byrow = FALSE))+
+  guides(
+    color = guide_legend(
+      title.position = "left",
+      ncol = 7,
+      byrow = FALSE),
+    
+    fill = guide_legend(
+      title = NULL,
+      ncol = 1,
+      byrow = FALSE)
+  )+
   
   theme(axis.text.x = element_text(angle=50, vjust=1, hjust = 1, face = "bold", size = 7),
         axis.title.x = element_blank(),
         plot.title = element_text(hjust = 0.5),
-        legend.position = "bottom",
+        legend.title = element_text(angle = 90),
         legend.title.align = 0.5,
+        legend.position = "bottom",
         legend.spacing = unit(0, "cm"),
         legend.box.spacing = unit(0, "lines"),
         plot.margin=unit(c(0, 2, 0, 1.5), "cm")
@@ -128,30 +148,40 @@ boxplot_silhouette <- plot_data %>%
   
 # deconvolution plot
 boxplot_deconvolution_by_cell_type <- plot_data %>% 
-  nest(data = -c(stream, cell_type, mean_MSE_for_cell_type, mean_MSE_over_mixes)) %>% 
+  nest(data = -c(stream, is_hierarchy, cell_type, mean_MSE_for_cell_type, mean_MSE_over_mixes)) %>% 
   select(-data) %>% 
   
   # ggplot(aes(x=reorder(stream, -mean_MSE_over_mixes), y=log(mean_MSE_for_cell_type))) +
   ggplot(aes(x=reorder(stream, -mean_MSE_for_cell_type, median), y=log(mean_MSE_for_cell_type))) +
-  geom_boxplot(outlier.shape = NA) +
+  geom_boxplot(aes(fill = is_hierarchy), 
+               alpha = 0.2, 
+               outlier.shape = NA) +
   geom_jitter(aes(color = cell_type), 
               position=position_jitter(0.2)) +
   
   labs(title = "benchmark by mean deconvolution MSE over 100 mixes for cell types",
        tag = "B",
-       caption = "(streams are arranged by median deconvolution MSE over 100 mixes descendingly.)"
+       caption = "(streams are arranged by medians of boxplots descendingly.)"
   ) +
   
-  guides(color = guide_legend(
+  guides(
+    color = guide_legend(
     title.position = "left",
     ncol = 7,
-    byrow = FALSE))+
+    byrow = FALSE),
+    
+    fill = guide_legend(
+      title = NULL,
+      ncol = 1,
+      byrow = FALSE)
+    ) +
   
   theme(axis.text.x = element_text(angle=55, vjust=1, hjust = 1, face = "bold", size = 7),
         axis.title.x = element_blank(),
         plot.title = element_text(hjust = 0.5),
-        legend.position = "bottom",
+        legend.title = element_text(angle = 90),
         legend.title.align = 0.5,
+        legend.position = "bottom",
         legend.spacing = unit(0, "cm"),
         legend.box.spacing = unit(0, "lines"),
         plot.margin=unit(c(0, 2, 0, 1.5), "cm")
@@ -159,12 +189,14 @@ boxplot_deconvolution_by_cell_type <- plot_data %>%
 
 
 boxplot_deconvolution_by_method <- plot_data %>% 
-  nest(data = -c(stream, MSE, mean_MSE_over_mixes)) %>% 
+  nest(data = -c(stream, is_hierarchy, MSE, mean_MSE_over_mixes)) %>% 
   select(-data) %>% 
   
   # ggplot(aes(x=reorder(stream, -mean_MSE_over_mixes), y=log(MSE), colour = stream)) +
-  ggplot(aes(x=reorder(stream, -MSE, median), y=log(MSE), colour = stream)) +
-  geom_boxplot(outlier.shape = NA) +
+  ggplot(aes(x=reorder(stream, -MSE, median), y=log(MSE))) +
+  geom_boxplot(aes(fill = is_hierarchy), 
+               alpha = 0.2, 
+               outlier.shape = NA) +
   geom_jitter(position=position_jitter(0.2), alpha=0.5) +
   labs(title = "benchmark by deconvolution MSE over 100 mixes",
        tag = "C",
@@ -173,7 +205,8 @@ boxplot_deconvolution_by_method <- plot_data %>%
   theme(axis.text.x = element_text(angle=50, vjust=1, hjust = 1, face = "bold", size = 7),
         axis.title.x = element_blank(),
         plot.title = element_text(hjust = 0.5),
-        legend.position = "none",
+        legend.position = "bottom",
+        legend.title = element_blank(),
         plot.margin=unit(c(0, 2, 0, 1.5), "cm")
   )
 
