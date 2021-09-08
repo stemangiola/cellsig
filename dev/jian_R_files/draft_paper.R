@@ -3065,7 +3065,7 @@ do_naive_selection <- function(.ranked, .kmax, .reduction_method) {
   
 }
 
-source("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/jian_R_files/function_jian.R")
+
 
 signature_stefano <- 
 signature_stefano_unoptimised %>% 
@@ -3208,6 +3208,33 @@ c(sprintf(
   
   write_lines("./dev/benchmark_code/benchmark_plot.makeflow")
 
+source("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/jian_R_files/function_jian.R")
 
-
+non_hierarchical_mean_contrast_edgR_PValue_naive_penalty <- 
   
+  counts_non_hierarchy %>% 
+  
+  do_ranking(.ranking_method=rank_edgR_quasi_likelihood, .contrast_method=mean_contrast, .rank_stat="PValue") %>%  
+  
+  # Input: data.frame columns_1 <int> | ...
+  # Output: 
+  do_selection(.selection_method="naive", .reduction_method="PCA", .kmax=60, .discard_number = NULL) %>% 
+  
+  format_output(.is_complete = TRUE)
+
+non_hierarchical_mean_contrast_edgR_PValue_naive_penalty %>% 
+  
+  # saveRDS("dev/intermediate_data/non_hierarchical_mean_contrast_edgR_PValue_naive_unoptimised.rds", compress = "xz")
+  
+  unnest(data) %>% 
+  
+  ggplot(aes(real_size, silhouette)) +
+  
+  geom_point() +
+  
+  geom_line()
+
+
+x <- non_hierarchical_mean_contrast_edgR_PValue_naive_penalty %>% 
+  
+  do_optimisation("penalty")

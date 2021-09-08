@@ -2304,6 +2304,29 @@ do_optimisation <- function(.selected,
     
   } %>% 
     
+    { # this if statement below is for non_hierarchical method when the optimal size selected is less than
+      # the number of cell types and deconvolution wouldn't be possible
+      
+      n_cell_type <- map_int((.)$data, 
+                              ~ .x[[1, "children"]] %>% 
+                                .[[1]] %>% 
+                                .$contrast %>% 
+                                str_extract(".*(?=\\s\\-)") %>% 
+                                n_distinct)
+        
+      if ((.)$level == "root" & 
+          (.)$optimal_size < n_cell_type){
+        
+        (.) %>% 
+          mutate(optimal_size = map_int(
+            data,
+            ~ with(.x, real_size[which(real_size >= n_cell_type) %>% min])
+            ))
+        
+      } else {(.)}
+      
+    } %>% 
+    
     unnest(data) %>% 
     
     filter(real_size <= optimal_size) %>% 
