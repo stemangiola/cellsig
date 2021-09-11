@@ -1,3 +1,5 @@
+source("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/jian_R_files/function_jian.R")
+
 preprocess <- function(.transcript, .level) {
   
   # load data
@@ -40,15 +42,25 @@ preprocess <- function(.transcript, .level) {
   
 }
 
-counts_imputed_L4 <- scale_input_counts(counts_imputed, .is_hierarchy = TRUE, "level_4")
+counts_imputed_hierarchy <- scale_input_counts(counts_imputed, .is_hierarchy = TRUE)
 
-ranked_PW_L4 <- counts_imputed_L4 %>% 
+ranked_PW_L3 <- counts_imputed_L3 %>% 
   do_ranking(.ranking_method = rank_edgR_quasi_likelihood, 
              .contrast_method = pairwise_contrast,
              .rank_stat = "logFC")
 
-naive_PW_L4 <- ranked_PW_L4 %>% 
-  naive_selection(5)
+naive_PW_L3 <- ranked_PW_L3 %>% 
+  naive_selection(1)
+
+# preprocessing step
+# -> calculate the frequency of imputation for each celltype/gene
+
+
+# Ranking step, e.g. epithelial vs all
+# rank epithelial
+# left_join frequency_of_imputation based on target cell type (epithelial) and gene
+# Filter(frequency_of_imputation < 0.2)
+# proceed to optimisation
 
 # x <- counts_imputed %>% 
 #   
