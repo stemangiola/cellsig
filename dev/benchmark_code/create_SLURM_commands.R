@@ -52,15 +52,16 @@ table_of_commands =
   mutate(makeflow_command = glue::glue("{output_file}:\n{tab}{R_command}"))
 
 table_of_commands %>%
+  
   pull(makeflow_command) %>%
 
   # Produce the plot from the results
-  c(sprintf("dev/benchmark_results/benchmark_plot.pdf:\n\tRscript dev/benchmark_code/produce_plot_from_results.R %s %sbenchmark_plot.pdf", 
+  c(sprintf("dev/benchmark_results/benchmark_plot.pdf:\n\tRscript dev/benchmark_code/produce_plot_from_results.R %s %s",
             result_directory,
             result_directory)) %>%
   
   # Add SLURM requirements
-  purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=80000\nCORES=2\nWALL_TIME=86400") %>% 
+  purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=50000\nCORES=2\nWALL_TIME=172800") %>% 
   # 
   # mutate(SLURM_command = glue::glue("sbatch Rscript {R_command}")) %>% 
   # pull(SLURM_command) %>%
