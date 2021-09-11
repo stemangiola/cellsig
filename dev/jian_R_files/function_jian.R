@@ -1722,6 +1722,7 @@ rank_edgR_quasi_likelihood <- function(.preprocessed, .contrast_method, .rank_st
     # Select markers from each contrast by rank of stats
     mutate(markers = map(markers, ~ rank_by_stat(.x, .rank_stat) )) %>% 
     
+
     # remove prefixes from contrast expressions
     mutate(markers = map2(
       markers, level,
@@ -1749,13 +1750,21 @@ rank_edgR_robust_likelihood_ratio <- function(.preprocessed, .contrast_method, .
     )) %>% 
     
     # Select markers from each contrast by rank of Pvalue
-    mutate(markers = map(markers, ~ rank_by_stat(.x, "PValue") )) %>% 
+    mutate(markers = map(
+      markers, 
+      ~ rank_by_stat(.x, "PValue") 
+        # # taget = epithelial
+        # # Filter potential markers no too imputed
+        # left_join(imputation_information) %>% # HOPEFULLY DONT NEED THIS
+        # filter(fraction_of_imputation < 0.2) %>%
+        # select(-all_other_info_you_dont_need) # HOPEFULLY DONT NEED THIS
+    )) %>% 
     
     # remove prefixes from contrast expressions
     mutate(markers = map2(
       markers, level,
       ~ .x %>% 
-        mutate(contrast = map2_chr(contrast, .y, ~ str_replace_all(.x, .y, "")))
+        mutate(contrast = map2_chr(contrast, .y, ~ str_remove_all(.x, .y)))
     ))
 }
 
@@ -1779,8 +1788,7 @@ rank_by_stat <-  function(.markers, .rank_stat){
     # Reshape inside each contrast
     mutate(stat_df = map(stat_df, ~.x %>% pivot_wider(names_from = stats, values_from = .value))) %>%
     
-    # Filter out insignificant genes and rank the significant ones
-    
+    # Keep significant genes and rank the significant ones
     # THIS WILL HAVE TO CHANGE
     mutate(stat_df = map(
       stat_df, 
