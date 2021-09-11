@@ -3199,7 +3199,7 @@ non_hierarchical_mean_contrast_edgR_PValue_naive_penalty %>%
   
   # Produce the plot from the results
 c(sprintf(
-  "dev/benchmark_results/benchmark_plot.pdf:\n\tRscript dev/benchmark_code/produce_plot_from_results.R %s %sbenchmark_plot.pdf", 
+  "dev/benchmark_results/benchmark_plot.pdf:\n\tRscript dev/benchmark_code/produce_plot_from_results.R %s %s", 
   result_directory, 
   result_directory)) %>%
   
@@ -3238,3 +3238,17 @@ non_hierarchical_mean_contrast_edgR_PValue_naive_penalty %>%
 x <- non_hierarchical_mean_contrast_edgR_PValue_naive_penalty %>% 
   
   do_optimisation("penalty")
+
+table_of_commands %>%
+  
+  filter((is_hierarchy == "non_hierarchical" & contrast_name == "pairwise_contrast" & rank_name=="edgR_robust")| 
+           (is_hierarchy == "non_hierarchical" & selection == "silhouette")) %>% 
+  
+  pull(makeflow_command) %>%
+  
+  # Add SLURM requirements
+  purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=120000\nCORES=2\nWALL_TIME=172800") %>% 
+  # 
+  # mutate(SLURM_command = glue::glue("sbatch Rscript {R_command}")) %>% 
+  # pull(SLURM_command) %>%
+  write_lines("./dev/benchmark_code/benchmark_non_hierarchical.makeflow")

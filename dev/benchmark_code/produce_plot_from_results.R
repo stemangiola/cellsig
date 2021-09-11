@@ -16,14 +16,14 @@ counts_non_hierarchy <-
 # # TO BE DELETED!
 # indices <- sample(1:length(dir(input_directory)), 7)
 # input_directory = "dev/benchmark_results/"
-# output_directory = "dev/benchmark_results/benchmark_plot.pdf"
+# output_directory = "dev/benchmark_results/"
 
 
 plot_data <- dir(input_directory, pattern = ".*rds") %>% 
   `names<-`(dir(input_directory, pattern = ".*rds")) %>% 
   
   # # TO BE DELETED!
-  # .[indices] %>% 
+  # .[indices] %>%
   
   map_dfr(~ readRDS(glue("{input_directory}{.x}")), .id = "stream") %>% 
   mutate(stream = str_remove(stream, "\\.rds")) %>% 
@@ -38,6 +38,13 @@ plot_data <- dir(input_directory, pattern = ".*rds") %>%
       list() %>% 
       tibble(stream = "cibersortx", signature = .)
   ) %>% 
+  
+  # for differentiating hierarchical and non_hierarchical methods
+  mutate(is_hierarchy = case_when(
+    str_detect(stream, "^hierarchical") ~ "hierarchical",
+    str_detect(stream, "non") ~ "non_hierarchical",
+    TRUE ~ "cibersortx"
+  ), .before = signature) %>%
   
   # silhouette evaluation
   mutate(silhouette = map(
@@ -61,7 +68,7 @@ plot_data <- dir(input_directory, pattern = ".*rds") %>%
   
   # deconvolution evaluation
   # for each mixture, combine with the signatures from all methods
-  expand_grid(mix100, .) %>% 
+  expand_grid(mix100 %>% dplyr::slice(1:5), .) %>% 
   
   mutate(deconvolution = map2(
     signature, mix, 
@@ -87,13 +94,6 @@ plot_data <- dir(input_directory, pattern = ".*rds") %>%
   nest(data = -c(stream, cell_type)) %>% 
   mutate(mean_MSE_for_cell_type = map_dbl(data, ~ mean(.x$squared_error))) %>% 
   unnest(data) %>% 
-
-  # for differentiating hierarchical and non_hierarchical methods
-  mutate(is_hierarchy = case_when(
-    str_detect(stream, "^hierarchical") ~ "hierarchical",
-    str_detect(stream, "non") ~ "non_hierarchical",
-    TRUE ~ "cibersortx"
-  )) %>% 
   
   select(-c(signature, mixture_ID, mix, replicate, estimated_proportion, proportion, squared_error))
   
@@ -112,8 +112,8 @@ boxplot_silhouette <- plot_data %>%
   geom_boxplot(aes(fill = is_hierarchy),
                alpha = 0.2, 
                outlier.shape = NA) +
-  geom_jitter(aes(colour = cell_type
-                  # size = cluster_size
+  geom_jitter(aes(colour = cell_type,
+                  size = cluster_size
                   ), 
               position=position_jitter(0.2)) +
   labs(y = "silhouette score of cell type clusters",
@@ -123,16 +123,12 @@ boxplot_silhouette <- plot_data %>%
        ) +
   
   guides(
-    color = guide_legend(
-      title.position = "left",
-      ncol = 7,
-      byrow = FALSE),
+    color = guide_legend(title.position = "left", ncol = 7, byrow = FALSE, order=3),
     
-    fill = guide_legend(
-      title = NULL,
-      ncol = 1,
-      byrow = FALSE)
-  )+
+    fill = guide_legend(title = NULL, ncol = 1, byrow = FALSE, order =1),
+    
+    size = guide_legend(title.position = "left", ncol = 1, byrow = FALSE, order=2)
+  ) +
   
   theme(axis.text.x = element_text(angle=50, vjust=1, hjust = 1, face = "bold", size = 7),
         axis.title.x = element_blank(),
@@ -141,8 +137,8 @@ boxplot_silhouette <- plot_data %>%
         legend.title.align = 0.5,
         legend.position = "bottom",
         legend.spacing = unit(0, "cm"),
-        legend.box.spacing = unit(0, "lines"),
-        plot.margin=unit(c(0, 2, 0, 1.5), "cm")
+        legend.box.spacing = unit(0, "cm"),
+        plot.margin=unit(c(0, 2, 0, 2), "cm")
         )
 
   
@@ -165,15 +161,9 @@ boxplot_deconvolution_by_cell_type <- plot_data %>%
   ) +
   
   guides(
-    color = guide_legend(
-    title.position = "left",
-    ncol = 7,
-    byrow = FALSE),
+    color = guide_legend(title.position = "left", ncol = 7, byrow = FALSE, order=2),
     
-    fill = guide_legend(
-      title = NULL,
-      ncol = 1,
-      byrow = FALSE)
+    fill = guide_legend(title = NULL, ncol = 1, byrow = FALSE, order=1)
     ) +
   
   theme(axis.text.x = element_text(angle=55, vjust=1, hjust = 1, face = "bold", size = 7),
@@ -184,7 +174,7 @@ boxplot_deconvolution_by_cell_type <- plot_data %>%
         legend.position = "bottom",
         legend.spacing = unit(0, "cm"),
         legend.box.spacing = unit(0, "lines"),
-        plot.margin=unit(c(0, 2, 0, 1.5), "cm")
+        plot.margin=unit(c(0, 2, 0, 2), "cm")
   )
 
 
@@ -207,7 +197,7 @@ boxplot_deconvolution_by_method <- plot_data %>%
         plot.title = element_text(hjust = 0.5),
         legend.position = "bottom",
         legend.title = element_blank(),
-        plot.margin=unit(c(0, 2, 0, 1.5), "cm")
+        plot.margin=unit(c(0, 2, 0, 2), "cm")
   )
 
 
@@ -216,9 +206,20 @@ boxplot_deconvolution_by_method <- plot_data %>%
 #   theme(legend.position = "bottom",
 #         legend.spacing.x = unit(0, "lines")
 #           )
+ggsave(paste0(output_directory, "boxplot_silhouette.png"), 
+       boxplot_silhouette, 
+       width=35, height=20, unit="cm")
 
+ggsave(paste0(output_directory, "boxplot_deconvolution_by_cell_type.png"), 
+       boxplot_deconvolution_by_cell_type,
+       width=35, height=20, unit="cm")
 
-pdf(file = output_directory, paper = "a4r", height = 8.3, width = 11.7) # The height of the plot in inches
+ggsave(paste0(output_directory, "boxplot_deconvolution_by_method.png"), 
+       boxplot_deconvolution_by_method,
+       width=35, height=20, unit="cm")
+
+pdf(file = paste0(output_directory, "benchmark_plot.pdf"), 
+    paper = "a4r", height = 8.3, width = 11.7) # The height of the plot in inches
 
 # Step 2: Create the plot with R code
 boxplot_silhouette
