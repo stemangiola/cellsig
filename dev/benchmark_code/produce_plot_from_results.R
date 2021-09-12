@@ -68,7 +68,7 @@ plot_data <- dir(input_directory, pattern = ".*rds") %>%
   
   # deconvolution evaluation
   # for each mixture, combine with the signatures from all methods
-  expand_grid(mix100 %>% dplyr::slice(1:5), .) %>% 
+  expand_grid(mix100, .) %>% 
   
   mutate(deconvolution = map2(
     signature, mix, 
