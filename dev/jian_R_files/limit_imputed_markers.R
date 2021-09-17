@@ -7,7 +7,7 @@ preprocess <- function(.transcript, .level) {
     
     dplyr::rename("symbol" = ".feature", sample = ".sample") %>% 
     # tidybulk(sample, symbol, count_scaled) %>% for imputed counts data
-    tidybulk(.sample = sample, .transcript = symbol, .abundance = count, .abundance_scaled = counts_scaled) %>%
+    # tidybulk(.sample = sample, .transcript = symbol, .abundance = count, .abundance_scaled = counts_scaled) %>%
     
     # filter for cells at the level of interest. .level == level_1
     filter(is.na(!!as.symbol(.level))==FALSE) %>%
@@ -44,12 +44,17 @@ preprocess <- function(.transcript, .level) {
 
 counts_imputed_hierarchy <- scale_input_counts(counts_imputed, .is_hierarchy = TRUE)
 
-ranked_PW_L3 <- counts_imputed_L3 %>% 
+counts_bayes_imputed_hierarchy <- 
+  counts_bayes_imputed %>% 
+  select(-level) %>% 
+  scale_input_counts(.is_hierarchy = TRUE)
+
+ranked_PW_L4 <- counts_imputed_L4 %>% 
   do_ranking(.ranking_method = rank_edgR_quasi_likelihood, 
              .contrast_method = pairwise_contrast,
              .rank_stat = "logFC")
 
-naive_PW_L3 <- ranked_PW_L3 %>% 
+naive_PW_L4 <- ranked_PW_L4 %>% 
   naive_selection(1)
 
 # preprocessing step

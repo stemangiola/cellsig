@@ -3252,3 +3252,58 @@ table_of_commands %>%
   # mutate(SLURM_command = glue::glue("sbatch Rscript {R_command}")) %>% 
   # pull(SLURM_command) %>%
   write_lines("./dev/benchmark_code/benchmark_non_hierarchical.makeflow")
+
+x <- 
+counts_bayes_imputed_hierarchy %>% 
+  
+  unnest(tt) %>% 
+  
+  mutate(contrast = map2(data, level, ~ mean_contrast(.x, .y))) %>% 
+  
+  unnest(contrast) %>% 
+  mutate(contrast = str_remove_all(contrast, glue("{level}"))) %>% 
+  
+  mutate(lower_quantile = map2(
+    data, contrast,
+    ~ .x %>% 
+      filter(cell_type == str_extract(.y, ".*(?=\\s\\-)")) %>% 
+      # filter out genes with imputation ratio greater than 0.2
+      filter(ratio_imputed_samples < 0.2) %>% 
+      select(symbol, lower_quantile='25%')
+    # arrange(symbol)
+  )) %>% 
+  
+  mutate(mean_upper_quantile = map2(
+    data, contrast,
+    ~ {
+      # obtain background cell type(s)
+      background <- (.y) %>% 
+        str_extract("(?<=\\-\\s).*") %>% 
+        str_split("\\+") %>% 
+        unlist() %>% 
+        str_remove_all("(?<=\\/).*|\\W")
+      
+      (.x) %>% 
+        # calculate the mean 75% quantile of each gene over all background cell types
+        filter(cell_type %in% background) %>% 
+        group_by(symbol) %>% 
+        summarise(symbol, mean_upper_quantile = mean(`75%`)) %>% 
+        distinct() %>% 
+        ungroup()
+    }
+  )) %>% 
+  
+  mutate(stat_df = map2(
+    lower_quantile, mean_upper_quantile,
+    ~ left_join(.x, .y, by= "symbol")
+  )) %>% 
+  select(-c(lower_quantile, mean_upper_quantile)) %>% 
+  
+  mutate(stat_df = map(
+    stat_df,
+    ~ .x %>% 
+      mutate(difference = lower_quantile - mean_upper_quantile) %>% 
+      arrange(desc(difference))
+  ))
+
+# nest(markers = -c(level, ancestor, data))
