@@ -1529,13 +1529,44 @@ main <- function(.transcript, .is_hierarchy=TRUE, .level=NULL,
   }
 }
 
+# Add tree structure to raw data frame
+tree_and_signatures_to_database = function(tree, signatures, .sample, .cell_type, .symbol, .count){
+  .sample = enquo(.sample)
+  .cell_type = enquo(.cell_type)
+  .symbol = enquo(.symbol)
+  .count = enquo(.count)
+  
+  signatures %>%
+    
+    # Add tree info
+    left_join(
+      tree %>%
+        data.tree::Clone() %>%
+        ToDataFrameTypeColFull(fill=NA) ,
+      by = quo_name(.cell_type)
+    ) %>%
+    filter(level_1 %>% is.na %>% `!`) %>%
+    
+    # Reduce size
+    mutate_if(is.character, as.factor) %>% 
+    droplevels %>% 
+    mutate(!!.count := !!.count %>% as.integer) %>%
+    
+    # Filter only symbol existing
+    filter(!!.symbol %>% is.na %>% `!`) %>%
+    
+    # Aggregate
+    aggregate_duplicates(!!.sample, !!.symbol, !!.count) %>% 
+    select(-one_of("merged_transcripts"))
+}
+
 # Input scale abundance
 
 scale_input_counts <- function(.transcript, .is_hierarchy = TRUE, .level = NULL){
   
   if (.is_hierarchy) { # scaling under each ancestor node at each level
     
-    if (is.null(.level) == TRUE) { # scale counts for all levels present
+    if (is.null(.level)) { # scale counts for all levels present
       
       tt_hierarchy <- 
         
@@ -1691,9 +1722,9 @@ do_ranking <- function(.preprocessed, .ranking_method, .contrast_method, .rank_s
     # .bayes = .cellsig_theoretical_transcript_abundace_distribution
     .ranking_method(.contrast_method=.contrast_method, .rank_stat=.rank_stat, .bayes=.bayes) %>% 
     
-    unnest(markers) %>% 
+    # unnest(markers) %>% 
     
-    # filter out potential nodes in which no genes are considered significant by rank_by_logFC
+    # filter out potential nodes in which no genes are considered significant by rank_by_stat
     filter(map_int(stat_df, ~nrow(.x)) != 0) %>% 
     
     # assign ranks to genes
@@ -1722,13 +1753,28 @@ rank_edgR_quasi_likelihood <- function(.preprocessed, .contrast_method, .rank_st
     # Select markers from each contrast by rank of stats
     mutate(markers = map(markers, ~ rank_by_stat(.x, .rank_stat) )) %>% 
     
-
+    unnest(markers) %>% 
+    
     # remove prefixes from contrast expressions
-    mutate(markers = map2(
-      markers, level,
-      ~ .x %>% 
-        mutate(contrast = map2_chr(contrast, .y, ~ str_replace_all(.x, .y, "")))
+    mutate(contrast = map2_chr(contrast, level, ~ str_remove_all(.x, .y) )) %>% 
+    
+    # filter for genes that have imputation rate less than 0.2
+    mutate(stat_df = pmap(
+      list(data, contrast, stat_df),
+      
+      ~..1 %>% 
+        
+        # filter for target cell type in data
+        filter(cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>% 
+        
+        # select the symbols and ratio of imputed samples for that gene in the target cell type
+        distinct(symbol, ratio_imputed_samples) %>% 
+        
+        right_join(..3, by = "symbol") %>% 
+        
+        filter(ratio_imputed_samples < 0.2)
     ))
+  
 }
 
 rank_edgR_robust_likelihood_ratio <- function(.preprocessed, .contrast_method, .rank_stat="PValue",
@@ -1760,12 +1806,27 @@ rank_edgR_robust_likelihood_ratio <- function(.preprocessed, .contrast_method, .
         # select(-all_other_info_you_dont_need) # HOPEFULLY DONT NEED THIS
     )) %>% 
     
+    unnest(markers) %>% 
+    
     # remove prefixes from contrast expressions
-    mutate(markers = map2(
-      markers, level,
-      ~ .x %>% 
-        mutate(contrast = map2_chr(contrast, .y, ~ str_remove_all(.x, .y)))
-    ))
+    mutate(contrast = map2_chr(contrast, level, ~ str_remove_all(.x, .y) )) %>% 
+    
+    # filter for genes that have imputation rate less than 0.2
+    mutate(stat_df = pmap(
+      list(data, contrast, stat_df),
+      
+      ~..1 %>% 
+        
+        # filter for target cell type in data
+        filter(cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>% 
+        
+        # select the symbols and ratio of imputed samples for that gene in the target cell type
+        distinct(symbol, ratio_imputed_samples) %>% 
+        
+        right_join(..3, by = "symbol") %>% 
+        
+        filter(ratio_imputed_samples < 0.2)
+      ))
 }
 
 rank_by_stat <-  function(.markers, .rank_stat){
@@ -1805,8 +1866,6 @@ rank_by_stat <-  function(.markers, .rank_stat){
       }
     ))
 }
-
-
 
 rank_bayes <- function(.preprocessed, .contrast_method, .bayes, .rank_stat=NULL){
   
@@ -1857,9 +1916,9 @@ rank_bayes <- function(.preprocessed, .contrast_method, .bayes, .rank_stat=NULL)
       ~ .x %>% 
         mutate(difference = lower_quantile - mean_upper_quantile) %>% 
         arrange(desc(difference))
-    )) %>% 
+    ))
     
-    nest(markers = -c(level, ancestor, data))
+    # nest(markers = -c(level, ancestor, data))
   
 }
 
