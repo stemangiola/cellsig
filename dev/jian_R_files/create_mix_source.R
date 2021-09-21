@@ -19,7 +19,7 @@ counts_non_hierarchy <- readRDS("./dev/intermediate_data/counts_non_hierarchy.rd
 mix_base = readRDS("./dev/counts_imputed.rds") %>% 
   
   # rename columns and calculate count_scaled
-  dplyr::rename(symbol = .feature, sample = .sample) %>% 
+  dplyr::rename(symbol = .feature, sample = .sample)
   # mutate(count_scaled = count / exp(exposure_rate)) %>% 
   
   # # keep genes present in all
@@ -29,8 +29,6 @@ mix_base = readRDS("./dev/counts_imputed.rds") %>%
   # filter(n == max(n)) %>%
   # unnest(data) %>% 
   # select(-n)
-
-saveRDS(mix_base, "./dev/intermediate_data/mix_base.rds", compress = "xz")
 
 
 # have a 100 mixtures future map
@@ -42,9 +40,8 @@ library(furrr)
 plan(multisession, workers = 15)
 options(future.globals.maxSize= +Inf)
 
-mix100 <- 
-  
-  tibble(mixture_ID = 1:100) %>%
+# create 100 mixtures and their estimated proportions
+tibble(mixture_ID = 1:100) %>%
   
   # mix
   mutate(mix = map(mixture_ID, ~ {
@@ -54,9 +51,11 @@ mix100 <-
       setNames(unique(mix_base$cell_type))
     
     cellsig::generate_mixture_from_proportion_matrix(mix_base, proportions)
-  }))
-    
-saveRDS(mix100, "./dev/intermediate_data/mix100.rds", compress = "xz")
+  }
+  )) %>% 
+  saveRDS("/dev/intermediate_data/mix100.rds", compress = "xz")
+  
+  
 
 deconvolution_all_methods <-
   
