@@ -21,17 +21,22 @@ counts_third_db_raw <- readRDS("dev/raw_data/counts_third_db_raw.rds")
 counts_third_db_raw <- counts_third_db_raw %>% 
   select(sample, symbol, count, database=dataset, cell_type)
 
-
 counts =  
   
   # Merge dataset
   counts_first_db_raw %>%
   bind_rows(counts_second_db_raw) %>% 
   bind_rows(counts_third_db_raw) %>%
-  select(sample, cell_type, symbol, count, database) %>%
+  select(sample, cell_type, symbol, count, database) 
+
+rm(counts_first_db_raw, counts_second_db_raw, counts_third_db_raw)
+
+counts %>% 
+  
+  # adapt_tree(tree) %>% 
   
   # Parse into hierarchical dataset
-  tree_and_signatures_to_database(tree, signatures, sample, cell_type, symbol, count)  %>%
+  tree_and_signatures_to_database(tree, ., sample, cell_type, symbol, count)  %>%
   
   # Remove redundant samples
   remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
@@ -55,11 +60,12 @@ counts =
   impute_missing_abundance(~ cell_type, suffix="") %>%
   identify_abundant() %>%
   scale_abundance() %>%
-  filter(!.imputed) %>%
-  select(-count_imputed, -.imputed )  %>%
+  filter(!.imputed) %>% 
+  
+  select(-.imputed)  %>%
   
   # Just needed for the old version
-  select(-one_of("exposure_rate")) %>%
+  # select(-one_of("exposure_rate")) %>%
   
   # Calculate exposure for Bayes model
   mutate(exposure_rate = -log(multiplier)) %>%
