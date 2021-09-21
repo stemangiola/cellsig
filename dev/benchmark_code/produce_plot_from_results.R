@@ -1,4 +1,4 @@
-# devtools::install_github("stemangiola/tidybulk@deconvolution-error-to-warning", force = TRUE)
+# devtools::install_github("stemangiola/tidybulk@sparse-counts", force = TRUE)
 source("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/jian_R_files/function_jian.R")
 library(tidyverse)
 library(tidybulk)
@@ -52,7 +52,9 @@ plot_data <- dir(input_directory, pattern = ".*rds") %>%
     ~ silhouette_evaluation(
       .signature = .x,
       .reduction_method = "PCA",
-      .preprocessed_non_hierarchy = counts_non_hierarchy)
+      .non_hierarchical_counts = counts_non_hierarchy,
+      .sample = sample,
+      .symbol = symbol)
     )) %>% 
   
   mutate(avg_silhouette = map_dbl(silhouette, ~ mean(.x$sil_width))) %>%
@@ -75,7 +77,9 @@ plot_data <- dir(input_directory, pattern = ".*rds") %>%
     ~ deconvolution_evaluation(
       .signature = .x, 
       .mix=.y, 
-      .preprocessed_non_hierarchy = counts_non_hierarchy)
+      .non_hierarchical_counts = counts_non_hierarchy,
+      .sample = sample,
+      .symbol = symbol)
     )) %>% 
   
   # mse by method
