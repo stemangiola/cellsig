@@ -2170,7 +2170,10 @@ do_naive_selection <- function(.ranked, .sample, .symbol, .kmax, .reduction_meth
     mutate(n_contrast = map_int(markers, ~ .x %>% nrow) ) %>% 
     
     # calculate the minimum number of genes need to be selected for feasible dimension reduction
-    mutate(k0 = map_int(n_contrast, ~ if(.x>=.dims){1L}else{as.integer(.dims %% .x + .dims %/%.x)})) %>% 
+    mutate(k0 = map_int(n_contrast, 
+                        ~ if(.x>=.dims){1L}
+                        else{(.dims %% .x + .dims %/%.x) %>% as.integer}
+                        )) %>% 
     
     # expand the number of markers selected to .kmax
     mutate(n_markers_from_each_contrast = map(k0, ~ .x: .kmax)) %>% 
@@ -2200,28 +2203,6 @@ do_naive_selection <- function(.ranked, .sample, .symbol, .kmax, .reduction_meth
     # nest by ancestor nodes/cell types
     unnest(data) %>%
     nest(data = - c(level, ancestor))
-    
-  
-  # tibble(number_of_markers_from_each_contrast = 1: .kmax) %>%
-  # 
-  #   # select signature and calculate silhouette score
-  #   mutate(data = map(
-  #     number_of_markers_from_each_contrast,
-  # 
-  #     ~ naive_selection(.ranked=.ranked, .k=.x, .symbol=!!.symbol) %>%
-  # 
-  #       silhouette_function(.sample=!!.sample,
-  #                           .symbol=!!.symbol,
-  #                           .reduction_method=.reduction_method,
-  #                           .dims=.dims) %>%
-  # 
-  #       # optional: remove reduced_dimensions matrix to save memory, if kept it can be used to plot PCA
-  #       select(-reduced_dimensions)
-  #   )) %>%
-  # 
-  #   # nest by ancestor nodes/cell types
-  #   unnest(data) %>%
-  #   nest(data = - c(level, ancestor))
 
 }
 
@@ -2386,28 +2367,28 @@ do_silhouette_selection <-
       # contrast_copy contains all the statistics of all cell_type contrasts for each gene
       .ranked %>%
       
-      # find how many markers (k0) need to be selected from each contrast as base markers
+      # find the number of contrasts for each ancestor node
       mutate(n_contrast = map_int(markers, ~ .x %>% nrow) ) %>% 
-      mutate(k0 = map_int(n_contrast, ~ if(.x>=.dims){1L}else{.dims %% .x + .dims %/%.x})) %>% 
-      mutate(data = -k0) %>% 
+      
+      # find the minimum number (k0) of genes that need to be selected from each contrast for feasible dimension reduction
+      mutate(k0 = map_int(n_contrast, 
+                          ~ if(.x>=.dims){1L}
+                          else{(.dims %% .x + .dims %/%.x) %>% as.integer}
+                          )) %>% 
+      # nest by k0 because naive selection takes the whole ranked data frame
+      nest(data = -k0) %>% 
+      
+      # select the minimum number of base markers for each ancestor node
       mutate(data = map2(data, k0, ~ naive_selection(.ranked=.x, .k=.y, .symbol=!!.symbol))) %>% 
+      
       unnest(data) %>% 
-
-      # select top 1 markers from each contrast
-      # naive_selection(.k=1, .symbol=!!.symbol) %>%
+      
+      # clean up data
+      select(-c(n_contrast, k0)) %>% 
 
       dplyr::rename(new_challengers = signature) %>%
 
       mutate(winner = map(new_challengers, ~ unique(.x))) %>%
-
-      # mutate(winning_contrast = map(
-      #   markers,
-      #   ~ .x %>% pull(contrast) %>% unique()
-      #   # distinct(contrast, symbol) %>%
-      #   # mutate(contrast = contrast %>% str_extract(".*(?=\\s\\-)")) %>%
-      #   # mutate(contrast_symbol = map2_chr(contrast, symbol, ~ paste(.x, .y, sep = "."))) %>%
-      #   # pull(contrast_symbol)
-      # )) %>%
 
       mutate(signature = winner) %>%
 
@@ -2464,14 +2445,6 @@ do_silhouette_selection <-
         naive_selection(.k=1, .symbol=!!.symbol) %>%
 
         # pick the one new challenger from each contrast
-        # mutate(markers = map(
-        #   markers,
-        #   ~ .x %>%
-        #     nest(new_challenger = - contrast) %>%
-        #     mutate(new_challenger = map_chr(new_challenger, ~.x %>% distinct(symbol) %>% pull()))
-        # )) %>%
-        # unnest(markers) %>%
-        # select(-c(signature, real_size)) %>%
         select(-c(markers, signature, real_size)) %>%
         unnest(children) %>%
         unnest(enriched) %>%
@@ -2621,7 +2594,7 @@ silhouette_for_markers <-function(.ranked, .sample, .symbol, .signature, .ancest
     mutate(data = map(data, ~.x %>%
                         filter(!!.symbol %in% .signature))) %>%
 
-    # format input
+    # format input for silhouette_function
     dplyr::rename(markers = data) %>%
 
     silhouette_function(.sample=!!.sample,
