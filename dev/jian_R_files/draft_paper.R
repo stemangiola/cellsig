@@ -3306,4 +3306,126 @@ counts_bayes_imputed_hierarchy %>%
       arrange(desc(difference))
   ))
 
-# nest(markers = -c(level, ancestor, data))
+x %>% 
+  
+  nest(markers = -c(level, ancestor, data))
+
+counts_imputed %>% 
+  with_groups(c(cell_type, .feature), ~ .x %>% summarise(`50%` = median(count)))
+
+
+counts_bayes_imputed_hierarchy %>% 
+  slice(5) %>% 
+  unnest(tt) %>% 
+  unnest(data) %>% 
+  distinct(level_5, symbol, ratio_imputed_samples) %>% 
+  rename("ratio_bayes" = "ratio_imputed_samples") %>% 
+  
+  left_join(
+    counts_imputed_hierarchy %>% 
+      slice(5) %>% 
+      unnest(tt) %>% 
+      unnest(data) %>% 
+      distinct(level_5, symbol, ratio_imputed_samples) %>% 
+      rename("ratio_non_bayes" = "ratio_imputed_samples"),
+    
+    by = c("level_5", "symbol")
+  ) %>% 
+  
+  ggplot(aes(ratio_bayes, ratio_non_bayes)) +
+  geom_point()
+
+z <- tree %>%
+  ToDataFrameTypeColFull(fill=NA) %>% 
+  unite("ancestors", contains("level"), sep=".", na.rm = TRUE) %>% 
+  mutate(ancestors = map2(
+    ancestors, cell_type,
+    ~.x %>% 
+      paste("Tissue", ., sep=".") %>% 
+      str_split("\\.") %>% 
+      unlist() %>% 
+      .[. != .y] %>% 
+      rev()
+  )) %>% 
+  mutate(cell_type_allowed = t_helper_tree$Get("level") %>% names() %>% list()) %>% 
+  mutate(cell_type_to_be = pmap_chr(
+    list(ancestors, cell_type, cell_type_allowed),
+    ~ if (! ..2 %in% ..3){
+      ..1[which(..1 %in% ..3)[1]]
+    } else {..2}
+  )) %>% 
+  select(cell_type, cell_type_to_be)
+
+counts_t_helper_tree %>% 
+  left_join(z, by = "cell_type") %>% 
+  select(-cell_type) %>% 
+  rename("cell_type" = "cell_type_to_be") %>% 
+  tree_and_signatures_to_database(t_helper_tree, ., sample, cell_type, symbol, count)
+
+counts_t_helper_tree %>% 
+  # slice(1:100) %>% 
+  mutate(cell_type = map_chr(cell_type, ~ with(z, cell_type_to_be[which(cell_type == .x)]) ))
+
+# without enquo()
+preprocess <- function(.transcript, .level) {
+  # this preproces function ranged data in hierarchy(or non_hierarchy) and
+  # calculates the imputation ratio for genes in each hierarchy
+  
+  # load data
+  .transcript %>%
+    
+    dplyr::rename("symbol" = "feature") %>% 
+    
+    # tidybulk(sample, symbol, count_scaled) %>% for imputed counts data
+    tidybulk(.sample = sample, .transcript = symbol, .abundance = count_scaled) %>%
+    
+    # filter for cells at the level of interest. .level == level_1
+    filter(!is.na(!!as.symbol(.level))) %>%
+    
+    # calculate the ratio of imputation for genes in a cell type
+    nest(data = -c(symbol, !!as.symbol(.level))) %>%
+    
+    # for a cell type some samples may miss genes in other samples: so for the same cell type genes may have different number of samples
+    mutate(n_samples_per_gene = map_int(
+      data,
+      ~ .x %>%
+        distinct(sample) %>%
+        nrow)) %>%
+    
+    unnest(data) %>%
+    nest(data = -!!as.symbol(.level)) %>%
+    
+    mutate(n_samples= map_int(
+      data,
+      ~ .x %>%
+        distinct(sample) %>%
+        nrow
+    )) %>%
+    
+    unnest(data) %>% 
+    
+    mutate(ratio_imputed_samples = 1 - n_samples_per_gene / n_samples) %>% 
+    
+    # nest by ancestor
+    nest(data = - !!as.symbol(pre(.level)))
+  
+}
+
+counts_imputed_t_helper_tree %>% 
+  dplyr::rename(symbol = feature) %>% 
+  main(.is_hierarchy=TRUE, 
+       .sample = sample, 
+       .symbol = symbol,
+       .contrast_method=mean_contrast, 
+       .ranking_method=rank_bayes, 
+       .rank_stat=NULL,
+       .bayes=counts_bayes_imputed, 
+       .selection_method="silhouette", .kmax=60, .discard_number=2000, .reduction_method = "PCA", .dims=2,
+       .optimisation_method="curvature", .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
+       .is_complete = TRUE) 
+
+counts_imputed_t_helper_tree %>% 
+  dplyr::rename(symbol = feature) %>%
+  do_hierarchy()
+
+
