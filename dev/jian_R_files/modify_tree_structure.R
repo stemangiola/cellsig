@@ -16,7 +16,7 @@ tree_subset <- function(.tree, .node) {
     
     as.phylo() %>% 
     
-    as.Node()
+    as.Node(replaceUnderscores=FALSE)
 }
 
 tree_subset_tibble <- function(.tree, .node){
