@@ -1,8 +1,6 @@
 ---
 title: "README"
-author: "Stefano Mangiola"
-date: "01/07/2021"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
