@@ -99,7 +99,7 @@ ref_intercept_only = function(reference,
       #sampling_iterations = sampling_iterations
     )
 
-  G = res1[[1]] %>% distinct(cell_type, symbol, G) %>% nrow
+  G = res1[[1]] %>% distinct(cell_type, .feature, G) %>% nrow
   
   generated_quantities = 
     
@@ -107,7 +107,7 @@ ref_intercept_only = function(reference,
     generate_quantities_standalone( res1[[2]], G  ) 
   
   res1[[1]] %>% 
-    nanny::subset(c(symbol, cell_type)) %>%
+    nanny::subset(c(.feature, cell_type)) %>%
     select(-starts_with("level_")) %>%
 
     # Attach lambda sigma
@@ -149,8 +149,8 @@ run_model_ref = function(
   df = ref_format(reference_filtered ) 
 
   G = df %>% distinct(G) %>% nrow()
-  GM = df %>% distinct(symbol) %>% nrow()
-  S = df %>% distinct(sample) %>% nrow()
+  GM = df %>% distinct(.feature) %>% nrow()
+  S = df %>% distinct(.sample) %>% nrow()
   CL = df %>% nrow
 
   counts_linear = df %>%  pull(count)
@@ -210,17 +210,17 @@ ref_format = function(ref) {
   ref %>% 
 
     # Add marker symbol indexes
-    nest(data = -c(symbol, cell_type)) %>%
+    nest(data = -c(.feature, cell_type)) %>%
     rowid_to_column(var = "G") %>%
     unnest(data) %>%
 
     # Add sample indeces
-    nest(data = -sample) %>%
+    nest(data = -.sample) %>%
     rowid_to_column(var = "S") %>%
     unnest(data) %>%
     
-    # Add sample indeces
-    nest(data = -symbol) %>%
+    # Add .sample indeces
+    nest(data = -.feature) %>%
     rowid_to_column(var = "GM") %>%
     unnest(data) 
 

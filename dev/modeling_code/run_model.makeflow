@@ -1,0 +1,154 @@
+CATEGORY=create_input
+MEMORY=20024
+CORES=8
+WALL_TIME=14000
+dev/modeling_results/level_1_patition_1_input_result.rds: dev/modeling_results/level_1_patition_1_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_1_input.rds dev/modeling_results/level_1_patition_1_input_result.rds 8
+dev/modeling_results/level_1_patition_10_input_result.rds: dev/modeling_results/level_1_patition_10_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_10_input.rds dev/modeling_results/level_1_patition_10_input_result.rds 8
+dev/modeling_results/level_1_patition_11_input_result.rds: dev/modeling_results/level_1_patition_11_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_11_input.rds dev/modeling_results/level_1_patition_11_input_result.rds 8
+dev/modeling_results/level_1_patition_12_input_result.rds: dev/modeling_results/level_1_patition_12_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_12_input.rds dev/modeling_results/level_1_patition_12_input_result.rds 8
+dev/modeling_results/level_1_patition_13_input_result.rds: dev/modeling_results/level_1_patition_13_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_13_input.rds dev/modeling_results/level_1_patition_13_input_result.rds 8
+dev/modeling_results/level_1_patition_14_input_result.rds: dev/modeling_results/level_1_patition_14_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_14_input.rds dev/modeling_results/level_1_patition_14_input_result.rds 8
+dev/modeling_results/level_1_patition_15_input_result.rds: dev/modeling_results/level_1_patition_15_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_15_input.rds dev/modeling_results/level_1_patition_15_input_result.rds 8
+dev/modeling_results/level_1_patition_2_input_result.rds: dev/modeling_results/level_1_patition_2_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_2_input.rds dev/modeling_results/level_1_patition_2_input_result.rds 8
+dev/modeling_results/level_1_patition_3_input_result.rds: dev/modeling_results/level_1_patition_3_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_3_input.rds dev/modeling_results/level_1_patition_3_input_result.rds 8
+dev/modeling_results/level_1_patition_4_input_result.rds: dev/modeling_results/level_1_patition_4_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_4_input.rds dev/modeling_results/level_1_patition_4_input_result.rds 8
+dev/modeling_results/level_1_patition_5_input_result.rds: dev/modeling_results/level_1_patition_5_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_5_input.rds dev/modeling_results/level_1_patition_5_input_result.rds 8
+dev/modeling_results/level_1_patition_6_input_result.rds: dev/modeling_results/level_1_patition_6_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_6_input.rds dev/modeling_results/level_1_patition_6_input_result.rds 8
+dev/modeling_results/level_1_patition_7_input_result.rds: dev/modeling_results/level_1_patition_7_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_7_input.rds dev/modeling_results/level_1_patition_7_input_result.rds 8
+dev/modeling_results/level_1_patition_8_input_result.rds: dev/modeling_results/level_1_patition_8_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_8_input.rds dev/modeling_results/level_1_patition_8_input_result.rds 8
+dev/modeling_results/level_1_patition_9_input_result.rds: dev/modeling_results/level_1_patition_9_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_1_patition_9_input.rds dev/modeling_results/level_1_patition_9_input_result.rds 8
+dev/modeling_results/level_2_patition_1_input_result.rds: dev/modeling_results/level_2_patition_1_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_1_input.rds dev/modeling_results/level_2_patition_1_input_result.rds 8
+dev/modeling_results/level_2_patition_10_input_result.rds: dev/modeling_results/level_2_patition_10_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_10_input.rds dev/modeling_results/level_2_patition_10_input_result.rds 8
+dev/modeling_results/level_2_patition_11_input_result.rds: dev/modeling_results/level_2_patition_11_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_11_input.rds dev/modeling_results/level_2_patition_11_input_result.rds 8
+dev/modeling_results/level_2_patition_12_input_result.rds: dev/modeling_results/level_2_patition_12_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_12_input.rds dev/modeling_results/level_2_patition_12_input_result.rds 8
+dev/modeling_results/level_2_patition_13_input_result.rds: dev/modeling_results/level_2_patition_13_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_13_input.rds dev/modeling_results/level_2_patition_13_input_result.rds 8
+dev/modeling_results/level_2_patition_14_input_result.rds: dev/modeling_results/level_2_patition_14_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_14_input.rds dev/modeling_results/level_2_patition_14_input_result.rds 8
+dev/modeling_results/level_2_patition_15_input_result.rds: dev/modeling_results/level_2_patition_15_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_15_input.rds dev/modeling_results/level_2_patition_15_input_result.rds 8
+dev/modeling_results/level_2_patition_2_input_result.rds: dev/modeling_results/level_2_patition_2_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_2_input.rds dev/modeling_results/level_2_patition_2_input_result.rds 8
+dev/modeling_results/level_2_patition_3_input_result.rds: dev/modeling_results/level_2_patition_3_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_3_input.rds dev/modeling_results/level_2_patition_3_input_result.rds 8
+dev/modeling_results/level_2_patition_4_input_result.rds: dev/modeling_results/level_2_patition_4_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_4_input.rds dev/modeling_results/level_2_patition_4_input_result.rds 8
+dev/modeling_results/level_2_patition_5_input_result.rds: dev/modeling_results/level_2_patition_5_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_5_input.rds dev/modeling_results/level_2_patition_5_input_result.rds 8
+dev/modeling_results/level_2_patition_6_input_result.rds: dev/modeling_results/level_2_patition_6_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_6_input.rds dev/modeling_results/level_2_patition_6_input_result.rds 8
+dev/modeling_results/level_2_patition_7_input_result.rds: dev/modeling_results/level_2_patition_7_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_7_input.rds dev/modeling_results/level_2_patition_7_input_result.rds 8
+dev/modeling_results/level_2_patition_8_input_result.rds: dev/modeling_results/level_2_patition_8_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_8_input.rds dev/modeling_results/level_2_patition_8_input_result.rds 8
+dev/modeling_results/level_2_patition_9_input_result.rds: dev/modeling_results/level_2_patition_9_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_2_patition_9_input.rds dev/modeling_results/level_2_patition_9_input_result.rds 8
+dev/modeling_results/level_3_patition_1_input_result.rds: dev/modeling_results/level_3_patition_1_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_1_input.rds dev/modeling_results/level_3_patition_1_input_result.rds 8
+dev/modeling_results/level_3_patition_10_input_result.rds: dev/modeling_results/level_3_patition_10_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_10_input.rds dev/modeling_results/level_3_patition_10_input_result.rds 8
+dev/modeling_results/level_3_patition_11_input_result.rds: dev/modeling_results/level_3_patition_11_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_11_input.rds dev/modeling_results/level_3_patition_11_input_result.rds 8
+dev/modeling_results/level_3_patition_12_input_result.rds: dev/modeling_results/level_3_patition_12_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_12_input.rds dev/modeling_results/level_3_patition_12_input_result.rds 8
+dev/modeling_results/level_3_patition_13_input_result.rds: dev/modeling_results/level_3_patition_13_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_13_input.rds dev/modeling_results/level_3_patition_13_input_result.rds 8
+dev/modeling_results/level_3_patition_14_input_result.rds: dev/modeling_results/level_3_patition_14_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_14_input.rds dev/modeling_results/level_3_patition_14_input_result.rds 8
+dev/modeling_results/level_3_patition_15_input_result.rds: dev/modeling_results/level_3_patition_15_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_15_input.rds dev/modeling_results/level_3_patition_15_input_result.rds 8
+dev/modeling_results/level_3_patition_2_input_result.rds: dev/modeling_results/level_3_patition_2_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_2_input.rds dev/modeling_results/level_3_patition_2_input_result.rds 8
+dev/modeling_results/level_3_patition_3_input_result.rds: dev/modeling_results/level_3_patition_3_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_3_input.rds dev/modeling_results/level_3_patition_3_input_result.rds 8
+dev/modeling_results/level_3_patition_4_input_result.rds: dev/modeling_results/level_3_patition_4_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_4_input.rds dev/modeling_results/level_3_patition_4_input_result.rds 8
+dev/modeling_results/level_3_patition_5_input_result.rds: dev/modeling_results/level_3_patition_5_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_5_input.rds dev/modeling_results/level_3_patition_5_input_result.rds 8
+dev/modeling_results/level_3_patition_6_input_result.rds: dev/modeling_results/level_3_patition_6_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_6_input.rds dev/modeling_results/level_3_patition_6_input_result.rds 8
+dev/modeling_results/level_3_patition_7_input_result.rds: dev/modeling_results/level_3_patition_7_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_7_input.rds dev/modeling_results/level_3_patition_7_input_result.rds 8
+dev/modeling_results/level_3_patition_8_input_result.rds: dev/modeling_results/level_3_patition_8_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_8_input.rds dev/modeling_results/level_3_patition_8_input_result.rds 8
+dev/modeling_results/level_3_patition_9_input_result.rds: dev/modeling_results/level_3_patition_9_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_3_patition_9_input.rds dev/modeling_results/level_3_patition_9_input_result.rds 8
+dev/modeling_results/level_4_patition_1_input_result.rds: dev/modeling_results/level_4_patition_1_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_1_input.rds dev/modeling_results/level_4_patition_1_input_result.rds 8
+dev/modeling_results/level_4_patition_10_input_result.rds: dev/modeling_results/level_4_patition_10_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_10_input.rds dev/modeling_results/level_4_patition_10_input_result.rds 8
+dev/modeling_results/level_4_patition_11_input_result.rds: dev/modeling_results/level_4_patition_11_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_11_input.rds dev/modeling_results/level_4_patition_11_input_result.rds 8
+dev/modeling_results/level_4_patition_12_input_result.rds: dev/modeling_results/level_4_patition_12_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_12_input.rds dev/modeling_results/level_4_patition_12_input_result.rds 8
+dev/modeling_results/level_4_patition_13_input_result.rds: dev/modeling_results/level_4_patition_13_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_13_input.rds dev/modeling_results/level_4_patition_13_input_result.rds 8
+dev/modeling_results/level_4_patition_14_input_result.rds: dev/modeling_results/level_4_patition_14_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_14_input.rds dev/modeling_results/level_4_patition_14_input_result.rds 8
+dev/modeling_results/level_4_patition_15_input_result.rds: dev/modeling_results/level_4_patition_15_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_15_input.rds dev/modeling_results/level_4_patition_15_input_result.rds 8
+dev/modeling_results/level_4_patition_2_input_result.rds: dev/modeling_results/level_4_patition_2_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_2_input.rds dev/modeling_results/level_4_patition_2_input_result.rds 8
+dev/modeling_results/level_4_patition_3_input_result.rds: dev/modeling_results/level_4_patition_3_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_3_input.rds dev/modeling_results/level_4_patition_3_input_result.rds 8
+dev/modeling_results/level_4_patition_4_input_result.rds: dev/modeling_results/level_4_patition_4_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_4_input.rds dev/modeling_results/level_4_patition_4_input_result.rds 8
+dev/modeling_results/level_4_patition_5_input_result.rds: dev/modeling_results/level_4_patition_5_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_5_input.rds dev/modeling_results/level_4_patition_5_input_result.rds 8
+dev/modeling_results/level_4_patition_6_input_result.rds: dev/modeling_results/level_4_patition_6_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_6_input.rds dev/modeling_results/level_4_patition_6_input_result.rds 8
+dev/modeling_results/level_4_patition_7_input_result.rds: dev/modeling_results/level_4_patition_7_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_7_input.rds dev/modeling_results/level_4_patition_7_input_result.rds 8
+dev/modeling_results/level_4_patition_8_input_result.rds: dev/modeling_results/level_4_patition_8_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_8_input.rds dev/modeling_results/level_4_patition_8_input_result.rds 8
+dev/modeling_results/level_4_patition_9_input_result.rds: dev/modeling_results/level_4_patition_9_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_4_patition_9_input.rds dev/modeling_results/level_4_patition_9_input_result.rds 8
+dev/modeling_results/level_5_patition_1_input_result.rds: dev/modeling_results/level_5_patition_1_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_1_input.rds dev/modeling_results/level_5_patition_1_input_result.rds 8
+dev/modeling_results/level_5_patition_10_input_result.rds: dev/modeling_results/level_5_patition_10_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_10_input.rds dev/modeling_results/level_5_patition_10_input_result.rds 8
+dev/modeling_results/level_5_patition_11_input_result.rds: dev/modeling_results/level_5_patition_11_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_11_input.rds dev/modeling_results/level_5_patition_11_input_result.rds 8
+dev/modeling_results/level_5_patition_12_input_result.rds: dev/modeling_results/level_5_patition_12_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_12_input.rds dev/modeling_results/level_5_patition_12_input_result.rds 8
+dev/modeling_results/level_5_patition_13_input_result.rds: dev/modeling_results/level_5_patition_13_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_13_input.rds dev/modeling_results/level_5_patition_13_input_result.rds 8
+dev/modeling_results/level_5_patition_14_input_result.rds: dev/modeling_results/level_5_patition_14_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_14_input.rds dev/modeling_results/level_5_patition_14_input_result.rds 8
+dev/modeling_results/level_5_patition_15_input_result.rds: dev/modeling_results/level_5_patition_15_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_15_input.rds dev/modeling_results/level_5_patition_15_input_result.rds 8
+dev/modeling_results/level_5_patition_2_input_result.rds: dev/modeling_results/level_5_patition_2_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_2_input.rds dev/modeling_results/level_5_patition_2_input_result.rds 8
+dev/modeling_results/level_5_patition_3_input_result.rds: dev/modeling_results/level_5_patition_3_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_3_input.rds dev/modeling_results/level_5_patition_3_input_result.rds 8
+dev/modeling_results/level_5_patition_4_input_result.rds: dev/modeling_results/level_5_patition_4_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_4_input.rds dev/modeling_results/level_5_patition_4_input_result.rds 8
+dev/modeling_results/level_5_patition_5_input_result.rds: dev/modeling_results/level_5_patition_5_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_5_input.rds dev/modeling_results/level_5_patition_5_input_result.rds 8
+dev/modeling_results/level_5_patition_6_input_result.rds: dev/modeling_results/level_5_patition_6_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_6_input.rds dev/modeling_results/level_5_patition_6_input_result.rds 8
+dev/modeling_results/level_5_patition_7_input_result.rds: dev/modeling_results/level_5_patition_7_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_7_input.rds dev/modeling_results/level_5_patition_7_input_result.rds 8
+dev/modeling_results/level_5_patition_8_input_result.rds: dev/modeling_results/level_5_patition_8_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_8_input.rds dev/modeling_results/level_5_patition_8_input_result.rds 8
+dev/modeling_results/level_5_patition_9_input_result.rds: dev/modeling_results/level_5_patition_9_input.rds
+	Rscript dev/modeling_code/run_model.R dev/modeling_results/level_5_patition_9_input.rds dev/modeling_results/level_5_patition_9_input_result.rds 8
