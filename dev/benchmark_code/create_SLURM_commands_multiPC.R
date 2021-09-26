@@ -63,10 +63,14 @@ table_of_commands =
 # pull command and write it to a makeflow file with necessary heading format
 table_of_commands %>%
   
+  filter(is_hierarchy=="hierarchical" & contrast == "mean_contrast" & rank == "bayes" & 
+           selection == "silhouette" & optimisation == "curvature" & dims==2) %>% 
+  
   pull(command) %>%
   
   # Add SLURM requirements
-  purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=80000\nCORES=2\nWALL_TIME=172800") %>% 
+  # purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=80000\nCORES=2\nWALL_TIME=172800") %>% 
+  purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=30000\nCORES=2\nWALL_TIME=86400") %>% 
 
-  write_lines("./dev/benchmark_code/benchmark_multiPC.makeflow")
+  write_lines("dev/benchmark_code/benchmark_multiPC.makeflow")
 
