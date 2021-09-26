@@ -3428,4 +3428,19 @@ counts_imputed_t_helper_tree %>%
   dplyr::rename(symbol = feature) %>%
   do_hierarchy()
 
+x %>% 
+  # slice(9) %>% 
+  mutate(level.copy = level) %>% 
+  nest(data = -level.copy) %>% 
+  
+  mutate(data = map(
+    data,
+    ~ .x %>% 
+      
+      do_optimisation(.optimisation_method = "curvature", .symbol=symbol)
+  )) %>% 
+  
+  unnest(data) %>% 
+  select(-level.copy)
+
 
