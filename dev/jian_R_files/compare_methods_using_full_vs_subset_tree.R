@@ -7,6 +7,7 @@ library(tidySummarizedExperiment)
 library(data.tree)
 library(tidytree)
 library(ape)
+library(tidytext)
 
 adapt_tree <- function(.data, .tree, .subtree=NULL){
   
@@ -118,39 +119,18 @@ update_tree_edge_matrix <- function(.tree_tbl) {
 }
 
 # Load cell differentiation tree
-data("tree")
+# data("tree")
+new_tree <- read_yaml("dev/jian_R_files/new_tree.yaml") %>% as.Node
 
-t_helper_tree <- tree_subset(tree, "t_helper_h1")
-
-# Database #1
-counts_first_db_raw = readRDS("dev/raw_data/counts_first_db_raw.rds")
-counts_first_db_raw <- counts_first_db_raw %>% 
-  select(sample, symbol, count, database, cell_type)
-
-# Database #2
-counts_second_db_raw <- readRDS("dev/raw_data/counts_second_db_raw.rds")
-counts_second_db_raw <- counts_second_db_raw %>% 
-  select(sample, symbol, count, database=dataset, cell_type)
-
-# Database #3
-counts_third_db_raw <- readRDS("dev/raw_data/counts_third_db_raw.rds")
-counts_third_db_raw <- counts_third_db_raw %>% 
-  select(sample, symbol, count, database=dataset, cell_type)
+t_helper_tree <- tree_subset(new_tree, "t_helper_h1")
 
 
-counts =
-  
-  # Merge dataset
-  counts_first_db_raw %>%
-  bind_rows(counts_second_db_raw) %>% 
-  bind_rows(counts_third_db_raw) %>%
-  select(sample, cell_type, symbol, count, database)
+counts = readRDS("dev/raw_data/counts.rds")
 
-rm(counts_first_db_raw, counts_second_db_raw, counts_third_db_raw)
-  
+
 counts %>% 
   
-  adapt_tree(tree, t_helper_tree) %>% 
+  adapt_tree(new_tree, t_helper_tree) %>% 
   
   # Parse into hierarchical dataset
   tree_and_signatures_to_database(t_helper_tree, ., sample, cell_type, symbol, count)  %>%
@@ -188,11 +168,11 @@ counts %>%
   mutate(exposure_rate = -log(multiplier)) %>% 
   
   # Save
-  saveRDS("dev/counts_t_helper_tree.rds", compress = "xz")
+  saveRDS("dev/benchmark_results_t_helper/counts_t_helper_tree.rds", compress = "xz")
 
 
 # Perform imputation
-readRDS("dev/counts_t_helper_tree.rds") %>% 
+readRDS("dev/benchmark_results_t_helper/counts_t_helper_tree.rds") %>% 
 
   # Convert to SE
   as_SummarizedExperiment(sample, feature, count_scaled) %>%
@@ -217,7 +197,21 @@ readRDS("dev/counts_t_helper_tree.rds") %>%
   select(-matches("imputed\\.\\d")) %>%
   
   # Save
-  saveRDS("dev/intermediate_data/counts_imputed_t_helper_tree.rds", compress = "xz")
+  saveRDS("dev/benchmark_results_t_helper/counts_imputed_t_helper_tree.rds", compress = "xz")
+
+
+# create bayes imputed 
+readRDS("dev/counts_bayes_imputed_old_tree.rds") %>% 
+  
+  select(-contains("level")) %>% 
+  
+  rename(feature = .feature, sample = .sample) %>% 
+  
+  left_join(t_helper_tree %>% ToDataFrameTypeColFull(fill=NA), by = "cell_type") %>% 
+  
+  saveRDS("dev/benchmark_results_t_helper/counts_bayes_imputed_t_helper_tree.rds", compress = "xz")
+
+
 
 # create slurm workflow file
 
@@ -247,7 +241,10 @@ tibble(is_hierarchy = c("hierarchical", "non_hierarchical"),
   # 
   # mutate(SLURM_command = glue::glue("sbatch Rscript {R_command}")) %>% 
   # pull(SLURM_command) %>%
-  write_lines("./dev/benchmark_code/benchmark_t_helper.makeflow")
+  write_lines("dev/benchmark_code/benchmark_t_helper.makeflow")
+
+
+
 
 # use the signature output for evaluation
 hierarchical_mean_contrast_bayes___silhouette_curvature <- 
@@ -265,7 +262,7 @@ cibersortx <-
   list() %>% 
   tibble(stream = "cibersortx", signature = .)
 
-x <- 
+signature_from_streams <- 
   bind_rows(
     hierarchical_mean_contrast_bayes___silhouette_curvature_t_helper,
     hierarchical_mean_contrast_bayes___silhouette_curvature
@@ -279,76 +276,142 @@ rm(hierarchical_mean_contrast_bayes___silhouette_curvature,
    cibersortx)
 
 # Evaluation
-counts_imputed_non_hierarchy <- 
-  readRDS("dev/intermediate_data/counts_imputed_non_hierarchy.rds")
 
-y <- x %>% 
+# load imputed gene expression data
+counts_imputed_t_helper_tree <- 
+  readRDS("dev/benchmark_results_t_helper/counts_imputed_t_helper_tree.rds") %>% 
+  
+  # rename columns and calculate count_scaled MUST HAVE count_scaled to generate mixture
+  dplyr::rename(symbol = feature)
+
+
+# create 100 mixtures and their estimated proportions
+tibble(mixture_ID = 1:100) %>% 
+  
+  # mix
+  mutate(mix = map(mixture_ID, ~ {
+    
+    # this assigns random proportion to cell types so that mixture of known cell proportions are generated
+    # this true proportion can be used to compare with estimated proportions resulted from using the signatures selected
+    proportions = 
+      gtools::rdirichlet(1, rep(1, length(as.phylo(t_helper_tree)$tip.label))) %>%
+      as.data.frame() %>%
+      setNames(as.phylo(t_helper_tree)$tip.label)
+    
+    cellsig::generate_mixture_from_proportion_matrix(counts_imputed_t_helper_tree, proportions)
+  }
+  )) %>% 
+  saveRDS("dev/benchmark_results_t_helper/mix100_t_helper.rds", compress = "xz")
+
+  
+mix100_t_helper <- readRDS("dev/benchmark_results_t_helper/mix100_t_helper.rds")
+
+
+evaluation_data <- signature_from_streams %>% 
   
   # silhouette evaluation
   mutate(silhouette = map(
-    signature, 
+    signature,
     ~ silhouette_evaluation(
       .signature = .x,
       .reduction_method = "PCA",
-      .non_hierarchical_counts = counts_imputed_non_hierarchy,
+      .tree = t_helper_tree,
+      .imputed_counts = counts_imputed_t_helper_tree,
       .sample = sample,
       .symbol = symbol)
-  )) %>% 
+  )) %>%
 
   mutate(avg_silhouette = map_dbl(silhouette, ~ mean(.x$sil_width))) %>%
-  
-  mutate(silhouette = map(
-    silhouette, 
-    ~ .x %>% 
-      group_by(cell_type) %>% 
-      summarise(cluster_silhouette = mean(sil_width), cluster_size = n()) %>% 
-      distinct() %>% 
-      ungroup()
-  )) 
 
-y %>% 
+  mutate(silhouette = map(
+    silhouette,
+    ~ .x %>%
+      group_by(cell_type) %>%
+      summarise(cluster_silhouette = mean(sil_width), cluster_size = n()) %>%
+      distinct() %>%
+      ungroup()
+  )) %>%
   
   # deconvolution evaluation
   # for each mixture, combine with the signatures from all methods
-  expand_grid(mix100, .) %>% 
+  expand_grid(mix100_t_helper, .) %>% 
   
   mutate(deconvolution = map2(
     signature, mix, 
     ~ deconvolution_evaluation(
       .signature = .x, 
-      .mix=.y, 
-      .non_hierarchical_counts = counts_imputed_non_hierarchy,
+      .mix=.y,
+      .tree = t_helper_tree,
+      .imputed_counts = counts_imputed_t_helper_tree,
       .sample = sample,
       .symbol = symbol)
   )) %>% 
   
-  # mse by method
-  mutate(MSE = map_dbl(
-    deconvolution,
-    ~ mean((.x$estimated_proportion - .x$proportion)^2)
-  )) %>% 
-  nest(data=-stream) %>% 
-  # mutate(median_MSE_over_mixes = map_dbl(data, ~ median(.x$MSE))) %>%
-  mutate(mean_MSE_over_mixes = map_dbl(data, ~ mean(.x$MSE))) %>%
-  unnest(data) %>% 
+  select(-mix)
+
+rm(mix100_t_helper, counts_imputed_t_helper_tree)
+
+saveRDS(evaluation_data, "dev/benchmark_results_t_helper/evaluation_data.rds", compress="xz")
   
-  # mse by cell type
+  # # mse by method
+  # mutate(MSE = map_dbl(
+  #   deconvolution,
+  #   ~ mean((.x$estimated_proportion - .x$proportion)^2)
+  # )) %>% 
+  # nest(data=-stream) %>% 
+  # # mutate(median_MSE_over_mixes = map_dbl(data, ~ median(.x$MSE))) %>%
+  # mutate(mean_MSE_over_mixes = map_dbl(data, ~ mean(.x$MSE))) %>%
+  # unnest(data) %>% 
+  
+evaluation_data %>% 
+  # add number of samples of each cell type
+  mutate(deconvolution = map2(deconvolution, silhouette, ~ .x %>% left_join(.y, by = "cell_type"))) %>% 
+  nest(data = c(signature, silhouette, avg_silhouette)) %>% 
+  select(-data) %>% 
+  
+  # deconvolution error by cell type
   unnest(deconvolution) %>% 
-  mutate(squared_error = (estimated_proportion - proportion)^2) %>% 
-  nest(data = -c(stream, cell_type)) %>% 
-  mutate(mean_MSE_for_cell_type = map_dbl(data, ~ mean(.x$squared_error))) %>% 
-  unnest(data) %>% 
+  mutate(absolute_error = abs(estimated_proportion - proportion)) %>% 
+  unite("cell_type", c(cell_type, cluster_size)) %>% 
   
-  select(-c(signature, mixture_ID, mix, replicate, estimated_proportion, proportion, squared_error))
+  ggplot(aes(x = reorder_within(stream, -absolute_error, cell_type, median), 
+             y=log10(absolute_error), 
+             color = stream)
+         ) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(alpha = 0.2) +
+  facet_wrap(~ cell_type, scales = "free_x") +
+  scale_x_reordered() +
   
+  guides(color = guide_legend(title.position = "left", nrow=1, byrow = FALSE) ) +
   
+  theme(
+    title = element_text("compare the ability of signatures from 3 streams to deconvolve cell types"),
+    axis.text.x = element_blank(),
+    axis.title.x = element_blank(),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "bottom"
+    # plot.margin=unit(c(0, 2, 0, 2), "cm")
+  )
+
+
+
+  # nest(data = -c(stream, cell_type)) %>% 
+  # mutate(mean_MSE_for_cell_type = map_dbl(data, ~ mean(.x$squared_error))) %>% 
+  # unnest(data) %>% 
+  # select(-c(signature, mixture_ID, replicate, estimated_proportion, proportion, squared_error))
+
+
+
+  
+ 
 y %>% 
+  nest(data = -c(stream, signature, silhouette, avg_silhouette)) %>% 
+  select(-data) %>% 
   unnest(silhouette) %>% 
   filter(cell_type %in% c("t_helper_h1", "t_helper_h2"," t_helper_h17", "t_reg")) %>% 
   group_by(cell_type) %>% 
   arrange(desc(cluster_silhouette), .by_group = TRUE) %>% 
   ungroup
-
-
-
+  
 
