@@ -1,6 +1,9 @@
 # devtools::install_github("stemangiola/nanny@convert-to-S3", force = TRUE)
 # devtools::install_github("stemangiola/tidybulk@dev", force = TRUE)
+# devtools::install_github("stemangiola/cellsig@dev")
 
+library(yaml)
+library(tidytext)
 library(data.tree)
 library(tidytree)
 library(ape)
@@ -16,6 +19,7 @@ library(cluster)
 library(tidyverse)
 library(tidybulk)
 library(cellsig)
+library(patchwork)
 library(tidySummarizedExperiment)
 
 
@@ -1586,11 +1590,10 @@ main <- function(.input, .sample, .symbol, .is_hierarchy=TRUE, .level=NULL,
       #   
       # do_imputation() %>% 
       
-      # Input: data.frame columns_1 <int> | ...
-      # Output: 
+
       # do_hierarchy(.sample=!!.sample,
       #              .symbol=!!.symbol,
-      #              .is_hierarchy=.is_hierarchy, 
+      #              .is_hierarchy=.is_hierarchy,
       #              .level=.level) %>%
       
       # Input: data.frame columns_1 <int> | ...
@@ -1626,11 +1629,10 @@ main <- function(.input, .sample, .symbol, .is_hierarchy=TRUE, .level=NULL,
       #   
       # do_imputation() %>% 
       
-      # Input: data.frame columns_1 <int> | ...
-      # Output: 
+ 
       # do_hierarchy(.sample=!!.sample,
-      #              .symbol=!!.symbol, 
-      #              .is_hierarchy=.is_hierarchy, 
+      #              .symbol=!!.symbol,
+      #              .is_hierarchy=.is_hierarchy,
       #              .level=.level) %>%
       
       do_ranking(.sample=!!.sample, 
@@ -2050,9 +2052,8 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .contrast_method,
   .bayes %>%
     
     # force the column names of bayes data to be consistent with input expression data
-    # dplyr::rename(!!.symbol := .feature, !!.sample := .sample) %>% 
-    # select(-level) %>%
-    # do_hierarchy(.is_hierarchy = all(.hierarchical_counts$level != "root"), 
+    # dplyr::rename(!!.symbol := feature, !!.sample := sample) %>%
+    # do_hierarchy(.is_hierarchy = all(.hierarchical_counts$level != "root"),
     #              .sample=!!.sample, .symbol=!!.symbol) %>%
 
     unnest(tt) %>%
@@ -2461,7 +2462,8 @@ do_silhouette_selection <-
         mutate(silhouette = map2_dbl(
           challengers_for_silhouette, ancestor,
           ~ silhouette_for_markers(.ranked=.ranked, .sample=!!.sample, .symbol=!!.symbol,
-                                   .signature=.x, .ancestor=.y, .reduction_method=.reduction_method) %>%
+                                   .signature=.x, .ancestor=.y, 
+                                   .reduction_method=.reduction_method, .dims=.dims) %>%
             pull(silhouette)
         )) %>%
 
@@ -2751,8 +2753,11 @@ curvature_of_kernel_smoothed_trend <- function(.plot_data,
       ~ .x %>%
         with(real_size[size.rescaled == .y])
     )) %>%
-
-    mutate(optimal_size = ifelse(optimal_size<10, 10, optimal_size))
+    
+    # set the minimum signature size recommended to be 10.
+    # note that some ancestor nodes might have fewer than 10 marker select and
+    # the signature size will be the maximum number of markers selected for that node
+    mutate(optimal_size = ifelse(optimal_size<10L, 10L, optimal_size))
 
 }
 
@@ -2770,7 +2775,12 @@ penalised_silhouette <- function(.plot_data, .penalty_rate=0.2) {
 
     filter(penalised_silhouette == max(penalised_silhouette)) %>%
 
-    pull(real_size)
+    pull(real_size) %>% 
+    
+    # set the minimum signature size recommended to be 10.
+    # note that some ancestor nodes might have fewer than 10 marker select and
+    # the signature size will be the maximum number of markers selected for that node
+    { if( (.) < 10L ){10L} else{(.)}  }
 }
 
 # Format output
@@ -2793,7 +2803,7 @@ format_output <- function(.optimised, .is_complete=TRUE){
 }
 
 # Benchmark evaluation
-silhouette_evaluation <- function(.signature, .reduction_method, .non_hierarchical_counts, .sample, .symbol, .dims=2){
+silhouette_evaluation <- function(.signature, .reduction_method, .tree, .imputed_counts, .sample, .symbol, .dims=2){
 
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
@@ -2857,9 +2867,8 @@ silhouette_evaluation <- function(.signature, .reduction_method, .non_hierarchic
 
   }
 
-  .non_hierarchical_counts %>%
-    unnest(tt) %>%
-    unnest(data) %>%
+  .imputed_counts %>%
+    filter(cell_type %in% as.phylo(.tree)$tip.label) %>% 
     filter(!!.symbol %in% .signature) %>%
     nest(markers = -c(level, ancestor)) %>%
     # calculate silhouette score for all signatures combined in each method
@@ -2868,15 +2877,14 @@ silhouette_evaluation <- function(.signature, .reduction_method, .non_hierarchic
     unnest(silhouette)
 }
 
-deconvolution_evaluation <- function(.signature, .mix, .non_hierarchical_counts, .sample, .symbol){
+deconvolution_evaluation <- function(.signature, .mix, .tree, .imputed_counts, .sample, .symbol){
 
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
 
   # filter out data for signature genes
-  reference <- .non_hierarchical_counts %>%
-    unnest(tt) %>%
-    unnest(data) %>%
+  reference <- .imputed_counts %>%
+    filter(cell_type %in% as.phylo(.tree)$tip.label) %>% 
     filter(!!.symbol %in% .signature) %>%
 
     # reshape the input matrix for deconvolve_cellularity():
@@ -2902,7 +2910,8 @@ deconvolution_evaluation <- function(.signature, .mix, .non_hierarchical_counts,
                  names_prefix ="llsr_",
                  names_to="cell_type",
                  values_to="estimated_proportion") %>%
-
+    
+    # join by the true proportion
     left_join(.mix %>%
                 unnest(data_samples) %>%
                 distinct(replicate, cell_type, proportion))
