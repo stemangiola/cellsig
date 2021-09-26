@@ -16,10 +16,10 @@ all_methods_comparison
 counts_non_hierarchy <- readRDS("./dev/intermediate_data/counts_non_hierarchy.rds")
 
 
-mix_base = readRDS("./dev/counts_imputed.rds") %>% 
+mix_base = readRDS("./dev/intermediate_data/counts_imputed.rds") %>% 
   
-  # rename columns and calculate count_scaled
-  dplyr::rename(symbol = .feature, sample = .sample)
+  # rename columns and calculate count_scaled MUST HAVE count_scaled to generate mixture
+  dplyr::rename(symbol = feature)
   # mutate(count_scaled = count / exp(exposure_rate)) %>% 
   
   # # keep genes present in all
@@ -40,22 +40,27 @@ library(furrr)
 plan(multisession, workers = 15)
 options(future.globals.maxSize= +Inf)
 
+mix100 =
 # create 100 mixtures and their estimated proportions
-tibble(mixture_ID = 1:100) %>%
+tibble(mixture_ID = 1:100) %>% 
   
   # mix
   mutate(mix = map(mixture_ID, ~ {
+    
+    # this assigns random proportion to cell types so that mixture of known cell proportions are generated
+    # this true proportion can be used to compare with estimated proportions resulted from using the signatures selected
     proportions = 
-      gtools::rdirichlet(1, rep(1, length(unique(mix_base$cell_type)))) %>%
+      gtools::rdirichlet(1, rep(1, length(as.phylo(new_tree)$tip.label))) %>%
       as.data.frame() %>%
-      setNames(unique(mix_base$cell_type))
+      setNames(as.phylo(new_tree)$tip.label)
     
     cellsig::generate_mixture_from_proportion_matrix(mix_base, proportions)
   }
   )) %>% 
-  saveRDS("/dev/intermediate_data/mix100.rds", compress = "xz")
   
+  saveRDS("dev/intermediate_data/mix100.rds", compress = "xz")
   
+mix100 <- readRDS("dev/intermediate_data/mix100.rds") 
 
 deconvolution_all_methods <-
   
@@ -75,9 +80,11 @@ deconvolution_all_methods <- deconvolution_all_methods %>%
     signature,
     
     # filter out data for signature genes
-    ~ tt_non_hierarchy %>% 
-      unnest(tt) %>% 
-      unnest(data) %>% 
+    ~ mix_base %>% 
+      
+      # only tip cell types should be present in the reference mixture
+      filter(cell_type %in% as.phylo(tree)$tip.label) %>% 
+      
       filter(symbol %in% .x) %>% 
       
       # reshape the input matrix for deconvolve_cellularity():
