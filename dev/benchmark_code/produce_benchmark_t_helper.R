@@ -31,11 +31,11 @@ output_file = args[8]
 )
 
 .bayes  =
-  if(bayes==1){
-    readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/intermediate_data/counts_bayes_imputed.rds")
+  if(bayes==1L){
+    readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/benchmark_results_t_helper/counts_bayes_imputed_t_helper_tree.rds")
   } else {NULL}
 
-readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/intermediate_data/counts_imputed_t_helper_tree.rds") %>%
+readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/benchmark_results_t_helper/counts_imputed_t_helper_tree.rds") %>%
   dplyr::rename(symbol = feature) %>% 
   main(.sample = sample, 
        .symbol = symbol,
