@@ -4,7 +4,9 @@ library(tidybulk)
 library(tidySummarizedExperiment)
 
 # Load cell differentiation tree
-data("tree")
+# data("tree")
+new_tree <- yaml.load_file("dev/jian_R_files/new_tree.yaml") %>% 
+  as.Node
 
 # Database #1
 counts_first_db_raw = readRDS("dev/raw_data/counts_first_db_raw.rds")
@@ -30,13 +32,14 @@ counts =
   select(sample, cell_type, symbol, count, database) 
 
 rm(counts_first_db_raw, counts_second_db_raw, counts_third_db_raw)
+saveRDS(counts, "dev/raw_data/counts.rds", compress = "xz")
 
 counts %>% 
   
-  # adapt_tree(tree) %>% 
+  adapt_tree(new_tree) %>%
   
   # Parse into hierarchical dataset
-  tree_and_signatures_to_database(tree, ., sample, cell_type, symbol, count)  %>%
+  tree_and_signatures_to_database(new_tree, ., sample, cell_type, symbol, count)  %>%
   
   # Remove redundant samples
   remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
@@ -71,7 +74,7 @@ counts %>%
   mutate(exposure_rate = -log(multiplier)) %>%
   
   # Save
-  saveRDS("dev/counts.rds", compress = "xz")
+  saveRDS("dev/intermediate_data/counts_new_tree.rds", compress = "xz")
 
 
 #   # Add tree structure
