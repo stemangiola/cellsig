@@ -3665,3 +3665,9 @@ do_imputation <- function(.scaled_counts, .sample, .symbol, .cell_type){
     select(-matches("imputed\\.\\d"))
 }
 
+tibble(command = sprintf("error_file:\n\tRscript dev/error_files/SLURM_cellsig_error.R > dev/AAA_err.stderr  2>&1")) %>% 
+  
+  pull(command) %>% 
+  purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=10000\nCORES=2\nWALL_TIME=86400") %>% 
+  
+  write_lines("dev/error_files/slurm_cellsig_error.makeflow")
