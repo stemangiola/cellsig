@@ -238,9 +238,7 @@ tibble(is_hierarchy = c("hierarchical", "non_hierarchical"),
   
   pull(command) %>% 
   purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=30000\nCORES=2\nWALL_TIME=86400") %>% 
-  # 
-  # mutate(SLURM_command = glue::glue("sbatch Rscript {R_command}")) %>% 
-  # pull(SLURM_command) %>%
+
   write_lines("dev/benchmark_code/benchmark_t_helper.makeflow")
 
 
@@ -248,7 +246,7 @@ tibble(is_hierarchy = c("hierarchical", "non_hierarchical"),
 
 # use the signature output for evaluation
 hierarchical_mean_contrast_bayes___silhouette_curvature <- 
-  readRDS("dev/benchmark_results/hierarchical_mean_contrast_bayes___silhouette_curvature.rds") %>% 
+  readRDS("dev/benchmark_results_multiPC/hierarchical_mean_contrast_bayes___silhouette_curvature_2.rds") %>% 
   mutate(stream = "hierarchical_mean_contrast_bayes_silhouette_curvature", .before=1)
 
 hierarchical_mean_contrast_bayes___silhouette_curvature_t_helper <- 
@@ -401,17 +399,62 @@ evaluation_data %>%
   # unnest(data) %>% 
   # select(-c(signature, mixture_ID, replicate, estimated_proportion, proportion, squared_error))
 
+x <- hierarchical_mean_contrast_bayes___silhouette_curvature_t_helper %>% 
+  pluck("children", 5) %>% 
+  mutate(enriched = map(enriched, ~ .x %>% pull(symbol))) %>% 
+  mutate(data = map(enriched,
+                    ~ counts_imputed_t_helper_tree %>%
+                      rename(symbol = feature) %>%
+                      filter(cell_type %in% c("t_helper_h1", "t_helper_h2", "t_helper_h17")) %>% 
+                      filter(symbol %in% .x)
+                    )) %>% 
+  mutate(contrast = str_extract(contrast, ".*(?=\\s\\-)")) %>% 
+  rename(target = contrast)
+  
+  # counts_imputed_t_helper_tree %>% 
+  # rename(symbol = feature) %>% 
+  # filter(cell_type %in% c("t_helper_h1", "t_helper_h2", "t_helper_h17")) %>% 
+  # filter(symbol %in% (hierarchical_mean_contrast_bayes___silhouette_curvature_t_helper %>% pluck("signature", 5)))  
+  # select(symbol, sample, cell_type, count_scaled)
 
+# t helper h1 signature
+x %>% 
+  pluck("data", 1) %>% 
+  ggplot(aes(cell_type, log10(count_scaled+1), color = cell_type)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter() +
+  facet_wrap(~ symbol) +
+  labs(title = "t_helper_h1 signature") +
+  theme(axis.text.x = element_blank())
 
+# t helper h2 signature
+x %>% 
+  pluck("data", 3) %>% 
+  ggplot(aes(cell_type, log10(count_scaled+1), color = cell_type)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter() +
+  facet_wrap(~ symbol) +
+  labs(title = "t_helper_h2 signature") +
+  theme(axis.text.x = element_blank())
+  
+# t helper h17 signature
+x %>% 
+  pluck("data", 2) %>% 
+  ggplot(aes(cell_type, log10(count_scaled+1), color = cell_type)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter() +
+  facet_wrap(~ symbol) +
+  labs(title = "t_helper_h17 signature") +
+  theme(axis.text.x = element_blank())
   
  
-y %>% 
-  nest(data = -c(stream, signature, silhouette, avg_silhouette)) %>% 
-  select(-data) %>% 
-  unnest(silhouette) %>% 
-  filter(cell_type %in% c("t_helper_h1", "t_helper_h2"," t_helper_h17", "t_reg")) %>% 
-  group_by(cell_type) %>% 
-  arrange(desc(cluster_silhouette), .by_group = TRUE) %>% 
-  ungroup
+# y %>% 
+#   nest(data = -c(stream, signature, silhouette, avg_silhouette)) %>% 
+#   select(-data) %>% 
+#   unnest(silhouette) %>% 
+#   filter(cell_type %in% c("t_helper_h1", "t_helper_h2"," t_helper_h17", "t_reg")) %>% 
+#   group_by(cell_type) %>% 
+#   arrange(desc(cluster_silhouette), .by_group = TRUE) %>% 
+#   ungroup
   
 
