@@ -42,13 +42,13 @@ output_file = args[9]
 
 readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/intermediate_data/counts_imputed_non_hierarchy.rds") %>% 
   
-  main(.sample=sample, .symbol=symbol, 
+  main(.sample=sample, .symbol=symbol, .count = NULL, .cell_type = cell_type,
        .is_hierarchy=.is_hierarchy, 
        .contrast_method=.contrast_method, 
        .ranking_method=.ranking_method, 
        .rank_stat=.rank_stat, 
        .bayes=.bayes, 
-       .selection_method=selection, .kmax=60, .discard_number=5000, .reduction_method = "PCA",
+       .selection_method=selection, .kmax=60, .discard_number=2000, .reduction_method = "PCA",
        .dims=dims,
        .optimisation_method = optimisation, .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
        .is_complete = TRUE) %>% 

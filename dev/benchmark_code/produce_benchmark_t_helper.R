@@ -39,6 +39,8 @@ readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/benchmar
   dplyr::rename(symbol = feature) %>% 
   main(.sample = sample, 
        .symbol = symbol,
+       .count = NULL,
+       .cell_type = cell_type,
        .is_hierarchy=.is_hierarchy,
        .contrast_method=.contrast_method, 
        .ranking_method=.ranking_method, 
