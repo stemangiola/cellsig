@@ -3443,4 +3443,225 @@ x %>%
   unnest(data) %>% 
   select(-level.copy)
 
+hierarchical pairwise_contrast bayes _ naive penalty 10 1
+
+x <- 
+counts_imputed_hierarchy %>% 
+  do_ranking(.sample=sample, .symbol=symbol, .ranking_method = rank_bayes, 
+             .contrast_method = pairwise_contrast, .bayes = counts_bayes_imputed_hierarchy)
+
+y <- x %>% 
+  mutate(level.copy = level) %>% 
+  nest(data = -level.copy) %>% 
+  
+  mutate(data = map(
+    data,
+    ~ .x %>% 
+      
+      do_selection(.sample = sample, 
+                   .symbol = symbol,
+                   .selection_method="naive", 
+                   .reduction_method="PCA", 
+                   .kmax=10,
+                   .dims=10)
+    
+  )) %>% 
+  
+  mutate(data = map(
+    data,
+    ~ .x %>% 
+      
+      do_optimisation(.optimisation_method = .optimisation_method, .symbol=!!.symbol) %>%
+      
+      format_output(.is_complete = .is_complete)
+    
+  )) %>%
+  
+  unnest(data) %>% 
+  select(-level.copy)
+
+do_naive_selection <- function(.ranked, .sample, .symbol, .kmax, .reduction_method, .dims=2) {
+  
+  # Args:
+  # .ranked: output from do_ranking
+  # .kmax: maximum number of markers selected from each cell type contrast
+  # .reduction_method: method used to reduce dimensions such as "PCA", "tSNE", "MSA", "UMAP"
+  .sample = enquo(.sample)
+  .symbol = enquo(.symbol)
+  
+  .ranked %>% 
+    
+    # calculate the minimum number of genes need to be selected for feasible dimension reduction
+    mutate(k0 = map_int(markers, ~ min_markers_per_contrast(.x, .dims=.dims))) %>% 
+    
+    # expand the number of markers selected to .kmax
+    mutate(n_markers_from_each_contrast = map(k0, ~ .x: .kmax)) %>% 
+    
+    # clean unnecessary data
+    select(-k0) %>%
+    
+    # expand the nuber of markers need to be selected
+    unnest(n_markers_from_each_contrast) %>% 
+    nest(data = -n_markers_from_each_contrast) %>% 
+    
+    # do naive selection according to the number of markers from each contrast and calculate silhouette score for the signature
+    mutate(data = map2(
+      data, n_markers_from_each_contrast,
+      
+      ~ naive_selection(.ranked=.x, .k=.y, .symbol=!!.symbol) %>%
+        
+        silhouette_function(.sample=!!.sample,
+                            .symbol=!!.symbol,
+                            .reduction_method=.reduction_method,
+                            .dims=.dims) %>%
+        
+        # optional: remove reduced_dimensions matrix to save memory, if kept it can be used to plot PCA
+        select(-reduced_dimensions)
+    )) %>%
+    
+    # nest by ancestor nodes/cell types
+    unnest(data) %>%
+    nest(data = - c(level, ancestor))
+  
+}
+
+min_markers_per_contrast <- function(.markers, .dims){
+  k = 1L
+  n_unique_markers = .markers %>% 
+    mutate(top_k = map(stat_df, ~ .x %>% slice(1:k) %>% pull(symbol))) %>% 
+    pull(top_k) %>% 
+    unlist %>% 
+    n_distinct
+  
+  while (n_unique_markers < .dims) {
+    k = k + 1L
+    n_unique_markers = .markers %>% 
+      mutate(top_k = map(stat_df, ~ .x %>% slice(1:k) %>% pull(symbol))) %>% 
+      pull(top_k) %>% 
+      unlist %>% 
+      n_distinct
+  }
+  
+  return(k)
+}
+
+hierarchical pairwise_contrast edgR_robust PValue silhouette curvature 10 0
+
+hierarchical_mean_contrast_edgR_PValue_silhouette_curvature_10.rds
+
+non_hierarchical_mean_contrast_bayes___silhouette_curvature_2.rds
+
+hierarchical_mean_contrast_edgR_PValue_silhouette_curvature_2.rds
+
+non_hierarchical_pairwise_contrast_edgR_logFC_naive_penalty_4.rds
+
+xx <- counts_imputed_non_hierarchy %>% 
+  # counts_imputed_non_hierarchy %>% 
+  do_ranking(.sample=sample, .symbol=symbol, .ranking_method = rank_edgR_quasi_likelihood, 
+             .contrast_method = pairwise_contrast, .rank_stat = "logFC")
+
+y <- xx %>% 
+  do_selection(.sample=sample, 
+               .symbol=symbol,
+               .selection_method="naive", 
+               .reduction_method="PCA", 
+               .kmax=60,
+               .dims=4)
+
+y <- xx %>% 
+  mutate(level.copy = level) %>% 
+  nest(data = -level.copy) %>% 
+  
+  mutate(data = map(
+    data,
+    ~ .x %>% 
+      
+      do_selection(.sample = sample, 
+                   .symbol = symbol,
+                   .selection_method="silhouette", 
+                   .reduction_method="PCA", 
+                   .discard_number = 2000,
+                   .dims=2)
+    
+  ))
+
+z <- y %>% 
+  
+  # slice(3) %>% 
+  
+  mutate(data = map(
+    data,
+    ~ .x %>% 
+      
+      do_optimisation(.optimisation_method = "curvature", .symbol=symbol) %>%
+      
+      format_output(.is_complete = TRUE)
+    
+  )) %>%
+  
+  unnest(data) %>% 
+  select(-level.copy)
+
+
+do_scaling <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
+  .sample = enquo(.sample)
+  .symbol = enquo(.symbol)
+  .count = enquo(.count)
+  .cell_type = enquo(.cell_type)
+  
+  .data_tree %>% 
+    
+    nest(data = -c(level_1, !!.symbol)) %>%
+    add_count(!!.symbol) %>%
+    filter(n==n_distinct(.data_tree$level_1)) %>%
+    select(-n) %>%
+    unnest(data) %>%
+    
+    # Convert to SE
+    as_SummarizedExperiment(!!.sample, !!.symbol, !!.count)  %>%
+    
+    # Scale with first degree imputation. 
+    # This because there are no common genes to all samples
+    impute_missing_abundance(~ !!.cell_type, suffix="") %>%
+    identify_abundant() %>%
+    scale_abundance() %>%
+    filter(!.imputed) %>% 
+    
+    select(-.imputed)  %>%
+    
+    # Just needed for the old version
+    # select(-one_of("exposure_rate")) %>%
+    
+    # Calculate exposure for Bayes model
+    mutate(exposure_rate = -log(multiplier))
+}
+
+do_imputation <- function(.scaled_counts, .sample, .symbol, .cell_type){
+  .sample = enquo(.sample)
+  .symbol = enquo(.symbol)
+  .cell_type = enquo(.cell_type)
+  
+  .scaled_counts %>% 
+    # Convert to SE
+    # as_SummarizedExperiment(.sample, .feature, count) %>%
+    as_SummarizedExperiment(!!.sample, !!.symbol, count_scaled) %>%
+    
+    # Hierarchical imputation. Suffix = "" equated to overwrite counts
+    impute_missing_abundance(~ !!.cell_type, suffix="") %>%
+    
+    {
+      for(level in (.) %>% colnames %>% str_extract("level\\_\\d") %>% .[!is.na(.)]) {
+        (.) %>% 
+          impute_missing_abundance(~ !!as.symbol(level), suffix="")
+      }
+      
+    } %>% 
+    
+    # Convert back to tibble
+    as_tibble() %>%
+    
+    mutate(.imputed = if_any(contains("imputed"), ~ .x != 0)) %>% 
+    
+    select(-matches("imputed\\.\\d"))
+}
 
