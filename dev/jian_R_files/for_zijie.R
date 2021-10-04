@@ -4,7 +4,7 @@
 
 source("dev/jian_R_files/function_jian.R")
 
-counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count=NULL, .cell_type,
+counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_type,
                                        .is_hierarchy=TRUE, .level=NULL, 
                                        .tree, .node=NULL,
                                        .contrast_method, .ranking_method, .rank_stat=NULL, .bayes=NULL, 
@@ -140,7 +140,7 @@ jian_example_output =
   counts_tree_to_gene_markers(
     
     # first specify the names of the essential variables(columns) in the input data frame so that the function knows which is which
-    .sample = sample, .symbol = feature, .cell_type = cell_type,
+    .sample = sample, .symbol = feature, .cell_type = cell_type, .count = count_scaled,
     
     # choose hierarchical method: there are 2 options: hierarchical or non_hierarchical by setting .is_hierarchy to TRUE or FALSE
     # hierarchical method is better for your purpose
@@ -197,7 +197,7 @@ zijie_input_expression_data %>%
   
   counts_tree_to_gene_markers(
     
-    .sample = sample, .symbol = transcript, .cell_type = cell_type_formatted,
+    .sample = sample, .symbol = transcript, .cell_type = cell_type_formatted, .count = count_scaled,
     
     .is_hierarchy=TRUE,
 
