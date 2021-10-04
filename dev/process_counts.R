@@ -50,7 +50,7 @@ counts %>%
   
   # eliminate genes that are not in all cell types level 1
   nest(data = -c(level_1, symbol)) %>%
-  add_count( symbol) %>%
+  add_count(symbol) %>%
   filter(n==4) %>%
   select(-n) %>%
   unnest(data) %>%
