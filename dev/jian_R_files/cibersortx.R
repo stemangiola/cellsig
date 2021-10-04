@@ -11,6 +11,12 @@ load("/stornext/Home/data/allstaff/w/wu.j/Master Project/cellsig/dev/counts.rda"
 
 tt_simple <- readRDS("dev/intermediate_data/tt_simple.rds")
 
+counts_imputed <- 
+  readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/intermediate_data/counts_imputed.rds") %>% 
+  rename(symbol = feature)
+
+new_tree <- read_yaml("dev/jian_R_files/new_tree.yaml")
+
 # Functions ======================================================
 
 ## 2.5 Silhouette function
@@ -57,17 +63,15 @@ sil_func0 <- function(.markers, .method){
 
 ## create reference file
 
-reference <- counts_non_hierarchy %>% 
-  unnest(tt) %>% 
-  unnest(data) %>% 
-  select(sample, cell_type, count, symbol) %>% 
+reference <- counts_imputed %>% 
+  filter(cell_type %in% as.phylo(new_tree)$tip.label) %>% 
+  select(sample, cell_type, count_scaled, symbol) %>% 
   mutate(sample = str_replace_all(sample, "\\.", "_")) %>%
-  pivot_wider(names_from = c(cell_type, sample), values_from = count, names_sep=".")
+  pivot_wider(names_from = c(cell_type, sample), values_from = count_scaled, names_sep=".")
 
 ## vector ref_names is produced below yet used here to create header for reference file
-ref_names <- counts_non_hierarchy %>% 
-  unnest(tt) %>% 
-  unnest(data) %>% 
+ref_names <- counts_imputed %>% 
+  filter(cell_type %in% as.phylo(new_tree)$tip.label) %>% 
   mutate(sample = str_replace_all(sample, "\\.", "_")) %>%
   unite(cell_sample, c(cell_type, sample), sep = ".") %>% 
   pull(cell_sample) %>% 
@@ -82,12 +86,7 @@ names(reference) <- header
 reference
 
 ## create phenoclass file
-cell_types <- counts_non_hierarchy %>%
-  unnest(tt) %>% 
-  unnest(data) %>% 
-  pull(cell_type) %>% 
-  unique() %>% 
-  as.character()
+cell_types <- as.phylo(new_tree)$tip.label
 
 ref_tibble <- tibble(ref_names, value=1:length(ref_names)) %>% 
   pivot_wider(names_from = ref_names, values_from = value)
