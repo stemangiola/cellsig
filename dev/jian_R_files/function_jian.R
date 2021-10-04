@@ -1,6 +1,6 @@
 # devtools::install_github("stemangiola/nanny@convert-to-S3", force = TRUE)
 # devtools::install_github("stemangiola/tidybulk@dev", force = TRUE)
-# devtools::install_github("stemangiola/cellsig@dev")
+# devtools::install_github("stemangiola/cellsig@dev", force = TRUE)
 
 library(yaml)
 library(tidytext)
@@ -1565,8 +1565,9 @@ library(tidySummarizedExperiment)
 #   
 # }
 
-main <- function(.input, .sample, .symbol, .is_hierarchy=TRUE, .level=NULL, 
-                 # .count, .cell_type, .tree, .node=NULL,
+main <- function(.input, .sample, .symbol, .count, .cell_type,
+                 .is_hierarchy=TRUE, .level=NULL, 
+                 # .tree, .node=NULL,
                  .contrast_method, .ranking_method, .rank_stat=NULL, .bayes=NULL, 
                  .selection_method, .kmax=60, .discard_number=2000, .reduction_method = "PCA", .dims=2,
                  .optimisation_method, .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
@@ -1574,31 +1575,35 @@ main <- function(.input, .sample, .symbol, .is_hierarchy=TRUE, .level=NULL,
   
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
-  # .count = enquo(.count)
-  # .cell_type = enquo(cell_type)
+  .count = enquo(.count)
+  .cell_type = enquo(.cell_type)
   
-  # subtree = tree_subset(.tree, .node=.node)
+  # subtree = tree_subset(.tree=.tree, .node=.node)
   
   if ( (!.is_hierarchy)|(.selection_method == "naive")) {
     
     .input %>%
       
-      # adapt_tree(.tree = .tree, .subtree = subtree) %>% 
+      # adapt_tree(.tree = .tree, .node = .node) %>%
       # 
-      # tree_and_signatures_to_database(tree=.tree, ., .sample=!!.sample, .cell_type=!!.cell_type, 
-      #                                .symbol=!!.symbol, .count=!!.count) %>% 
+      # tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
+      #                                .symbol=!!.symbol, .count=!!.count) %>%
+      # 
+      # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
       #   
-      # do_imputation() %>% 
+      # do_imputation(.sample = !!.sample, .symbol=!!.symbol, .cell_type=!!.cell_type) %>% 
       
 
       # do_hierarchy(.sample=!!.sample,
       #              .symbol=!!.symbol,
+      #              .cell_type = !!.cell_type,
       #              .is_hierarchy=.is_hierarchy,
       #              .level=.level) %>%
       
       # Input: data.frame columns_1 <int> | ...
       do_ranking(.sample=!!.sample, 
                  .symbol=!!.symbol,
+                 .cell_type = !!.cell_type,
                  .ranking_method=.ranking_method, 
                  .contrast_method=.contrast_method, 
                  .rank_stat=.rank_stat, 
@@ -1622,16 +1627,19 @@ main <- function(.input, .sample, .symbol, .is_hierarchy=TRUE, .level=NULL,
     
     .input %>%
       
-      # adapt_tree(.tree = .tree, .subtree = subtree) %>% 
+      # adapt_tree(.tree = .tree, .node = .node) %>% 
       # 
-      # tree_and_signatures_to_database(tree=.tree, ., .sample=!!.sample, .cell_type=!!.cell_type, 
+      # tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type, 
       #                                .symbol=!!.symbol, .count=!!.count) %>% 
+      # 
+      # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
       #   
-      # do_imputation() %>% 
+      # do_imputation(.sample = !!.sample, .symbol=!!.symbol, .cell_type=!!.cell_type) %>% 
       
  
       # do_hierarchy(.sample=!!.sample,
       #              .symbol=!!.symbol,
+      #              .cell_type = !!.cell_type,
       #              .is_hierarchy=.is_hierarchy,
       #              .level=.level) %>%
       
@@ -1671,6 +1679,7 @@ main <- function(.input, .sample, .symbol, .is_hierarchy=TRUE, .level=NULL,
 
 # Add tree structure to raw data frame
 tree_and_signatures_to_database = function(tree, signatures, .sample, .cell_type, .symbol, .count){
+  
   .sample = enquo(.sample)
   .cell_type = enquo(.cell_type)
   .symbol = enquo(.symbol)
@@ -1702,18 +1711,17 @@ tree_and_signatures_to_database = function(tree, signatures, .sample, .cell_type
 
 # Input scale abundance
 
-do_hierarchy <- function(.imputed_counts, .sample, .symbol, .is_hierarchy = TRUE, .level = NULL){
+do_hierarchy <- function(.imputed_counts, .sample, .symbol, .cell_type, .is_hierarchy = TRUE, .level = NULL){
   
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
+  .cell_type = enquo(.cell_type)
 
   if (.is_hierarchy) { # scaling under each ancestor node at each level
 
     if (is.null(.level)) { # scale counts for all levels present
 
-      tt_hierarchy <-
-
-        tibble(level = names(.imputed_counts) %>% str_subset("level")) %>%
+      tibble(level = names(.imputed_counts) %>% str_subset("level")) %>%
 
         mutate(tt = map(level, ~ .imputed_counts %>%
 
@@ -1725,9 +1733,7 @@ do_hierarchy <- function(.imputed_counts, .sample, .symbol, .is_hierarchy = TRUE
 
     } else { # scale counts for the level specified by .level
 
-      tt_hierarchy <-
-
-        tibble(level = .level) %>%
+      tibble(level = .level) %>%
 
         mutate(tt = map(level, ~ .imputed_counts %>%
 
@@ -1738,27 +1744,25 @@ do_hierarchy <- function(.imputed_counts, .sample, .symbol, .is_hierarchy = TRUE
         mutate(tt = map2(tt, level, ~ .x %>% dplyr::rename(ancestor = pre(.y))))
     }
 
-    return(tt_hierarchy)
-
   } else { # non-hierarchical: scaling all cell types under the root node
 
     .level <- "root"
 
-    tt_non_hierarchy <-
-
-      tibble(level = .level) %>%
+    tibble(level = .level) %>%
 
       mutate(tt = map(level, ~ .imputed_counts %>%
+                        
+                        # non-hierarchical methods should only compare leaf cell types
+                        filter(!!.cell_type %in% as.phylo(.tree)$tips) %>% 
 
                         # create a root column for pre(.level)
-                        mutate(!!as.symbol(.level) := cell_type) %>%
+                        mutate(!!as.symbol(.level) := !!.cell_type) %>%
                         mutate(!!as.symbol(pre(.level)) := .level) %>%
 
                         create_hierarchy_and_calculate_imputation_ratio(.level=.x, .sample=!!.sample, .symbol=!!.symbol))) %>%
 
       mutate(tt = map2(tt, level, ~ .x %>% dplyr::rename(ancestor = pre(.y))))
 
-    return(tt_non_hierarchy)
   }
 }
 
@@ -1870,11 +1874,12 @@ mean_contrast <- function(.data, .level){
 
 # Rank
 
-do_ranking <- function(.hierarchical_counts, .sample, .symbol, .ranking_method, .contrast_method, .rank_stat,
-                       .bayes){
+do_ranking <- function(.hierarchical_counts, .sample, .symbol, .cell_type, .ranking_method, .contrast_method, .rank_stat=NULL,
+                       .bayes=NULL){
 
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
+  .cell_type = enquo(.cell_type)
 
   # rank_stat takes either "Pvalue" or "logFC"
   .hierarchical_counts %>%
@@ -1882,6 +1887,7 @@ do_ranking <- function(.hierarchical_counts, .sample, .symbol, .ranking_method, 
     # .bayes = .cellsig_theoretical_transcript_abundace_distribution
     .ranking_method(.sample=!!.sample,
                     .symbol=!!.symbol,
+                    .cell_type = !!.cell_type,
                     .contrast_method=.contrast_method,
                     .rank_stat=.rank_stat,
                     .bayes=.bayes) %>%
@@ -1898,10 +1904,11 @@ do_ranking <- function(.hierarchical_counts, .sample, .symbol, .ranking_method, 
 
 }
 
-rank_edgR_quasi_likelihood <- function(.hierarchical_counts, .sample, .symbol, .contrast_method, .rank_stat, .bayes=NULL){
+rank_edgR_quasi_likelihood <- function(.hierarchical_counts, .sample, .symbol, .cell_type, .contrast_method, .rank_stat, .bayes=NULL){
 
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
+  .cell_type = enquo(.cell_type)
 
   .hierarchical_counts %>%
     unnest(tt) %>%
@@ -1936,7 +1943,7 @@ rank_edgR_quasi_likelihood <- function(.hierarchical_counts, .sample, .symbol, .
     #   ~..1 %>%
     #
     #     # filter for target cell type in data
-    #     filter(cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>%
+    #     filter(!!.cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>%
     #
     #     # select the symbols and ratio of imputed samples for that gene in the target cell type
     #     distinct(!!.symbol, ratio_imputed_samples) %>%
@@ -1948,10 +1955,11 @@ rank_edgR_quasi_likelihood <- function(.hierarchical_counts, .sample, .symbol, .
 
 }
 
-rank_edgR_robust_likelihood_ratio <- function(.hierarchical_counts, .sample, .symbol, .contrast_method, .rank_stat="PValue",
+rank_edgR_robust_likelihood_ratio <- function(.hierarchical_counts, .sample, .symbol, .cell_type, .contrast_method, .rank_stat="PValue",
                                               .bayes=NULL){
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
+  .cell_type = enquo(.cell_type)
 
   .hierarchical_counts %>%
     unnest(tt) %>%
@@ -1990,7 +1998,7 @@ rank_edgR_robust_likelihood_ratio <- function(.hierarchical_counts, .sample, .sy
     #   ~..1 %>%
     #
     #     # filter for target cell type in data
-    #     filter(cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>%
+    #     filter(!!.cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>%
     #
     #     # select the symbols and ratio of imputed samples for that gene in the target cell type
     #     distinct(!!.symbol, ratio_imputed_samples) %>%
@@ -2002,8 +2010,6 @@ rank_edgR_robust_likelihood_ratio <- function(.hierarchical_counts, .sample, .sy
 }
 
 rank_by_stat <-  function(.markers, .rank_stat){
-
-  # .rank_stat = enquo(.rank_stat)
 
   .markers %>%
 
@@ -2039,7 +2045,7 @@ rank_by_stat <-  function(.markers, .rank_stat){
     ))
 }
 
-rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .contrast_method, .bayes, .rank_stat=NULL){
+rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type, .contrast_method, .bayes, .rank_stat=NULL){
 
   # Args:
   # .bayes is the bayes data that have been imputed and obtained gene imputation ratio by the code:
@@ -2048,13 +2054,14 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .contrast_method,
   #   scale_input_counts(.is_hierarchy = TRUE)
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
+  .cell_type = enquo(.cell_type)
 
   .bayes %>%
     
     # force the column names of bayes data to be consistent with input expression data
-    # dplyr::rename(!!.symbol := feature, !!.sample := sample) %>%
+    # dplyr::rename(!!.symbol := feature, !!.sample := sample, !!.cell_type := cell_type) %>%
     # do_hierarchy(.is_hierarchy = all(.hierarchical_counts$level != "root"),
-    #              .sample=!!.sample, .symbol=!!.symbol) %>%
+    #              .sample=!!.sample, .symbol=!!.symbol, .cell_type= !!.cell_type) %>%
 
     unnest(tt) %>%
 
@@ -2067,7 +2074,7 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .contrast_method,
       data, contrast,
       ~ .x %>%
         # filter for target cell type in the contrast
-        filter(cell_type == str_extract(.y, ".*(?=\\s\\-)")) %>%
+        filter(!!.cell_type == str_extract(.y, ".*(?=\\s\\-)")) %>%
         # filter out genes with imputation ratio greater than 0.2 (only used for user pipeline not benchmark)
         # filter(ratio_imputed_samples < 0.2) %>%
         select(!!.symbol, lower_quantile='25%')
@@ -2085,7 +2092,7 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .contrast_method,
 
         (.x) %>%
           # calculate the mean 75% quantile of each gene over all background cell types
-          filter(cell_type %in% background) %>%
+          filter(!!.cell_type %in% background) %>%
           group_by(!!.symbol) %>%
           summarise(!!.symbol, mean_upper_quantile = mean(`75%`)) %>%
           distinct() %>%
@@ -2156,6 +2163,29 @@ do_selection <-
 
 ### calculate silhouette score for a series of sig_sizes
 
+min_markers_per_contrast <- function(.markers, .dims, .symbol){
+  
+  .symbol = enquo(.symbol)
+  
+  k = 1L
+  n_unique_markers = .markers %>% 
+    mutate(top_k = map(stat_df, ~ .x %>% slice(1:k) %>% pull(!!.symbol))) %>% 
+    pull(top_k) %>% 
+    unlist %>% 
+    n_distinct
+  
+  while (n_unique_markers < .dims) {
+    k = k + 1L
+    n_unique_markers = .markers %>% 
+      mutate(top_k = map(stat_df, ~ .x %>% slice(1:k) %>% pull(!!.symbol))) %>% 
+      pull(top_k) %>% 
+      unlist %>% 
+      n_distinct
+  }
+  
+  return(k)
+}
+
 do_naive_selection <- function(.ranked, .sample, .symbol, .kmax, .reduction_method, .dims=2) {
 
   # Args:
@@ -2167,20 +2197,14 @@ do_naive_selection <- function(.ranked, .sample, .symbol, .kmax, .reduction_meth
   
   .ranked %>% 
     
-    # find the number of contrasts for each ancestor node
-    mutate(n_contrast = map_int(markers, ~ .x %>% nrow) ) %>% 
-    
     # calculate the minimum number of genes need to be selected for feasible dimension reduction
-    mutate(k0 = map_int(n_contrast, 
-                        ~ if(.x>=.dims){1L}
-                        else{(.dims %% .x + .dims %/%.x) %>% as.integer}
-                        )) %>% 
+    mutate(k0 = map_int(markers, ~ min_markers_per_contrast(.x, .dims=.dims, .symbol = !!.symbol))) %>% 
     
     # expand the number of markers selected to .kmax
     mutate(n_markers_from_each_contrast = map(k0, ~ .x: .kmax)) %>% 
     
     # clean unnecessary data
-    select(-c(n_contrast, k0)) %>%
+    select(-k0) %>%
     
     # expand the nuber of markers need to be selected
     unnest(n_markers_from_each_contrast) %>% 
@@ -2368,14 +2392,9 @@ do_silhouette_selection <-
       # contrast_copy contains all the statistics of all cell_type contrasts for each gene
       .ranked %>%
       
-      # find the number of contrasts for each ancestor node
-      mutate(n_contrast = map_int(markers, ~ .x %>% nrow) ) %>% 
+      # calculate the minimum number of genes need to be selected for feasible dimension reduction
+      mutate(k0 = map_int(markers, ~ min_markers_per_contrast(.x, .dims=.dims, .symbol = !!.symbol))) %>% 
       
-      # find the minimum number (k0) of genes that need to be selected from each contrast for feasible dimension reduction
-      mutate(k0 = map_int(n_contrast, 
-                          ~ if(.x>=.dims){1L}
-                          else{(.dims %% .x + .dims %/%.x) %>% as.integer}
-                          )) %>% 
       # nest by k0 because naive selection takes the whole ranked data frame
       nest(data = -k0) %>% 
       
@@ -2385,7 +2404,7 @@ do_silhouette_selection <-
       unnest(data) %>% 
       
       # clean up data
-      select(-c(n_contrast, k0)) %>% 
+      select(-k0) %>% 
 
       dplyr::rename(new_challengers = signature) %>%
 
@@ -2430,7 +2449,7 @@ do_silhouette_selection <-
     j <- map_int(signature$signature, ~ length(.x))
 
     # count the number of iterations
-    i <- 0
+    i <- 0L
     while (any(j < .discard_number) &
            # markers contains genes including many that do not satisfy logFC > 2 & FDR < 0.05 & logCPM > mean(logCPM)
            all(map_int(ranked_copy$markers,
@@ -2568,7 +2587,7 @@ do_silhouette_selection <-
       cat("genes discarded for each node: ", j, "\n")
       cat("genes selected for each node: ", map_int(signature$signature, ~ length(.x)),  "\n")
 
-      i <- i + 1
+      i <- i + 1L
       cat("iteration: ", i, "\n")
 
     }
@@ -2621,12 +2640,29 @@ do_optimisation <- function(.selected,
     if (.optimisation_method == "penalty"){
 
       .selected %>%
-        mutate(optimal_size = map_int(data, ~ penalised_silhouette(.x, .penalty_rate=.penalty_rate)))
+        
+        mutate(optimal_size = map_int(
+          data, 
+          ~ if(nrow(.x)==1L){
+            .x %>% pull(real_size)
+          }else{
+            .x %>% penalised_silhouette(.penalty_rate=.penalty_rate)
+          }
+          ))
 
     } else if(.optimisation_method == "curvature") {
 
       .selected %>%
-        curvature_of_kernel_smoothed_trend(.kernel=.kernel, .bandwidth=.bandwidth, .gridsize=.gridsize)
+        
+        mutate(optimal_size = map_int(
+          data,
+          ~ if(nrow(.x) == 1L){
+            .x %>% pull(real_size)
+          }else{
+            .x %>% 
+              curvature_of_kernel_smoothed_trend(.kernel=.kernel, .bandwidth=.bandwidth, .gridsize=.gridsize)
+            }
+        ))
     }
 
   } %>%
@@ -2685,6 +2721,9 @@ curvature_of_kernel_smoothed_trend <- function(.plot_data,
                                                .bandwidth = 0.05,
                                                .gridsize = 100){
   .plot_data %>%
+    
+    mutate(head = "head") %>% 
+    nest(data = -head) %>% 
 
     mutate(data = map(
       data,
@@ -2757,7 +2796,9 @@ curvature_of_kernel_smoothed_trend <- function(.plot_data,
     # set the minimum signature size recommended to be 10.
     # note that some ancestor nodes might have fewer than 10 marker select and
     # the signature size will be the maximum number of markers selected for that node
-    mutate(optimal_size = ifelse(optimal_size<10L, 10L, optimal_size))
+    mutate(optimal_size = ifelse(optimal_size<10L, 10L, optimal_size)) %>% 
+    
+    pull(optimal_size)
 
 }
 
@@ -2803,14 +2844,86 @@ format_output <- function(.optimised, .is_complete=TRUE){
 }
 
 # Benchmark evaluation
-silhouette_evaluation <- function(.signature, .reduction_method, .tree, .imputed_counts, .sample, .symbol, .dims=2){
+evaluation <- function(.signature, .mixture, .imputed_counts, 
+                       .stream, .markers, .sample, .symbol,
+                       .reduction_method, .dims=2, .tree){
+  
+  .stream = enquo(.stream)
+  .markers = enquo(.markers)
+  .sample = enquo(.sample)
+  .symbol = enquo(.symbol)
+
+  
+  .signature %>% 
+    
+    # silhouette evaluation
+    mutate(silhouette = map(
+      !!.markers, 
+      ~ silhouette_evaluation(
+        .markers = .x,
+        .reduction_method = .reduction_method,
+        .tree = .tree,
+        .imputed_counts = .imputed_counts,
+        .sample = !!.sample,
+        .symbol = !!.symbol,
+        .dims = .dims)
+    )) %>% 
+    
+    mutate(avg_silhouette = map_dbl(silhouette, ~ mean(.x$sil_width))) %>%
+    
+    mutate(silhouette = map(
+      silhouette, 
+      ~ .x %>% 
+        group_by(cell_type) %>% 
+        summarise(cluster_silhouette = mean(sil_width), cluster_size = n()) %>% 
+        distinct() %>% 
+        ungroup()
+    )) %>% 
+    
+    # deconvolution evaluation
+    # for each mixture, combine with the signatures from all methods
+    expand_grid(.mixture, .) %>% 
+    
+    mutate(deconvolution = map2(
+      !!.markers, mix, 
+      ~ deconvolution_evaluation(
+        .markers = .x, 
+        .mixture = .y, 
+        .tree = .tree,
+        .imputed_counts = .imputed_counts,
+        .sample = !!.sample,
+        .symbol = !!.symbol)
+    )) %>% 
+    
+    # mse by method
+    mutate(MSE = map_dbl(
+      deconvolution,
+      ~ mean((.x$estimated_proportion - .x$proportion)^2)
+    )) %>% 
+    nest(data=-!!.stream) %>% 
+    # mutate(median_MSE_over_mixes = map_dbl(data, ~ median(.x$MSE))) %>%
+    mutate(mean_MSE_over_mixes = map_dbl(data, ~ mean(.x$MSE))) %>%
+    unnest(data) %>% 
+    
+    # mse by cell type
+    unnest(deconvolution) %>% 
+    mutate(squared_error = (estimated_proportion - proportion)^2) %>% 
+    nest(data = -c(!!.stream, cell_type)) %>% 
+    mutate(mean_MSE_for_cell_type = map_dbl(data, ~ mean(.x$squared_error))) %>% 
+    unnest(data) %>% 
+    
+    select(-c(!!.markers, mixture_ID, mix, replicate, estimated_proportion, proportion, squared_error))
+  
+}
+
+silhouette_evaluation <- function(.markers, .reduction_method, .tree, .imputed_counts, .sample, .symbol, .dims=2){
 
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
 
   # modified silhouette_function and silhouette_score for evaluation
 
-  silhouette_score <- function(.reduced_dimensions, .distance, .level){
+  silhouette_info <- function(.reduced_dimensions, .distance, .level){
 
     silhouette <- .reduced_dimensions %>%
 
@@ -2821,6 +2934,7 @@ silhouette_evaluation <- function(.signature, .reduction_method, .tree, .imputed
       as.numeric() %>%
 
       silhouette(.distance)
+    
 
     tibble(cluster = silhouette[, "cluster"],
            neighbor = silhouette[, "neighbor"],
@@ -2859,7 +2973,7 @@ silhouette_evaluation <- function(.signature, .reduction_method, .tree, .imputed
       # calculate silhouette score
       mutate(silhouette = pmap(
         list(reduced_dimensions, distance, level),
-        ~ silhouette_score(.reduced_dimensions=..1, .distance=..2,  .level=..3)
+        ~ silhouette_info(.reduced_dimensions=..1, .distance=..2,  .level=..3)
       )) %>%
 
       # remove unnecessary columns
@@ -2868,24 +2982,27 @@ silhouette_evaluation <- function(.signature, .reduction_method, .tree, .imputed
   }
 
   .imputed_counts %>%
+    mutate(level = "root") %>% 
+    mutate(root = cell_type) %>% 
     filter(cell_type %in% as.phylo(.tree)$tip.label) %>% 
-    filter(!!.symbol %in% .signature) %>%
-    nest(markers = -c(level, ancestor)) %>%
+    filter(!!.symbol %in% .markers) %>%
+    nest(markers = - level) %>%
     # calculate silhouette score for all signatures combined in each method
     silhouette_function(.sample=!!.sample, .symbol=!!.symbol, .reduction_method = .reduction_method, .dims=.dims) %>%
     select(silhouette) %>%
     unnest(silhouette)
 }
 
-deconvolution_evaluation <- function(.signature, .mix, .tree, .imputed_counts, .sample, .symbol){
+deconvolution_evaluation <- function(.markers, .mixture, .tree, .imputed_counts, .sample, .symbol){
 
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
 
   # filter out data for signature genes
   reference <- .imputed_counts %>%
+    
     filter(cell_type %in% as.phylo(.tree)$tip.label) %>% 
-    filter(!!.symbol %in% .signature) %>%
+    filter(!!.symbol %in% .markers) %>%
 
     # reshape the input matrix for deconvolve_cellularity():
     select(!!.symbol, cell_type, !!.sample, count_scaled) %>%
@@ -2897,7 +3014,7 @@ deconvolution_evaluation <- function(.signature, .mix, .tree, .imputed_counts, .
     tidybulk::as_matrix(rownames = !!.symbol)
 
   tidybulk::deconvolve_cellularity(
-    .data = .mix,
+    .data = .mixture,
     .sample = replicate,
     .transcript = symbol,
     .abundance = count_mix,
@@ -2912,7 +3029,7 @@ deconvolution_evaluation <- function(.signature, .mix, .tree, .imputed_counts, .
                  values_to="estimated_proportion") %>%
     
     # join by the true proportion
-    left_join(.mix %>%
+    left_join(.mixture %>%
                 unnest(data_samples) %>%
                 distinct(replicate, cell_type, proportion))
 
@@ -2921,15 +3038,15 @@ deconvolution_evaluation <- function(.signature, .mix, .tree, .imputed_counts, .
 # subset tree
 
 # adapt_tree modifies the cell_type in the data according to the tree structure specified
-adapt_tree <- function(.data, .tree, .subtree=NULL){
-
-  # if no .subtree of interest is given, the original dataframe will be returned
-  if (is.null(.subtree)){.data}
+adapt_tree <- function(.data, .tree, .node=NULL){
+  
+  # if no .node of interest is given, the original dataframe will be returned
+  if (is.null(.node)){.data}
 
   # if subtree of interest is given, cell types in data will be modified accordingly
   else{
 
-    # subtree <- tree_subset(.tree = .tree, .node = .node)
+    subtree <- tree_subset(.tree = .tree, .node = .node)
 
     .tree %>%
       ToDataFrameTypeColFull(fill=NA) %>%
@@ -2948,7 +3065,7 @@ adapt_tree <- function(.data, .tree, .subtree=NULL){
       )) %>%
 
       # get all the cell types in the subtree of interest
-      mutate(cell_type_subtree = .subtree$Get("level") %>% names() %>% list()) %>%
+      mutate(cell_type_subtree = subtree$Get("level") %>% names() %>% list()) %>%
 
       # if the cell type in the full tree is present in the subtree, leave it as it is;
       # otherwise find its most recent ancestor present in the subtree
@@ -2974,7 +3091,7 @@ adapt_tree <- function(.data, .tree, .subtree=NULL){
 
 tree_subset <- function(.tree, .node=NULL) {
 
-  if(is.null(.node)){NULL}
+  if(is.null(.node)){.tree}
 
   else{
 
