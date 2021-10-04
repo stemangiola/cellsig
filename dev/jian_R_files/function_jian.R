@@ -1565,7 +1565,7 @@ library(tidySummarizedExperiment)
 #   
 # }
 
-main <- function(.input, .sample, .symbol, .count, .cell_type,
+main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
                  .is_hierarchy=TRUE, .level=NULL, 
                  # .tree, .node=NULL,
                  .contrast_method, .ranking_method, .rank_stat=NULL, .bayes=NULL, 
