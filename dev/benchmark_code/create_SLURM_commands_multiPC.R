@@ -56,21 +56,26 @@ table_of_commands =
                            )) %>% 
   
   # Add the command line arguments and output file to the R_script
-  mutate(command = sprintf("%s:\n\t%s %s %s > dev/AAA_err.stderr  2>&1", output_file, R_script, options, output_file))
+  mutate(command = sprintf("%s:\n\t%s %s %s", output_file, R_script, options, output_file))
+  
+  # This below produces an error file.
+  # mutate(command = sprintf("%s:\n\t%s %s %s > dev/AAA_err.stderr  2>&1", output_file, R_script, options, output_file))
   # alternatively glue works the same way but \n\t cannot be evaluated consecutively
   # mutate(command = glue("{output_file}:\n{tab}{R_script} {options} {output_file}"))
+
+output = sprintf("%s%s", output_directory, dir("dev/benchmark_results_multiPC/"))
   
 # pull command and write it to a makeflow file with necessary heading format
 table_of_commands %>%
   
-  filter(is_hierarchy=="hierarchical" & contrast == "mean_contrast" & rank == "bayes" & 
-           selection == "silhouette" & optimisation == "curvature" & dims==2) %>% 
+  filter(! output_file %in% output) %>% 
+  # pull(output_file)
   
-  pull(command) %>%
+  pull(command) %>% 
   
   # Add SLURM requirements
-  # purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=80000\nCORES=2\nWALL_TIME=172800") %>% 
-  purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=30000\nCORES=2\nWALL_TIME=86400") %>% 
+  purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=80000\nCORES=2\nWALL_TIME=172800") %>%
+  # purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=30000\nCORES=2\nWALL_TIME=86400") %>% 
 
   write_lines("dev/benchmark_code/benchmark_multiPC.makeflow")
 
