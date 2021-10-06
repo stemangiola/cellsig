@@ -19,8 +19,18 @@ new_tree <- read_yaml("dev/jian_R_files/new_tree.yaml") %>% as.Node
 
 # Functions ======================================================
 
-produce_cibersortx_cellsig_input_files <- function(.expression_df, .transcript, .sample, .cell_type, .count, 
-                                                   .tree, .dir, .suffix=NULL){
+produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .sample, .cell_type, .count, 
+                                                 .tree, .dir, .suffix=NULL){
+  
+  # Args: 
+  # .expression_df is a tibble with shape: transcript | sample | cell_type | count
+  # .transcript: tell the function which column in the data represents gene symbol
+  # .sample: tell the function which column in the data represents sample
+  # .cell_type: tell the function which column in the data represents cell_type
+  # .count: tell the function which column in the data represents count
+  # .tree: the cell type tree so that only leaf cell types are used for cibersortx
+  # .dir: the path to the directory where the two output files should be saved
+  # .suffix: optional argument which adds suffix to the output filename: reference.txt and phenoclass.txt
   
   .transcript = enquo(.transcript)
   .sample = enquo(.sample)
@@ -40,6 +50,8 @@ produce_cibersortx_cellsig_input_files <- function(.expression_df, .transcript, 
   
   # create reference file
   .expression_df %>% 
+    
+    # filter for leaf cell types in the tree
     filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
     select(!!.sample, !!.cell_type, !!.count, !!.transcript) %>% 
     mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
@@ -58,11 +70,19 @@ produce_cibersortx_cellsig_input_files <- function(.expression_df, .transcript, 
         pivot_wider(names_from = ref_names, values_from = value)
     ) %>% 
     pivot_longer(-cell_type, names_to="ref_names", values_to="membership") %>% 
+    
+    # assign membership according to cibersortx tutorial 6: 
+    # "1" indicates membership of the reference sample to the class as defined in that row,
+    # "2" indicates the class that the sample will be compared against
     mutate(membership = if_else(str_detect(ref_names, cell_type), 1L, 2L)) %>% 
+    
     pivot_wider(names_from = ref_names, values_from = membership) %>% 
+    
+    # set col_names to FALSE following cibersortx format for phenoclass
     write_tsv(glue("{.dir}phenoclass{.suffix}.txt"), col_names = FALSE)
   
 }
+
 
 # No hierarchy CIBERSORTx files creation=============================
 
