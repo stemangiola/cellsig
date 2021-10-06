@@ -48,7 +48,8 @@ readRDS("dev/intermediate_data/counts_imputed.rds") %>%
                .is_hierarchy = TRUE, .tree = new_tree) %>% 
   saveRDS("dev/intermediate_data/counts_imputed_hierarchy.rds", compress = "xz")
 
-readRDS("dev/intermediate_data/counts_imputed.rds") %>% 
+readRDS("dev/intermediate_data/counts_imputed.rds")
+counts_imputed %>% 
   rename(symbol = feature) %>% 
   do_hierarchy(.sample = sample, .symbol = symbol, .cell_type = cell_type,
                .is_hierarchy = FALSE, .tree = new_tree) %>% 
