@@ -1712,7 +1712,7 @@ do_scaling <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
     
     # Scale with first degree imputation. 
     # This because there are no common genes to all samples
-    impute_missing_abundance(~ !!.cell_type, suffix="") %>%
+    impute_missing_abundance(~ !!.cell_type, .abundance = !!.count) %>%
     identify_abundant() %>%
     scale_abundance() %>%
     filter(!.imputed) %>% 
@@ -1735,15 +1735,15 @@ do_imputation <- function(.scaled_counts, .sample, .symbol, .cell_type){
   .scaled_counts %>% 
     # Convert to SE
     # as_SummarizedExperiment(.sample, .feature, count) %>%
-    as_SummarizedExperiment(!!.sample, !!.symbol, count_scaled) %>%
+    as_SummarizedExperiment(!!.sample, !!.symbol, .abundance = c(!!.count, count_scaled)) %>%
     
     # Hierarchical imputation. Suffix = "" equated to overwrite counts
-    impute_missing_abundance(~ !!.cell_type, suffix="") %>%
+    impute_missing_abundance(~ !!.cell_type, .abundance = c(!!.count, count_scaled)) %>%
     
     {
       for(level in (.) %>% colnames %>% str_extract("level\\_\\d") %>% .[!is.na(.)]) {
         (.) <- (.) %>% 
-          impute_missing_abundance(~ !!as.symbol(level), suffix="")
+          impute_missing_abundance(~ !!as.symbol(level), .abundance = c(!!.count, count_scaled))
       }
       
     } %>% 
