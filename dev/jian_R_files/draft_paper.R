@@ -3651,7 +3651,7 @@ do_imputation <- function(.scaled_counts, .sample, .symbol, .cell_type){
     
     {
       for(level in (.) %>% colnames %>% str_extract("level\\_\\d") %>% .[!is.na(.)]) {
-        (.) %>% 
+        (.) <- (.) %>% 
           impute_missing_abundance(~ !!as.symbol(level), suffix="")
       }
       
@@ -3671,3 +3671,82 @@ tibble(command = sprintf("error_file:\n\tRscript dev/error_files/SLURM_cellsig_e
   purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=10000\nCORES=2\nWALL_TIME=86400") %>% 
   
   write_lines("dev/error_files/slurm_cellsig_error.makeflow")
+
+tree = cellsig::tree
+
+counts_scaled_old_tree <- counts %>% 
+  
+  adapt_tree(tree) %>%
+  
+  # Parse into hierarchical dataset
+  tree_and_signatures_to_database(tree, ., sample, cell_type, symbol, count)  %>%
+  
+  # Remove redundant samples
+  remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+  droplevels() %>% 
+  
+  # Eliminate suspicious samples
+  filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample))
+
+counts_scaled_old_tree <- counts_scaled_old_tree %>% 
+  
+  do_scaling(.sample = sample, .symbol=symbol, .count = count, .cell_type = cell_type)
+
+counts_imputed_old_tree <- counts_scaled_old_tree %>% 
+  
+  do_imputation(.sample = sample, .symbol=symbol, .cell_type = cell_type)
+
+## create reference file
+
+produce_cibersortx_cellsig_input_files <- function(.expression_df, .transcript, .sample, .cell_type, .count, .tree, .dir, .suffix=NULL){
+  
+  .transcript = enquo(.transcript)
+  .sample = enquo(.sample)
+  .cell_type = enquo(.cell_type)
+  .count = enquo(.count)
+  
+  .dir <- if(grepl("\\/$", .dir)){.}else{paste0(.dir, "/")}
+  
+  ## ref_names is produced to create header for reference file
+  ref_names <- .expression_df %>% 
+    filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
+    mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
+    unite(cell_sample, c(!!.cell_type, !!.sample), sep = ".") %>% 
+    pull(cell_sample) %>% 
+    unique()
+    
+  
+  # create reference file
+  .expression_df %>% 
+    filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
+    select(!!.sample, !!.cell_type, !!.count, !!.transcript) %>% 
+    mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
+    pivot_wider(names_from = c(!!.cell_type, !!.sample), values_from = !!.count, names_sep=".") %>% 
+    `names<-`(ref_names %>% 
+                str_extract(".*(?=\\.)") %>% 
+                prepend(quo_name(.transcript))
+              ) %>% 
+    # save files as txt files (tab separated files)
+    write_tsv(glue("{.dir}reference{.suffix}.txt"))
+  
+  # create phenoclass file
+  tibble(cell_type = as.phylo(.tree)$tip.label) %>% 
+    bind_cols(
+      tibble(ref_names, value=1L) %>% 
+        pivot_wider(names_from = ref_names, values_from = value)
+    ) %>% 
+    pivot_longer(-cell_type, names_to="ref_names", values_to="membership") %>% 
+    mutate(membership = if_else(str_detect(ref_names, cell_type), 1L, 2L)) %>% 
+    pivot_wider(names_from = ref_names, values_from = membership) %>% 
+    write_tsv(glue("{.dir}phenoclass{.suffix}.txt"), col_names = FALSE)
+  
+}
+
+debugonce(produce_cibersortx_cellsig_input_files)
+
+counts_imputed %>% 
+  rename(symbol = feature) %>% 
+  produce_cibersortx_cellsig_input_files(symbol, sample, cell_type, count_scaled, new_tree, "dev/jian_R_files/cibersortx", "_new_tree")
+
+
+  

@@ -1476,94 +1476,62 @@ library(tidySummarizedExperiment)
 
 # Modularised functions ====================================================
 
-# old preprocessing where data rectangularisation(same set of genes for all cell types), 
-# imputation, scale_abundance was done
-# preprocess <- function(.transcript, .level) {
-#   
-#   # load data
-#   .transcript %>%
-#     
-#     tidybulk(sample, symbol, count) %>%
-#     
-#     # aggregate duplicate sample/gene pairs in the data
-#     # aggregate_duplicates(sample, symbol, count) %>%
-# 
-#     # rectangularise data
-#     nest(data = -c(symbol, cell_type)) %>%
-#     add_count(symbol) %>%
-#     filter(n == max(n)) %>%
-#     unnest(data) %>%
-# 
-#     # Imputation of missing data
-#     impute_missing_abundance(~ cell_type) %>%
-# 
-#     # scale counts
-#     identify_abundant(factor_of_interest = !!as.symbol(.level)) %>%
-#     scale_abundance() %>%
-#     
-#     # filter for cells at the level of interest. .level == level_1
-#     filter(is.na(!!as.symbol(.level))==FALSE) %>%
-#     
-#     # nest by ancestor
-#     nest(data = - !!as.symbol(pre(.level)))
-#   
-# }
+produce_cibersortx_cellsig_input_files <- function(.expression_df, .transcript, .sample, .cell_type, .count, 
+                                                   .tree, .dir, .suffix=NULL){
+  
+  # Args: 
+  # .expression_df is a tibble with shape: transcript | sample | cell_type | count
+  # .transcript: tell the function which column in the data represents gene symbol
+  # .sample: tell the function which column in the data represents sample
+  # . cell_type: tell the function which column in the data represents cell_type
+  # .count: tell the function which column in the data represents count
+  # .tree: the cell type tree so that only leaf cell types are used for cibersortx
+  # .dir: the path to the directory where the two output files should be saved
+  # .suffix: optional argument which adds suffix to the output filename: reference.txt and phenoclass.txt
+  
+  .transcript = enquo(.transcript)
+  .sample = enquo(.sample)
+  .cell_type = enquo(.cell_type)
+  .count = enquo(.count)
+  
+  .dir <- if(grepl("\\/$", .dir)){.}else{paste0(.dir, "/")}
+  
+  ## ref_names is produced to create header for reference file
+  ref_names <- .expression_df %>% 
+    filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
+    mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
+    unite(cell_sample, c(!!.cell_type, !!.sample), sep = ".") %>% 
+    pull(cell_sample) %>% 
+    unique()
+  
+  
+  # create reference file
+  .expression_df %>% 
+    filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
+    select(!!.sample, !!.cell_type, !!.count, !!.transcript) %>% 
+    mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
+    pivot_wider(names_from = c(!!.cell_type, !!.sample), values_from = !!.count, names_sep=".") %>% 
+    `names<-`(ref_names %>% 
+                str_extract(".*(?=\\.)") %>% 
+                prepend(quo_name(.transcript))
+    ) %>% 
+    # save files as txt files (tab separated files)
+    write_tsv(glue("{.dir}reference{.suffix}.txt"))
+  
+  # create phenoclass file
+  tibble(cell_type = as.phylo(.tree)$tip.label) %>% 
+    bind_cols(
+      tibble(ref_names, value=1L) %>% 
+        pivot_wider(names_from = ref_names, values_from = value)
+    ) %>% 
+    pivot_longer(-cell_type, names_to="ref_names", values_to="membership") %>% 
+    mutate(membership = if_else(str_detect(ref_names, cell_type), 1L, 2L)) %>% 
+    pivot_wider(names_from = ref_names, values_from = membership) %>% 
+    write_tsv(glue("{.dir}phenoclass{.suffix}.txt"), col_names = FALSE)
+  
+}
 
-# old rank_bayes function that uses a bayes dataframe with only symbols and quantiles without imputation
-# rank_bayes <- function(.preprocessed, .contrast_method, .bayes, .rank_stat=NULL){
-#  
-#   .preprocessed %>% 
-#     
-#     unnest(tt) %>% 
-#     
-#     mutate(contrast = map2(data, level, ~ .contrast_method(.x, .y))) %>% 
-#     
-#     unnest(contrast) %>% 
-#     mutate(contrast = str_remove_all(contrast, glue("{level}"))) %>% 
-#     
-#     mutate(lower_quantile = map(
-#       contrast,
-#       ~ .bayes %>% 
-#         filter(cell_type == str_extract(.x, ".*(?=\\s\\-)")) %>% 
-#         select(symbol, lower_quantile='25%')
-#       # arrange(symbol)
-#     )) %>% 
-#     
-#     mutate(mean_upper_quantile = map(
-#       contrast,
-#       ~ {
-#         background <- (.x) %>% 
-#           str_extract("(?<=\\-\\s).*") %>% 
-#           str_split("\\+") %>% 
-#           unlist() %>% 
-#           str_remove_all("(?<=\\/).*|\\W")
-#         
-#         .bayes %>% 
-#           # calculate the mean 75% quantile of each gene over all background cell types
-#           filter(cell_type %in% background) %>% 
-#           group_by(symbol) %>% 
-#           summarise(symbol, mean_upper_quantile = mean(`75%`)) %>% 
-#           distinct() %>% 
-#           ungroup()
-#       }
-#     )) %>% 
-#     
-#     mutate(stat_df = map2(
-#       lower_quantile, mean_upper_quantile,
-#       ~ inner_join(.x, .y, by= "symbol")
-#     )) %>% 
-#     select(-c(lower_quantile, mean_upper_quantile)) %>% 
-#     
-#     mutate(stat_df = map(
-#       stat_df,
-#       ~ .x %>% 
-#         mutate(difference = lower_quantile - mean_upper_quantile) %>% 
-#         arrange(desc(difference))
-#     ))
-#     
-#     # nest(markers = -c(level, ancestor, data))
-#   
-# }
+
 
 main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
                  .is_hierarchy=TRUE, .level=NULL, 
@@ -1707,6 +1675,71 @@ tree_and_signatures_to_database = function(tree, signatures, .sample, .cell_type
     # Aggregate
     aggregate_duplicates(!!.sample, !!.symbol, !!.count) %>%
     select(-one_of("merged_transcripts"))
+}
+
+# scale abundance
+do_scaling <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
+  .sample = enquo(.sample)
+  .symbol = enquo(.symbol)
+  .count = enquo(.count)
+  .cell_type = enquo(.cell_type)
+  
+  .data_tree %>% 
+    
+    # ensure all genes are present to all level_1 cell types(missing genes for other level cell types can be imputed)
+    nest(data = -c(level_1, !!.symbol)) %>%
+    add_count(!!.symbol) %>%
+    filter(n==n_distinct(.data_tree$level_1)) %>%
+    select(-n) %>%
+    unnest(data) %>%
+    
+    # Convert to SE
+    as_SummarizedExperiment(!!.sample, !!.symbol, !!.count)  %>%
+    
+    # Scale with first degree imputation. 
+    # This because there are no common genes to all samples
+    impute_missing_abundance(~ !!.cell_type, suffix="") %>%
+    identify_abundant() %>%
+    scale_abundance() %>%
+    filter(!.imputed) %>% 
+    
+    select(-.imputed)  %>%
+    
+    # Just needed for the old version
+    # select(-one_of("exposure_rate")) %>%
+    
+    # Calculate exposure for Bayes model
+    mutate(exposure_rate = -log(multiplier))
+}
+
+# imputation
+do_imputation <- function(.scaled_counts, .sample, .symbol, .cell_type){
+  .sample = enquo(.sample)
+  .symbol = enquo(.symbol)
+  .cell_type = enquo(.cell_type)
+  
+  .scaled_counts %>% 
+    # Convert to SE
+    # as_SummarizedExperiment(.sample, .feature, count) %>%
+    as_SummarizedExperiment(!!.sample, !!.symbol, count_scaled) %>%
+    
+    # Hierarchical imputation. Suffix = "" equated to overwrite counts
+    impute_missing_abundance(~ !!.cell_type, suffix="") %>%
+    
+    {
+      for(level in (.) %>% colnames %>% str_extract("level\\_\\d") %>% .[!is.na(.)]) {
+        (.) <- (.) %>% 
+          impute_missing_abundance(~ !!as.symbol(level), suffix="")
+      }
+      
+    } %>% 
+    
+    # Convert back to tibble
+    as_tibble() %>%
+    
+    mutate(.imputed = if_any(contains("imputed"), ~ .x != 0)) %>% 
+    
+    select(-matches("imputed\\.\\d"))
 }
 
 # Input scale abundance
@@ -3154,3 +3187,94 @@ update_tree_edge_matrix <- function(.tree_tbl) {
 
 }
 
+
+
+
+# old preprocessing where data rectangularisation(same set of genes for all cell types), 
+# imputation, scale_abundance was done
+# preprocess <- function(.transcript, .level) {
+#   
+#   # load data
+#   .transcript %>%
+#     
+#     tidybulk(sample, symbol, count) %>%
+#     
+#     # aggregate duplicate sample/gene pairs in the data
+#     # aggregate_duplicates(sample, symbol, count) %>%
+# 
+#     # rectangularise data
+#     nest(data = -c(symbol, cell_type)) %>%
+#     add_count(symbol) %>%
+#     filter(n == max(n)) %>%
+#     unnest(data) %>%
+# 
+#     # Imputation of missing data
+#     impute_missing_abundance(~ cell_type) %>%
+# 
+#     # scale counts
+#     identify_abundant(factor_of_interest = !!as.symbol(.level)) %>%
+#     scale_abundance() %>%
+#     
+#     # filter for cells at the level of interest. .level == level_1
+#     filter(is.na(!!as.symbol(.level))==FALSE) %>%
+#     
+#     # nest by ancestor
+#     nest(data = - !!as.symbol(pre(.level)))
+#   
+# }
+
+# old rank_bayes function that uses a bayes dataframe with only symbols and quantiles without imputation
+# rank_bayes <- function(.preprocessed, .contrast_method, .bayes, .rank_stat=NULL){
+#  
+#   .preprocessed %>% 
+#     
+#     unnest(tt) %>% 
+#     
+#     mutate(contrast = map2(data, level, ~ .contrast_method(.x, .y))) %>% 
+#     
+#     unnest(contrast) %>% 
+#     mutate(contrast = str_remove_all(contrast, glue("{level}"))) %>% 
+#     
+#     mutate(lower_quantile = map(
+#       contrast,
+#       ~ .bayes %>% 
+#         filter(cell_type == str_extract(.x, ".*(?=\\s\\-)")) %>% 
+#         select(symbol, lower_quantile='25%')
+#       # arrange(symbol)
+#     )) %>% 
+#     
+#     mutate(mean_upper_quantile = map(
+#       contrast,
+#       ~ {
+#         background <- (.x) %>% 
+#           str_extract("(?<=\\-\\s).*") %>% 
+#           str_split("\\+") %>% 
+#           unlist() %>% 
+#           str_remove_all("(?<=\\/).*|\\W")
+#         
+#         .bayes %>% 
+#           # calculate the mean 75% quantile of each gene over all background cell types
+#           filter(cell_type %in% background) %>% 
+#           group_by(symbol) %>% 
+#           summarise(symbol, mean_upper_quantile = mean(`75%`)) %>% 
+#           distinct() %>% 
+#           ungroup()
+#       }
+#     )) %>% 
+#     
+#     mutate(stat_df = map2(
+#       lower_quantile, mean_upper_quantile,
+#       ~ inner_join(.x, .y, by= "symbol")
+#     )) %>% 
+#     select(-c(lower_quantile, mean_upper_quantile)) %>% 
+#     
+#     mutate(stat_df = map(
+#       stat_df,
+#       ~ .x %>% 
+#         mutate(difference = lower_quantile - mean_upper_quantile) %>% 
+#         arrange(desc(difference))
+#     ))
+#     
+#     # nest(markers = -c(level, ancestor, data))
+#   
+# }
