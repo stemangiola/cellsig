@@ -3,21 +3,22 @@ library(magrittr)
 library(tidybulk)
 library(tidySummarizedExperiment)
 
-# readRDS("dev/counts.rds") %>% 
+options("tidybulk_do_validate"= FALSE) 
 
-readRDS("dev/intermediate_data/counts_new_tree.rds") %>% 
-
+readRDS("dev/counts.rds") %>% 
+  
+  
+  
   # Convert to SE
-  # as_SummarizedExperiment(.sample, .feature, count) %>%
-  as_SummarizedExperiment(sample, feature, count_scaled) %>%
+  as_SummarizedExperiment(.sample, .feature, c(count, count_scaled)) %>%
   
   # Hierarchical imputation. Suffix = "" equated to overwrite counts
-  impute_missing_abundance(~ cell_type, suffix="") %>%
-  impute_missing_abundance(~ level_5, suffix="") %>%
-  impute_missing_abundance(~ level_4, suffix="") %>%
-  impute_missing_abundance(~ level_3, suffix="") %>%
-  impute_missing_abundance(~ level_2, suffix="") %>%
-  impute_missing_abundance(~ level_1, suffix="") %>% 
+  impute_missing_abundance(~ cell_type, .abundance = c(count, count_scaled)) %>%
+  impute_missing_abundance(~ level_5, .abundance = c(count, count_scaled)) %>%
+  impute_missing_abundance(~ level_4, .abundance = c(count, count_scaled)) %>%
+  impute_missing_abundance(~ level_3, .abundance = c(count, count_scaled)) %>%
+  impute_missing_abundance(~ level_2, .abundance = c(count, count_scaled)) %>%
+  impute_missing_abundance(~ level_1, .abundance = c(count, count_scaled)) %>% 
 
   
   # Convert back to tibble
@@ -28,8 +29,8 @@ readRDS("dev/intermediate_data/counts_new_tree.rds") %>%
   select(-matches("imputed\\.\\d")) %>% 
   
   # Merge the imputed column
-  # mutate(.imputed = .imputed.x | .imputed.y | .imputed.x.x |.imputed.y.y |.imputed.x.x.x| .imputed.y.y.y ) %>%
-  # select(-c( .imputed.x , .imputed.y , .imputed.x.x ,.imputed.y.y ,.imputed.x.x.x, .imputed.y.y.y)) %>%
+  mutate(.imputed = .imputed | .imputed.1 | .imputed.2 | .imputed.3 |.imputed.4 |.imputed.5  ) %>%
+  select(-c( .imputed.1 , .imputed.2 , .imputed.3 ,.imputed.4 ,.imputed.5  )) %>%
   
   # Save
   saveRDS("dev/intermediate_data/counts_imputed.rds", compress = "xz")
