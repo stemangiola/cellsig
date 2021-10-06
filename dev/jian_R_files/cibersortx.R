@@ -15,47 +15,52 @@ counts_imputed <-
   readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/intermediate_data/counts_imputed.rds") %>% 
   rename(symbol = feature)
 
-new_tree <- read_yaml("dev/jian_R_files/new_tree.yaml")
+new_tree <- read_yaml("dev/jian_R_files/new_tree.yaml") %>% as.Node
 
 # Functions ======================================================
 
-## 2.5 Silhouette function
-sil_func0 <- function(.markers, .method){
-  .markers %>% 
-    nest(rdim = - level_0) %>% 
-    mutate(rdim = map(rdim, ~ .x %>% 
-                        distinct(sample, symbol, count_scaled, cell_type))) %>% 
-    mutate(rdim = map(rdim, ~ .x %>%
-                        reduce_dimensions(sample, symbol, count_scaled,
-                                          method = .method,
-                                          action = "add",
-                                          transform = log1p,
-                                          # check_duplicates is for Rtsne method
-                                          check_duplicates = FALSE) %>% 
-                        
-                        # save symbols for calculating real_size while reducing replicated rows resulted from symbol
-                        nest(data_symbol = c(symbol, count_scaled))
-    )) %>%
-    
-    # calculate the dissimilarity matrix with PC values
-    mutate(distance = map(rdim, ~ .x %>%
-                            select(contains(str_sub(.method, end = -2L))) %>%
-                            factoextra::get_dist(method = "euclidean")
-    )) %>%
-    
-    # calculate silhouette score
-    mutate(sil = map2(rdim, distance, 
-                      ~ silhouette(as.numeric(as.factor(`$`(.x, cell_type))), .y)
-    )) %>% 
-    mutate(sil = map(sil, ~ .x %>% summary())) %>%
-    mutate(sil = map(sil, ~ .x %>% `$`(avg.width) ))%>% 
-    mutate(sil = unlist(sil)) %>% 
-    
-    # obtain the actual number of signature genes
-    mutate(real_size = map_int(rdim, ~ .x$data_symbol %>% 
-                                 map_int(~ n_distinct(.x$symbol)) %>% 
-                                 unlist() %>% 
-                                 unique() ))
+produce_cibersortx_cellsig_input_files <- function(.expression_df, .transcript, .sample, .cell_type, .count, 
+                                                   .tree, .dir, .suffix=NULL){
+  
+  .transcript = enquo(.transcript)
+  .sample = enquo(.sample)
+  .cell_type = enquo(.cell_type)
+  .count = enquo(.count)
+  
+  .dir <- if(grepl("\\/$", .dir)){.}else{paste0(.dir, "/")}
+  
+  ## ref_names is produced to create header for reference file
+  ref_names <- .expression_df %>% 
+    filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
+    mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
+    unite(cell_sample, c(!!.cell_type, !!.sample), sep = ".") %>% 
+    pull(cell_sample) %>% 
+    unique()
+  
+  
+  # create reference file
+  .expression_df %>% 
+    filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
+    select(!!.sample, !!.cell_type, !!.count, !!.transcript) %>% 
+    mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
+    pivot_wider(names_from = c(!!.cell_type, !!.sample), values_from = !!.count, names_sep=".") %>% 
+    `names<-`(ref_names %>% 
+                str_extract(".*(?=\\.)") %>% 
+                prepend(quo_name(.transcript))
+    ) %>% 
+    # save files as txt files (tab separated files)
+    write_tsv(glue("{.dir}reference{.suffix}.txt"))
+  
+  # create phenoclass file
+  tibble(cell_type = as.phylo(.tree)$tip.label) %>% 
+    bind_cols(
+      tibble(ref_names, value=1L) %>% 
+        pivot_wider(names_from = ref_names, values_from = value)
+    ) %>% 
+    pivot_longer(-cell_type, names_to="ref_names", values_to="membership") %>% 
+    mutate(membership = if_else(str_detect(ref_names, cell_type), 1L, 2L)) %>% 
+    pivot_wider(names_from = ref_names, values_from = membership) %>% 
+    write_tsv(glue("{.dir}phenoclass{.suffix}.txt"), col_names = FALSE)
   
 }
 
