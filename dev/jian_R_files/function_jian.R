@@ -1476,7 +1476,8 @@ library(tidySummarizedExperiment)
 
 # Modularised functions ====================================================
 
-produce_cibersortx_cellsig_input_files <- function(.expression_df, .transcript, .sample, .cell_type, .count, 
+# create input files for cibersortx cell signature selection using bulk RNA-seq data
+produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .sample, .cell_type, .count, 
                                                    .tree, .dir, .suffix=NULL){
   
   # Args: 
@@ -1507,6 +1508,8 @@ produce_cibersortx_cellsig_input_files <- function(.expression_df, .transcript, 
   
   # create reference file
   .expression_df %>% 
+    
+    # filter for leaf cell types in the tree
     filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
     select(!!.sample, !!.cell_type, !!.count, !!.transcript) %>% 
     mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
@@ -1525,8 +1528,15 @@ produce_cibersortx_cellsig_input_files <- function(.expression_df, .transcript, 
         pivot_wider(names_from = ref_names, values_from = value)
     ) %>% 
     pivot_longer(-cell_type, names_to="ref_names", values_to="membership") %>% 
+    
+    # assign membership according to cibersortx tutorial 6: 
+    # "1" indicates membership of the reference sample to the class as defined in that row,
+    # "2" indicates the class that the sample will be compared against
     mutate(membership = if_else(str_detect(ref_names, cell_type), 1L, 2L)) %>% 
+    
     pivot_wider(names_from = ref_names, values_from = membership) %>% 
+    
+    # set col_names to FALSE following cibersortx format for phenoclass
     write_tsv(glue("{.dir}phenoclass{.suffix}.txt"), col_names = FALSE)
   
 }
