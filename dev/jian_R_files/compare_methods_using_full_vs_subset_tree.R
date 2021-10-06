@@ -220,15 +220,15 @@ output_directory <- "dev/benchmark_results_t_helper/"
 tab <- "\t"
 
 
-tibble(is_hierarchy = c("hierarchical", "non_hierarchical"),
-       contrast = c("mean_contrast", "mean_contrast"),
-       ranking_method = c("bayes", "edgR"),
-       ranking_stat = c("_", "PValue"),
-       bayes = c(1, 0),
-       selection = c("silhouette", "silhouette"),
+tibble(is_hierarchy = c("hierarchical", "hierarchical"),
+       contrast = c("mean_contrast", "pairwise_contrast"),
+       ranking_method = c("bayes", "bayes"),
+       ranking_stat = c("_", "_"),
+       bayes = c(1, 1),
+       selection = c("silhouette", "naive"),
        optimisation = c("curvature", "penalty")
        ) %>% 
-  slice(1) %>% 
+  slice(2) %>% 
   unite("arguments", everything(), sep=" ", remove=FALSE) %>% 
   unite("output_file", -c(arguments, bayes), remove=FALSE) %>% 
   mutate(output_file = glue("{output_directory}{output_file}.rds")) %>% 
@@ -254,8 +254,8 @@ hierarchical_mean_contrast_bayes___silhouette_curvature_t_helper <-
   mutate(stream = "hierarchical_mean_contrast_bayes_silhouette_curvature_t_helper", .before=1)
 
 cibersortx <- 
-  read_delim("dev/jian_R_files/cibersortx/CIBERSORTx_Job21_phenoclass_1.CIBERSORTx_Job21_reference_1.bm.K999.txt", 
-                         "\t", escape_double = FALSE, trim_ws = TRUE) %>% 
+ read_delim("dev/jian_R_files/cibersortx/CIBERSORTx_Job22_phenoclass_new_tree.CIBERSORTx_Job22_reference_new_tree.bm.K999.txt", 
+            "\t", escape_double = FALSE, trim_ws = TRUE) %>% 
   pull(NAME) %>% 
   list() %>% 
   tibble(stream = "cibersortx", signature = .)
@@ -311,12 +311,14 @@ evaluation_data <- signature_from_streams %>%
   mutate(silhouette = map(
     signature,
     ~ silhouette_evaluation(
-      .signature = .x,
+      .markers = .x,
       .reduction_method = "PCA",
+      .dims = 2,
       .tree = t_helper_tree,
       .imputed_counts = counts_imputed_t_helper_tree,
       .sample = sample,
-      .symbol = symbol)
+      .symbol = symbol,
+      .cell_type = cell_type)
   )) %>%
 
   mutate(avg_silhouette = map_dbl(silhouette, ~ mean(.x$sil_width))) %>%
@@ -337,19 +339,20 @@ evaluation_data <- signature_from_streams %>%
   mutate(deconvolution = map2(
     signature, mix, 
     ~ deconvolution_evaluation(
-      .signature = .x, 
-      .mix=.y,
+      .markers = .x, 
+      .mixture = .y,
       .tree = t_helper_tree,
       .imputed_counts = counts_imputed_t_helper_tree,
       .sample = sample,
-      .symbol = symbol)
+      .symbol = symbol,
+      .cell_type = cell_type)
   )) %>% 
   
   select(-mix)
 
 rm(mix100_t_helper, counts_imputed_t_helper_tree)
 
-saveRDS(evaluation_data, "dev/benchmark_results_t_helper/evaluation_data.rds", compress="xz")
+saveRDS(evaluation_data, "dev/benchmark_results_t_helper/evaluation_data_silhouette_selection.rds", compress="xz")
   
   # # mse by method
   # mutate(MSE = map_dbl(
@@ -457,4 +460,191 @@ x %>%
 #   arrange(desc(cluster_silhouette), .by_group = TRUE) %>% 
 #   ungroup
   
+# signature from Naive selection ===========================
+# use the signature output for evaluation
+hierarchical_pairwise_contrast_bayes___naive_penalty <- 
+  readRDS("dev/benchmark_results_multiPC/hierarchical_pairwise_contrast_bayes___naive_penalty_2.rds") %>% 
+  mutate(stream = "hierarchical_pairwise_contrast_bayes_naive_penalty", .before=1)
 
+hierarchical_pairwise_contrast_bayes___naive_penalty_t_helper <- 
+  readRDS("dev/benchmark_results_t_helper/hierarchical_pairwise_contrast_bayes___naive_penalty.rds") %>% 
+  mutate(stream = "hierarchical_pairwise_contrast_bayes_naive_penalty_t_helper", .before=1)
+
+cibersortx <- 
+  read_delim("dev/jian_R_files/cibersortx/CIBERSORTx_Job22_phenoclass_new_tree.CIBERSORTx_Job22_reference_new_tree.bm.K999.txt", 
+             "\t", escape_double = FALSE, trim_ws = TRUE) %>% 
+  pull(NAME) %>% 
+  list() %>% 
+  tibble(stream = "cibersortx", signature = .)
+
+signature_from_streams <- 
+  bind_rows(
+    hierarchical_pairwise_contrast_bayes___naive_penalty_t_helper,
+    hierarchical_pairwise_contrast_bayes___naive_penalty
+  ) %>% 
+  nest(signature = - stream) %>% 
+  mutate(signature = map(signature, ~ .x %>% pull(signature) %>% unlist %>% unique)) %>% 
+  bind_rows(cibersortx)
+
+rm(hierarchical_pairwise_contrast_bayes___naive_penalty,
+   hierarchical_pairwise_contrast_bayes___naive_penalty_t_helper,
+   cibersortx)
+
+# Evaluation
+
+# load imputed gene expression data
+counts_imputed_t_helper_tree <- 
+  readRDS("dev/benchmark_results_t_helper/counts_imputed_t_helper_tree.rds") %>% 
+  
+  # rename columns and calculate count_scaled MUST HAVE count_scaled to generate mixture
+  dplyr::rename(symbol = feature)
+
+
+# create 100 mixtures and their estimated proportions
+mix100_t_helper <- readRDS("dev/benchmark_results_t_helper/mix100_t_helper.rds")
+
+
+evaluation_data <- signature_from_streams %>% 
+  
+  # silhouette evaluation
+  mutate(silhouette = map(
+    signature,
+    ~ silhouette_evaluation(
+      .markers = .x,
+      .reduction_method = "PCA",
+      .dims = 2,
+      .tree = t_helper_tree,
+      .imputed_counts = counts_imputed_t_helper_tree,
+      .sample = sample,
+      .symbol = symbol,
+      .cell_type = cell_type)
+  )) %>%
+  
+  mutate(avg_silhouette = map_dbl(silhouette, ~ mean(.x$sil_width))) %>%
+  
+  mutate(silhouette = map(
+    silhouette,
+    ~ .x %>%
+      group_by(cell_type) %>%
+      summarise(cluster_silhouette = mean(sil_width), cluster_size = n()) %>%
+      distinct() %>%
+      ungroup()
+  )) %>%
+  
+  # deconvolution evaluation
+  # for each mixture, combine with the signatures from all methods
+  expand_grid(mix100_t_helper, .) %>% 
+  
+  mutate(deconvolution = map2(
+    signature, mix, 
+    ~ deconvolution_evaluation(
+      .markers = .x, 
+      .mixture = .y,
+      .tree = t_helper_tree,
+      .imputed_counts = counts_imputed_t_helper_tree,
+      .sample = sample,
+      .symbol = symbol,
+      .cell_type = cell_type)
+  )) %>% 
+  
+  select(-mix)
+
+rm(mix100_t_helper, counts_imputed_t_helper_tree)
+
+saveRDS(evaluation_data, "dev/benchmark_results_t_helper/evaluation_data_naive_selection.rds", compress="xz")
+
+# # mse by method
+# mutate(MSE = map_dbl(
+#   deconvolution,
+#   ~ mean((.x$estimated_proportion - .x$proportion)^2)
+# )) %>% 
+# nest(data=-stream) %>% 
+# # mutate(median_MSE_over_mixes = map_dbl(data, ~ median(.x$MSE))) %>%
+# mutate(mean_MSE_over_mixes = map_dbl(data, ~ mean(.x$MSE))) %>%
+# unnest(data) %>% 
+
+evaluation_data %>% 
+  # add number of samples of each cell type
+  mutate(deconvolution = map2(deconvolution, silhouette, ~ .x %>% left_join(.y, by = "cell_type"))) %>% 
+  nest(data = c(signature, silhouette, avg_silhouette)) %>% 
+  select(-data) %>% 
+  
+  # deconvolution error by cell type
+  unnest(deconvolution) %>% 
+  mutate(absolute_error = abs(estimated_proportion - proportion)) %>% 
+  unite("cell_type", c(cell_type, cluster_size)) %>% 
+  
+  ggplot(aes(x = reorder_within(stream, -absolute_error, cell_type, median), 
+             y=log10(absolute_error), 
+             color = stream)
+  ) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(alpha = 0.2) +
+  facet_wrap(~ cell_type, scales = "free_x") +
+  scale_x_reordered() +
+  
+  guides(color = guide_legend(title.position = "left", nrow=1, byrow = FALSE) ) +
+  
+  theme(
+    title = element_text("compare the ability of signatures from 3 streams to deconvolve cell types"),
+    axis.text.x = element_blank(),
+    axis.title.x = element_blank(),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "bottom"
+    # plot.margin=unit(c(0, 2, 0, 2), "cm")
+  )
+
+
+
+# nest(data = -c(stream, cell_type)) %>% 
+# mutate(mean_MSE_for_cell_type = map_dbl(data, ~ mean(.x$squared_error))) %>% 
+# unnest(data) %>% 
+# select(-c(signature, mixture_ID, replicate, estimated_proportion, proportion, squared_error))
+
+x <- hierarchical_mean_contrast_bayes___silhouette_curvature_t_helper %>% 
+  pluck("children", 5) %>% 
+  mutate(enriched = map(enriched, ~ .x %>% pull(symbol))) %>% 
+  mutate(data = map(enriched,
+                    ~ counts_imputed_t_helper_tree %>%
+                      rename(symbol = feature) %>%
+                      filter(cell_type %in% c("t_helper_h1", "t_helper_h2", "t_helper_h17")) %>% 
+                      filter(symbol %in% .x)
+  )) %>% 
+  mutate(contrast = str_extract(contrast, ".*(?=\\s\\-)")) %>% 
+  rename(target = contrast)
+
+# counts_imputed_t_helper_tree %>% 
+# rename(symbol = feature) %>% 
+# filter(cell_type %in% c("t_helper_h1", "t_helper_h2", "t_helper_h17")) %>% 
+# filter(symbol %in% (hierarchical_mean_contrast_bayes___silhouette_curvature_t_helper %>% pluck("signature", 5)))  
+# select(symbol, sample, cell_type, count_scaled)
+
+# t helper h1 signature
+x %>% 
+  pluck("data", 1) %>% 
+  ggplot(aes(cell_type, log10(count_scaled+1), color = cell_type)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter() +
+  facet_wrap(~ symbol) +
+  labs(title = "t_helper_h1 signature") +
+  theme(axis.text.x = element_blank())
+
+# t helper h2 signature
+x %>% 
+  pluck("data", 3) %>% 
+  ggplot(aes(cell_type, log10(count_scaled+1), color = cell_type)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter() +
+  facet_wrap(~ symbol) +
+  labs(title = "t_helper_h2 signature") +
+  theme(axis.text.x = element_blank())
+
+# t helper h17 signature
+x %>% 
+  pluck("data", 2) %>% 
+  ggplot(aes(cell_type, log10(count_scaled+1), color = cell_type)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter() +
+  facet_wrap(~ symbol) +
+  labs(title = "t_helper_h17 signature") +
+  theme(axis.text.x = element_blank())
