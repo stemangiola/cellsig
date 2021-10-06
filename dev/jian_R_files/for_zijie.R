@@ -44,7 +44,7 @@ do_hierarchy <- function(.imputed_counts, .sample, .symbol, .cell_type, .tree, .
       mutate(tt = map(level, ~ .imputed_counts %>%
                         
                         # non-hierarchical methods should only compare leaf cell types
-                        filter(!!.cell_type %in% as.phylo(.tree)$tips) %>% 
+                        filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
                         
                         # create a root column for pre(.level)
                         mutate(!!as.symbol(.level) := !!.cell_type) %>%
