@@ -3749,4 +3749,19 @@ counts_imputed %>%
   produce_cibersortx_cellsig_input_files(symbol, sample, cell_type, count_scaled, new_tree, "dev/jian_R_files/cibersortx", "_new_tree")
 
 
+toy_data <- counts_imputed %>%  
+  select(feature, sample, count_scaled, cell_type) %>% 
+  filter(cell_type %in% c("epithelial", "b_cell", "t_cell")) %>% 
+  distinct(cell_type, sample) %>% 
+  nest(sample = -cell_type) %>% 
+  mutate(sample = map(sample, 
+                      ~ .x %>% slice(
+                        sample(1:nrow(.x), 10, replace = FALSE)
+                      ))) %>% 
+  unnest(sample) %>% 
+  left_join(counts_imputed %>% 
+              select(feature, sample, count_scaled, cell_type), 
+            by = c("cell_type", "sample"))
+
+saveRDS(toy_data, "dev/intermediate_data/toy_data.rds", compress = "xz")
   
