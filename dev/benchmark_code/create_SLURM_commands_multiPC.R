@@ -3,7 +3,7 @@ library(glue)
 library(tidyverse)
 
 input_directory = "dev/benchmark_code/"
-output_directory = "dev/benchmark_results_multiPC/"
+output_directory = "dev/benchmark_results_multiPC_NH/"
 tab = "\t"
 # Create SLURM commands
 
@@ -63,12 +63,13 @@ table_of_commands =
   # alternatively glue works the same way but \n\t cannot be evaluated consecutively
   # mutate(command = glue("{output_file}:\n{tab}{R_script} {options} {output_file}"))
 
-output = sprintf("%s%s", output_directory, dir("dev/benchmark_results_multiPC/"))
+# output = sprintf("%s%s", output_directory, dir("dev/benchmark_results_multiPC/"))
   
 # pull command and write it to a makeflow file with necessary heading format
 table_of_commands %>%
   
-  filter(! output_file %in% output) %>% 
+  filter(is_hierarchy == "non_hierarchical") %>% 
+  # filter(! output_file %in% output) %>% 
   # pull(output_file)
   
   pull(command) %>% 
