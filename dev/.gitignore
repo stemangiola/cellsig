@@ -1,0 +1,13 @@
+raw_data*
+intermediate_data*
+error_files*
+cibersortx/*
+topInf_scaleFALSE
+counts.rda
+counts_imputed.rda
+.*rda
+.*rds
+
+makeflow*
+slurm.*
+dev/benchmark_results.*

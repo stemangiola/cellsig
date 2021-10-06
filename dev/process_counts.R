@@ -3,22 +3,43 @@ library(cellsig)
 library(tidybulk)
 library(tidySummarizedExperiment)
 
-counts_first_db_raw = readRDS("dev/counts_first_db_raw.rds")
-load("dev/counts_second_db_raw.rda")
-counts_second_db_raw = new_data %>% select(sample, symbol, count, dataset, cell_type)
+# Load cell differentiation tree
+# data("tree")
+new_tree <- yaml.load_file("dev/jian_R_files/new_tree.yaml") %>% 
+  as.Node
 
-data("tree")
+# Database #1
+counts_first_db_raw = readRDS("dev/raw_data/counts_first_db_raw.rds")
+counts_first_db_raw <- counts_first_db_raw %>% 
+  select(sample, symbol, count, database, cell_type)
 
-options("tidybulk_do_validate"= FALSE) 
+# Database #2
+counts_second_db_raw <- readRDS("dev/raw_data/counts_second_db_raw.rds")
+counts_second_db_raw <- counts_second_db_raw %>% 
+  select(sample, symbol, count, database=dataset, cell_type)
 
-# Join datasets
-counts_first_db_raw %>%
-  select(-cell_type_original) %>%
-  bind_rows(counts_second_db_raw %>% rename(database = dataset)) %>% 
-  select(sample, cell_type, symbol, count) %>%
+# Database #3
+counts_third_db_raw <- readRDS("dev/raw_data/counts_third_db_raw.rds")
+counts_third_db_raw <- counts_third_db_raw %>% 
+  select(sample, symbol, count, database=dataset, cell_type)
+
+counts =  
+  
+  # Merge dataset
+  counts_first_db_raw %>%
+  bind_rows(counts_second_db_raw) %>% 
+  bind_rows(counts_third_db_raw) %>%
+  select(sample, cell_type, symbol, count, database) 
+
+rm(counts_first_db_raw, counts_second_db_raw, counts_third_db_raw)
+saveRDS(counts, "dev/raw_data/counts.rds", compress = "xz")
+
+counts %>% 
+  
+  adapt_tree(new_tree) %>%
   
   # Parse into hierarchical dataset
-  tree_and_signatures_to_database(tree, ., sample, cell_type, symbol, count)  %>%
+  tree_and_signatures_to_database(new_tree, ., sample, cell_type, symbol, count)  %>%
   
   # Remove redundant samples
   remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
@@ -29,7 +50,7 @@ counts_first_db_raw %>%
   
   # eliminate genes that are not in all cell types level 1
   nest(data = -c(level_1, symbol)) %>%
-  add_count( symbol) %>%
+  add_count(symbol) %>%
   filter(n==4) %>%
   select(-n) %>%
   unnest(data) %>%
@@ -42,17 +63,49 @@ counts_first_db_raw %>%
   impute_missing_abundance(~ cell_type, suffix="") %>%
   identify_abundant() %>%
   scale_abundance() %>%
-  filter(!.imputed) %>%
-  select(-count_imputed, -.imputed )  %>%
+  filter(!.imputed) %>% 
+  
+  select(-.imputed)  %>%
   
   # Just needed for the old version
-  select(-one_of("exposure_rate")) %>%
+  # select(-one_of("exposure_rate")) %>%
   
   # Calculate exposure for Bayes model
   mutate(exposure_rate = -log(multiplier)) %>%
   
   # Save
-  saveRDS("dev/counts.rds", compress = "xz")
+  saveRDS("dev/intermediate_data/counts_new_tree.rds", compress = "xz")
+
+
+#   # Add tree structure
+#   tree_and_signatures_to_database(tree, ., sample, cell_type, symbol, count) %>% 
+#   
+#   # Infer exposure rate  and scale
+#   infer_sequencing_depth_bias(hk600 = readr::read_csv("dev/hk_600.txt", col_names = FALSE) %>% pull(X1))
+#   
+# # counts %>% 
+# #   distinct(sample, symbol) %>%
+# #   dplyr::count(symbol)%>% 
+# #   dplyr::count(n)%>% 
+# #   arrange(desc(n))
+# 
+#   
+# saveRDS(counts, file="dev/count.rds", compress = "xz")
+# 
+# counts_imputed =
+#   
+#   counts %>%
+#   
+#   # mutate(level_5 = NA) %>% 
+#   
+#   mutate(count_scaled = count / exp(exposure_rate)) %>%
+#   
+#   cellsig::impute_abundance_using_levels(count_scaled)
+# 
+# saveRDS(counts_imputed, file="dev/counts_imputed.rds", compress = "xz")
+
+
+  
 
 
 
@@ -305,6 +358,3 @@ counts_first_db_raw %>%
 # 
 # 
 # save(counts, file="data/counts.rda", compress = "xz")
-
-
-
