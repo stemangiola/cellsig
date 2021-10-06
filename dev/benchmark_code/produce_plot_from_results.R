@@ -49,8 +49,9 @@ plot_data <- dir(input_directory, pattern = glue(".*{dim}\\.rds")) %>%
     TRUE ~ "cibersortx"
   ), .before = signature) %>% 
   
-  evaluation(.mixture = mix100, .imputed_counts = counts_imputed, 
-             .stream = stream, .markers = signature, .sample = sample, .symbol = symbol, 
+  evaluation(.stream = stream, .markers = signature, 
+             .mixture = mix100, 
+             .imputed_counts = counts_imputed, .sample = sample, .symbol = symbol, .cell_type = cell_type,
              .tree = new_tree, .reduction_method = "PCA", .dims = dim)
 
 
