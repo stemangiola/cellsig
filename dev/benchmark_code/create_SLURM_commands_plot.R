@@ -3,7 +3,7 @@ output_directory = "dev/benchmark_results_multiPC/"
 
 tibble(dim = c(2, 4, 10)) %>% 
   mutate(command = sprintf(
-    "benchmark_plot_dim%s.pdf:\n\tRscript dev/benchmark_code/produce_plot_from_results.R %s %s %s",
+    "benchmark_plot_dim%s.pdf:\n\tRscript dev/benchmark_code/produce_plot_from_results.R %s %s %s > dev/AAA_err.stderr  2>&1",
     dim, input_directory, output_directory, dim
     )) %>% 
   
