@@ -50,3 +50,4 @@ RcppExports.cpp
 dev/*pdf
 dev/tt.rds
 dev/database*
+dev/*rds
