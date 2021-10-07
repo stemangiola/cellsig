@@ -44,23 +44,29 @@ preprocess <- function(.transcript, .level) {
 
 readRDS("dev/intermediate_data/counts_imputed.rds") %>% 
   rename(symbol = feature) %>% 
-  do_hierarchy(.sample = sample, .symbol = symbol, .is_hierarchy = TRUE) %>% 
+  do_hierarchy(.sample = sample, .symbol = symbol, .cell_type = cell_type, 
+               .is_hierarchy = TRUE, .tree = new_tree) %>% 
   saveRDS("dev/intermediate_data/counts_imputed_hierarchy.rds", compress = "xz")
 
-readRDS("dev/intermediate_data/counts_imputed.rds") %>% 
+readRDS("dev/intermediate_data/counts_imputed.rds")
+counts_imputed %>% 
   rename(symbol = feature) %>% 
-  do_hierarchy(.sample = sample, .symbol = symbol, .is_hierarchy = FALSE) %>% 
+  do_hierarchy(.sample = sample, .symbol = symbol, .cell_type = cell_type,
+               .is_hierarchy = FALSE, .tree = new_tree) %>% 
   saveRDS("dev/intermediate_data/counts_imputed_non_hierarchy.rds", compress = "xz")
 
 
 readRDS("dev/intermediate_data/counts_bayes_imputed.rds") %>% 
   rename(symbol = feature) %>% 
-  do_hierarchy(.sample = sample, .symbol = symbol, .is_hierarchy = TRUE) %>% 
+  do_hierarchy(.sample = sample, .symbol = symbol, .cell_type = cell_type, 
+               .is_hierarchy = TRUE, .tree = new_tree) %>% 
   saveRDS("dev/intermediate_data/counts_bayes_imputed_hierarchy.rds", compress = "xz")
 
-readRDS("dev/intermediate_data/counts_bayes_imputed.rds") %>% 
+readRDS("dev/intermediate_data/counts_bayes_imputed.rds")
+counts_bayes_imputed %>% 
   rename(symbol = feature) %>% 
-  do_hierarchy(.sample = sample, .symbol = symbol, .is_hierarchy = FALSE) %>% 
+  do_hierarchy(.sample = sample, .symbol = symbol, .cell_type = cell_type,
+               .is_hierarchy = FALSE, .tree = new_tree) %>% 
   saveRDS("dev/intermediate_data/counts_bayes_imputed_non_hierarchy.rds", compress = "xz")
 
 # ranked_MC_L4 <- tt_L4 %>%
