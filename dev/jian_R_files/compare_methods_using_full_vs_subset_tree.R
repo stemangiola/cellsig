@@ -601,17 +601,20 @@ evaluation_data %>%
 # unnest(data) %>% 
 # select(-c(signature, mixture_ID, replicate, estimated_proportion, proportion, squared_error))
 
-x <- hierarchical_mean_contrast_bayes___silhouette_curvature_t_helper %>% 
+x <- hierarchical_pairwise_contrast_bayes___naive_penalty_t_helper %>% 
   pluck("children", 5) %>% 
   mutate(enriched = map(enriched, ~ .x %>% pull(symbol))) %>% 
+  mutate(contrast = str_extract(contrast, ".*(?=\\s\\-)")) %>% 
+  rename(target = contrast) %>% 
+  nest(enriched = -target) %>% 
+  mutate(enriched = map(enriched, ~ .x %>% pull(enriched) %>% unlist %>% unique)) %>% 
   mutate(data = map(enriched,
                     ~ counts_imputed_t_helper_tree %>%
-                      rename(symbol = feature) %>%
+                      # rename(symbol = feature) %>%
                       filter(cell_type %in% c("t_helper_h1", "t_helper_h2", "t_helper_h17")) %>% 
                       filter(symbol %in% .x)
-  )) %>% 
-  mutate(contrast = str_extract(contrast, ".*(?=\\s\\-)")) %>% 
-  rename(target = contrast)
+  ))
+  
 
 # counts_imputed_t_helper_tree %>% 
 # rename(symbol = feature) %>% 
