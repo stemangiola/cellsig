@@ -48,6 +48,7 @@ readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/intermed
        .ranking_method=.ranking_method, 
        .rank_stat=.rank_stat, 
        .bayes=.bayes, 
+       .tree = NULL,
        .selection_method=selection, .kmax=60, .discard_number=2000, .reduction_method = "PCA",
        .dims=dims,
        .optimisation_method = optimisation, .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
