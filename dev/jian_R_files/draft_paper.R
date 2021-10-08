@@ -3704,7 +3704,7 @@ debugonce(produce_cibersortx_bulk_rnaseq_input)
 counts_imputed %>% 
   rename(symbol = feature) %>% 
   produce_cibersortx_bulk_rnaseq_input(.transcript=symbol, .sample=sample, .cell_type=cell_type, .count=count_scaled, 
-                                         .dir="dev/jian_R_files/cibersortx", .suffix="_new_tree")
+                                         .dir="dev/jian_R_files/cibersortx", .suffix="_test")
 
 
 toy_data <- counts_imputed %>%  
@@ -3722,4 +3722,93 @@ toy_data <- counts_imputed %>%
             by = c("cell_type", "sample"))
 
 saveRDS(toy_data, "dev/intermediate_data/toy_data.rds", compress = "xz")
+
+tree <- read_yaml("dev/tree.yaml") %>% as.Node
+Prune(tree$epithelial, function(node) node$name == "epithelial")
+
+Prune(tree, function(node) node$level <= 3)
+treeClone = Clone(tree, pruneFun = function(node) node$level <= 3)
+LEVEL <- "level_1"
+L = LEVEL %>% str_split("_") %>% {as.numeric(.[[1]][2])+1}  
+
+treeClone = Clone(tree, pruneFun = function(node) node$level <= L)
+
+get_leaf_nodes_at_a_level <- function(.tree, .level){
   
+  L  = .level %>% str_split("_") %>% {as.numeric(.[[1]][2])+1}
+  
+  Clone(.tree, pruneFun = function(node) node$level <= L) %>% 
+    as.phylo %>% 
+    .$tip.label
+  
+}
+
+tree %>% 
+  get_leaf_nodes_at_a_level("level_5")
+
+
+# deconvolve cellularity problem debug
+x <- deconvolve_cellularity(
+  .data = mix100 %>% pluck("mix", 1),
+  .sample = replicate,
+  .transcript = symbol, # the column in the mixture is called symbol not provided by the pipeline
+  .abundance = count_mix,
+  reference = reference,
+  method = "llsr",
+  prefix = "llsr_",
+  action = "get",
+  intercept=FALSE)
+
+plot_data = 
+tibble(levels = if(TRUE){"root"}else{sprintf("level_%s", 1:5)}
+       
+       ) %>%
+  mutate(data = map(levels, ~ non_hierarchical_pairwise_contrast_bayes___naive_penalty_10 %>%
+                      nest(data = -level) %>% 
+                      mutate(markers = map(data, ~ .x$signature %>% unlist %>% unique)) %>% 
+                      mutate(level = as.ordered(level)) %>% 
+                      filter(level <= .x)
+  )) %>% 
+  mutate(markers = map(data, ~ .x$markers %>% unlist %>% unique)) %>% 
+  mutate(leaf_nodes = map(levels, ~ get_leaf_nodes_at_a_level(new_tree, .x))) %>% 
+  mutate(reduced_dimensions = map2(
+    markers, leaf_nodes, 
+    ~ expression %>% 
+      filter(cell_type2 %in% .y) %>% 
+      filter(symbol %in% .x) %>% 
+      pivot_wider(names_from = "level", values_from = "cell_type2") %>% 
+      reduce_dimensions(.element = sample,
+                        .feature = symbol,
+                        .abundance = count_scaled,
+                        action = "get",
+                        method = "tSNE",
+                        .dims = 2,
+                        log_transform = TRUE,
+                        top = Inf,
+                        scale = FALSE,
+                        check_duplicates = FALSE) %>% 
+      unite(cell_type2, contains("level"), na.rm = TRUE) %>% 
+      # because action is "get" no symbols all samples should be distinct
+      select(sample, cell_type2, contains(str_sub("tSNE", end = -2L)))
+  )) %>% 
+  mutate(marker_text = map(data, ~ .x %>% get_target_cell_markers())) %>% 
+  mutate(reduced_dimensions = map2(
+    reduced_dimensions, marker_text,
+    ~ left_join(.x, .y, by = c("cell_type2" = "target"))
+  )) %>% 
+  mutate(data = map2(
+    data, leaf_nodes,
+    ~ .x %>% 
+      unnest(data) %>% 
+      unnest(children) %>% 
+      mutate(contrast = str_extract(contrast, ".*(?=\\s\\-)")) %>% 
+      rename(target = contrast) %>% 
+      select(target, enriched) %>% 
+      filter(target %in% .y) %>% 
+      unnest(enriched) %>% 
+      distinct(target, symbol, rank) %>% 
+      group_by(target) %>% 
+      arrange(rank, .by_group = TRUE) %>% 
+      ungroup
+  )) %>% 
+  select(levels, data, leaf_nodes, reduced_dimensions)
