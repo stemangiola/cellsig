@@ -9,17 +9,19 @@ dim = args[3] %>% as.integer()
 
 # import data
 mix100 <- readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/intermediate_data/mix100.rds")
+
 counts_imputed <- 
   readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/intermediate_data/counts_imputed.rds") %>% 
   rename(symbol = feature)
+
 new_tree <- 
   read_yaml("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/jian_R_files/new_tree.yaml") %>% as.Node
 
 # # TO BE DELETED!
 # indices <- sample(1:length(dir(input_directory)), 7)
-# input_directory = "dev/benchmark_results_multiPC/"
-# output_directory = "dev/benchmark_results_multiPC/"
-# dim = 2L
+# input_directory = "dev/benchmark_results_multiPC_NH/"
+# output_directory = "dev/benchmark_results_multiPC_NH/"
+# dim = 4L
 
 
 plot_data <- dir(input_directory, pattern = glue(".*{dim}\\.rds")) %>%
@@ -35,7 +37,7 @@ plot_data <- dir(input_directory, pattern = glue(".*{dim}\\.rds")) %>%
   
   # bind cibersortx
   bind_rows(
-    read_delim("dev/jian_R_files/cibersortx/CIBERSORTx_Job21_phenoclass_1.CIBERSORTx_Job21_reference_1.bm.K999.txt", 
+    read_delim("dev/jian_R_files/cibersortx/CIBERSORTx_Job22_phenoclass_new_tree.CIBERSORTx_Job22_reference_new_tree.bm.K999.txt", 
                "\t", escape_double = FALSE, trim_ws = TRUE) %>% 
       pull(NAME) %>% 
       list() %>% 
