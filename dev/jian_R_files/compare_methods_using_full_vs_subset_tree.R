@@ -650,4 +650,5 @@ x %>%
   geom_jitter() +
   facet_wrap(~ symbol) +
   labs(title = "t_helper_h17 signature") +
+  
   theme(axis.text.x = element_blank())
