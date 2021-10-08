@@ -1,5 +1,6 @@
 # devtools::install_github("stemangiola/nanny@convert-to-S3", force = TRUE)
 # devtools::install_github("stemangiola/tidybulk@dev", force = TRUE)
+# devtools::install_github("stemangiola/tidybulk@for-jian", force = TRUE)
 # devtools::install_github("stemangiola/cellsig@dev", force = TRUE)
 
 library(yaml)
@@ -2404,7 +2405,7 @@ dimension_reduction <- function(.markers, .level, .sample, .symbol, .reduction_m
                       action = "get",
                       method = .reduction_method,
                       .dims = .dims,
-                      transform = log1p,
+                      log_transform = TRUE,
                       top = Inf,
                       scale = FALSE,
                       check_duplicates = FALSE)
@@ -2755,7 +2756,7 @@ do_optimisation <- function(.selected,
       # the number of cell types and deconvolution wouldn't be possible
 
       n_cell_type <- map_int((.)$data,
-                              ~ .x[[1, "children"]] %>%
+                              ~ .x$children %>%
                                 .[[1]] %>%
                                 .$contrast %>%
                                 str_extract(".*(?=\\s\\-)") %>%
@@ -3004,7 +3005,8 @@ evaluation <- function(.signature_df, .stream, .markers,
   
 }
 
-silhouette_evaluation <- function(.markers, .reduction_method, .dims=2, .tree, .imputed_counts, .sample, .symbol, .cell_type){
+silhouette_evaluation <- function(.markers, .reduction_method, .dims=2, .tree, 
+                                  .imputed_counts, .sample, .symbol, .cell_type){
 
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
@@ -3086,7 +3088,8 @@ silhouette_evaluation <- function(.markers, .reduction_method, .dims=2, .tree, .
     unnest(silhouette)
 }
 
-deconvolution_evaluation <- function(.markers, .mixture, .tree, .imputed_counts, .sample, .symbol, .cell_type){
+deconvolution_evaluation <- function(.markers, .mixture, .tree, 
+                                     .imputed_counts, .sample, .symbol, .cell_type){
 
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
@@ -3110,12 +3113,13 @@ deconvolution_evaluation <- function(.markers, .mixture, .tree, .imputed_counts,
   tidybulk::deconvolve_cellularity(
     .data = .mixture,
     .sample = replicate,
-    .transcript = symbol,
+    .transcript = symbol, # the column in the mixture is called symbol not provided by the pipeline
     .abundance = count_mix,
     reference = reference,
     method = "llsr",
     prefix = "llsr_",
-    action = "get") %>%
+    action = "get",
+    intercept = FALSE) %>%
 
     pivot_longer(cols=starts_with("llsr_"),
                  names_prefix ="llsr_",
@@ -3248,6 +3252,59 @@ update_tree_edge_matrix <- function(.tree_tbl) {
 
 }
 
+# Shiny App functions
+# get leaf nodes at a specific level
+get_leaf_nodes_at_a_level <- function(.tree, .level){
+  
+  if(.level == "root"){
+    .tree %>% as.phylo %>% .$tip.label
+  }else{
+    L  = .level %>% str_split("_") %>% {as.numeric(.[[1]][2])+1}
+    
+    Clone(.tree, pruneFun = function(node) node$level <= L) %>% 
+      as.phylo %>% 
+      .$tip.label
+  }
+}
+
+get_target_cell_markers <- function(.data, .k=6){
+  
+  .data %>%
+    unnest(data) %>% 
+    unnest(children) %>% 
+    mutate(contrast = str_extract(contrast, ".*(?=\\s\\-)")) %>% 
+    rename(target = contrast) %>% 
+    select(target, enriched) %>% 
+    unnest(enriched) %>% 
+    distinct(target, symbol, rank) %>% 
+    nest(enriched = -target) %>% 
+    mutate(enriched = map_chr(enriched, ~ .x %>% 
+                                arrange(rank) %>% 
+                                pull(symbol) %>% 
+                                vector_to_formatted_text(.k=.k)
+    ))
+}
+
+vector_to_formatted_text <- function(.vector, .k=6){
+  
+  L <- length(.vector)
+  
+  if(L <= .k){text = paste(.vector, collapse = " ")}
+  else{
+    
+    text=c()
+    
+    for (i in seq(1, L-.k, by = .k)) {
+      text = text %>% append(paste(.vector[i:(i+.k-1)], collapse = " "))
+    }
+    
+    text = text %>% 
+      append(paste(.vector[(L%/%.k*.k+1):L], collapse = " ")) %>% 
+      paste(collapse = "\n")
+  }
+  
+  return(text)
+}
 
 # function for zijie
 # counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_type,
@@ -3319,129 +3376,6 @@ update_tree_edge_matrix <- function(.tree_tbl) {
 #       
 #     }
 #   }
-#   
-#   create_hierarchy_and_calculate_imputation_ratio <- function(.imputed_counts, .level, .sample, .symbol) {
-#     # this preproces function ranged data in hierarchy(or non_hierarchy) and
-#     # calculates the imputation ratio for genes in each hierarchy
-#     .sample = enquo(.sample)
-#     .symbol = enquo(.symbol)
-#     
-#     
-#     # load data
-#     .imputed_counts %>%
-#       
-#       # tidybulk(sample, symbol, count_scaled) %>% for imputed counts data
-#       # tidybulk(.sample = !!.sample, .transcript = !!.symbol, .abundance = !!.count) %>%
-#       
-#       # filter for cells at the level of interest. .level == level_1
-#       filter(!is.na(!!as.symbol(.level))) %>%
-#       
-#       # nest by ancestor
-#       nest(data = - !!as.symbol(pre(.level)))
-#     
-#   }
-#   
-#   if ( (!.is_hierarchy)|(.selection_method == "naive")) {
-#     
-#     .input %>%
-#       
-#       adapt_tree(.tree = .tree, .node = .node) %>%
-#       
-#       tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
-#                                       .symbol=!!.symbol, .count=!!.count) %>%
-#       
-#       # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
-#       #   
-#       # do_imputation(.sample = !!.sample, .symbol=!!.symbol, .cell_type=!!.cell_type) %>% 
-#       
-#       
-#       do_hierarchy(.sample=!!.sample,
-#                    .symbol=!!.symbol,
-#                    .cell_type = !!.cell_type,
-#                    .tree = .tree,
-#                    .is_hierarchy=.is_hierarchy,
-#                    .level=.level) %>%
-#       
-#       # Input: data.frame columns_1 <int> | ...
-#       do_ranking(.sample=!!.sample, 
-#                  .symbol=!!.symbol,
-#                  .cell_type = !!.cell_type,
-#                  .ranking_method=.ranking_method, 
-#                  .contrast_method=.contrast_method, 
-#                  .rank_stat=.rank_stat, 
-#                  .bayes=.bayes,
-#                  .tree = .tree) %>%  
-#       
-#       # Input: data.frame columns_1 <int> | ...
-#       # Output: 
-#       do_selection(.sample=!!.sample, 
-#                    .symbol=!!.symbol,
-#                    .selection_method=.selection_method, 
-#                    .reduction_method=.reduction_method, 
-#                    .discard_number=.discard_number, 
-#                    .kmax=.kmax,
-#                    .dims=.dims) %>% 
-#       
-#       do_optimisation(.optimisation_method=.optimisation_method, .symbol=!!.symbol) %>% 
-#       
-#       format_output(.is_complete = .is_complete)
-#     
-#   } else {
-#     
-#     .input %>%
-#       
-#       adapt_tree(.tree = .tree, .node = .node) %>%
-#       
-#       tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
-#                                       .symbol=!!.symbol, .count=!!.count) %>%
-#       
-#       # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
-#       #   
-#       # do_imputation(.sample = !!.sample, .symbol=!!.symbol, .cell_type=!!.cell_type) %>% 
-#       
-#       
-#       do_hierarchy(.sample=!!.sample,
-#                    .symbol=!!.symbol,
-#                    .cell_type = !!.cell_type,
-#                    .tree = .tree,
-#                    .is_hierarchy=.is_hierarchy,
-#                    .level=.level) %>%
-#       
-#       do_ranking(.sample=!!.sample, 
-#                  .symbol=!!.symbol,
-#                  .ranking_method=.ranking_method, 
-#                  .contrast_method=.contrast_method, 
-#                  .rank_stat=.rank_stat, 
-#                  .bayes=.bayes,
-#                  .tree = .tree) %>% 
-#       
-#       mutate(level.copy = level) %>% 
-#       nest(data = -level.copy) %>% 
-#       
-#       mutate(data = map(
-#         data,
-#         ~ .x %>% 
-#           
-#           do_selection(.sample=!!.sample, 
-#                        .symbol=!!.symbol,
-#                        .selection_method=.selection_method, 
-#                        .reduction_method=.reduction_method, 
-#                        .discard_number=.discard_number, 
-#                        .kmax=.kmax,
-#                        .dims=.dims) %>%
-#           
-#           do_optimisation(.optimisation_method = .optimisation_method, .symbol=!!.symbol) %>%
-#           
-#           format_output(.is_complete = .is_complete)
-#         
-#       )) %>% 
-#       
-#       unnest(data) %>% 
-#       select(-level.copy)
-#     
-#   }
-# }
-
 # old preprocessing where data rectangularisation(same set of genes for all cell types), 
 # imputation, scale_abundance was done
 # preprocess <- function(.transcript, .level) {
