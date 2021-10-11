@@ -2,6 +2,45 @@
 # load all necessary functions YOU DO NOT WANT TO CHANGE DEFAULT parameter values for your own run ================
 source("dev/jian_R_files/function_jian.R")
 
+make_bulk_data_rectangular <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
+  
+  .sample = enquo(.sample)
+  .symbol = enquo(.symbol)
+  .count = enquo(.count)
+  .cell_type = enquo(.cell_type)
+  
+  .data_tree %>% 
+    
+    # Remove redundant samples
+    remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+    droplevels() %>% 
+    
+    # Eliminate suspicious samples
+    filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>% 
+    
+    # ensure all genes are present to all level_1 cell types(missing genes for other level cell types can be imputed)
+    nest(data = -c(level_1, !!.symbol)) %>%
+    add_count(!!.symbol) %>%
+    filter(n==n_distinct(.data_tree$level_1)) %>%
+    select(-n) %>%
+    unnest(data)
+    
+    # Convert to SE
+    as_SummarizedExperiment(!!.sample, !!.symbol, !!.count)  %>%
+
+    # Scale with first degree imputation. # IMPUTE_MISSING ABUNDANCE NOT WORKING
+    # This because there are no common genes to all samples
+    impute_missing_abundance(~ !!.cell_type, .abundance = !!.count) %>%
+    identify_abundant() %>%
+    scale_abundance() %>%
+    filter(!.imputed) %>%
+
+    select(-.imputed)  %>%
+
+    # Calculate exposure for Bayes model
+    mutate(exposure_rate = -log(multiplier))
+}
+
 do_hierarchy <- function(.imputed_counts, .sample, .symbol, .cell_type, .tree, .is_hierarchy = TRUE, .level = NULL){
   
   .sample = enquo(.sample)
@@ -102,8 +141,9 @@ counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_t
       tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
                                       .symbol=!!.symbol, .count=!!.count) %>%
       
-      # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
-      #   
+      # comment out when using your single cell data, keep when using bulk data
+      make_bulk_data_rectangular(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
+      
       # do_imputation(.sample = !!.sample, .symbol=!!.symbol, .cell_type=!!.cell_type) %>% 
       
       
@@ -147,8 +187,9 @@ counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_t
       tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
                                       .symbol=!!.symbol, .count=!!.count) %>%
       
-      # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
-      #   
+      # comment out when using your single cell data, keep when using bulk data
+      make_bulk_data_rectangular(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
+
       # do_imputation(.sample = !!.sample, .symbol=!!.symbol, .cell_type=!!.cell_type) %>% 
       
       
