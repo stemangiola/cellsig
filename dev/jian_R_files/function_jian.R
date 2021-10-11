@@ -19,7 +19,7 @@ library(data.tree)
 library(cluster)
 library(tidyverse)
 library(tidybulk)
-# library(cellsig)
+library(cellsig)
 library(patchwork)
 library(tidySummarizedExperiment)
 
@@ -1724,6 +1724,7 @@ tree_and_signatures_to_database = function(tree, signatures, .sample, .cell_type
 
 # scale abundance
 do_scaling <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
+  
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
   .count = enquo(.count)
@@ -1743,7 +1744,8 @@ do_scaling <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
     
     # Scale with first degree imputation. 
     # This because there are no common genes to all samples
-    impute_missing_abundance(~ !!.cell_type, .abundance = !!.count) %>%
+    impute_missing_abundance(~ cell_type, suffix="") %>%
+    # impute_missing_abundance(~ !!.cell_type, .abundance = !!.count) %>%
     identify_abundant() %>%
     scale_abundance() %>%
     filter(!.imputed) %>% 
