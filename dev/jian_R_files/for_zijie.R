@@ -18,6 +18,7 @@ make_bulk_data_rectangular <- function(.data_tree, .sample, .symbol, .count, .ce
     # Eliminate suspicious samples
     filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>% 
     
+    # make data rectangular
     # ensure all genes are present to all level_1 cell types(missing genes for other level cell types can be imputed)
     nest(data = -c(level_1, !!.symbol)) %>%
     add_count(!!.symbol) %>%
