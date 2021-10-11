@@ -3604,6 +3604,7 @@ z <- y %>%
 
 
 do_scaling <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
+  
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
   .count = enquo(.count)
