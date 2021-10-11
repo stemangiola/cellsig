@@ -235,6 +235,16 @@ counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_t
     
   }
 }
+# Test:
+counts %>%
+  
+  adapt_tree(.tree = zijie_tree) %>%
+  
+  tree_and_signatures_to_database(tree=zijie_tree, ., .sample= sample, .cell_type=cell_type,
+                                  .symbol=feature, .count=count) %>%
+  
+  # comment out when using your single cell data, keep when using bulk data
+  make_bulk_data_rectangular(.sample = sample, .symbol= feature , .count= count, .cell_type= cell_type)
 
 
 # load input data =============================================================================
