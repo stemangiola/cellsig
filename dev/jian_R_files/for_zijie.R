@@ -77,7 +77,7 @@ counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_t
       
       
       
-      # comment out these five lines when using your single cell data, keep when using bulk data
+      # comment out these six lines when using your single cell data, keep when using bulk data
       # Remove redundant samples
       remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
       droplevels() %>%
@@ -137,7 +137,7 @@ counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_t
       
       
       
-      # comment out these five lines when using your single cell data, keep when using bulk data
+      # comment out these six lines when using your single cell data, keep when using bulk data
       # Remove redundant samples
       remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
       droplevels() %>%
