@@ -201,7 +201,7 @@ tree = read_yaml("dev/tree.yaml") %>% as.Node
 # MODIFY THIS: load your own input data
 zijie_input_expression_data
 
-
+# FOR SINGLE CELL DATA:
 # To select markers for your own data, run the code below:
 zijie_input_expression_data %>% 
   
@@ -221,6 +221,29 @@ zijie_input_expression_data %>%
 
     .contrast_method = pairwise_contrast, 
 
+    .ranking_method = rank_edgR_quasi_likelihood, .rank_stat = "PValue",
+    
+    .selection_method = "naive",
+    
+    .optimisation_method = "penalty") %>% 
+  
+  # save the output signature of the function
+  # PLEASE MODIFY THIS LINE OF CODE
+  saveRDS("your_directory/name_of_the_output_file.rds", compress = "xz")
+
+# FOR BULK-RNA-seq DATA:
+counts %>% 
+  
+  counts_tree_to_gene_markers(
+    
+    .sample = sample, .symbol = symbol, .cell_type = cell_type, .count = count,
+    
+    .is_hierarchy=TRUE,
+    
+    .tree = tree, # change to your tree!!!
+    
+    .contrast_method = pairwise_contrast, 
+    
     .ranking_method = rank_edgR_quasi_likelihood, .rank_stat = "PValue",
     
     .selection_method = "naive",
