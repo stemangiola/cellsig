@@ -2,6 +2,36 @@
 # load all necessary functions YOU DO NOT WANT TO CHANGE DEFAULT parameter values for your own run ================
 source("dev/jian_R_files/function_jian.R")
 
+do_imputation <- function(.scaled_counts, .sample, .symbol, .count, .cell_type){
+  
+  .sample = enquo(.sample)
+  .symbol = enquo(.symbol)
+  .count = enquo(.count)
+  .cell_type = enquo(.cell_type)
+  
+  .scaled_counts %>% 
+    # Convert to SE
+    # as_SummarizedExperiment(.sample, .feature, count) %>%
+    as_SummarizedExperiment(!!.sample, !!.symbol, .abundance = c(!!.count, count_scaled)) %>%
+    
+    # Hierarchical imputation. Suffix = "" equated to overwrite counts
+    impute_missing_abundance(.formula = as.formula(sprintf("~ %s", quo_name(.cell_type))),
+                             .abundance = c(!!.count, count_scaled)) %>%
+    
+    # AUTOMATE THIS!
+    impute_missing_abundance(~ level_4, .abundance = c(!!.count, count_scaled)) %>%
+    impute_missing_abundance(~ level_3, .abundance = c(!!.count, count_scaled)) %>%
+    impute_missing_abundance(~ level_2, .abundance = c(!!.count, count_scaled)) %>%
+    impute_missing_abundance(~ level_1, .abundance = c(!!.count, count_scaled)) %>% 
+    
+    # Convert back to tibble
+    as_tibble() %>%
+    
+    mutate(.imputed = if_any(contains("imputed"), ~ .x != 0)) %>% 
+    
+    select(-matches("imputed\\.\\d"))
+}
+
 do_hierarchy <- function(.imputed_counts, .sample, .symbol, .cell_type, .tree, .is_hierarchy = TRUE, .level = NULL){
   
   .sample = enquo(.sample)
