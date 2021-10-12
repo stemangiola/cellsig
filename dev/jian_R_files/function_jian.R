@@ -1597,10 +1597,17 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
       # 
       # tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
       #                                .symbol=!!.symbol, .count=!!.count) %>%
+      
+      # # Remove redundant samples
+      # remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+      # droplevels() %>%
       # 
+      # # Eliminate suspicious samples
+      # filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>%
+      
       # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
       #   
-      # do_imputation(.sample = !!.sample, .symbol=!!.symbol, .cell_type=!!.cell_type) %>% 
+      # do_imputation(.sample = !!.sample, .symbol=feature, .count= !!.count, .cell_type=!!.cell_type) %>% 
       
 
       # do_hierarchy(.sample=!!.sample,
@@ -1642,10 +1649,17 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
       # 
       # tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type, 
       #                                .symbol=!!.symbol, .count=!!.count) %>% 
+      
+      # # Remove redundant samples
+      # remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+      # droplevels() %>% 
       # 
+      # # Eliminate suspicious samples
+      # filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>% 
+      
       # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
       #   
-      # do_imputation(.sample = !!.sample, .symbol=!!.symbol, .cell_type=!!.cell_type) %>% 
+      # do_imputation(.sample = !!.sample, .symbol=feature, .count= !!.count, .cell_type=!!.cell_type) %>% 
       
  
       # do_hierarchy(.sample=!!.sample,
@@ -1735,7 +1749,7 @@ do_scaling <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
     # ensure all genes are present to all level_1 cell types(missing genes for other level cell types can be imputed)
     nest(data = -c(level_1, !!.symbol)) %>%
     add_count(!!.symbol) %>%
-    filter(n==n_distinct(.data_tree$level_1)) %>%
+    filter(n==n_distinct(.$level_1)) %>%
     select(-n) %>%
     unnest(data) %>%
     
@@ -1743,9 +1757,8 @@ do_scaling <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
     as_SummarizedExperiment(!!.sample, !!.symbol, !!.count)  %>%
     
     # Scale with first degree imputation. 
-    # This because there are no common genes to all samples
-    impute_missing_abundance(~ cell_type, suffix="") %>%
-    # impute_missing_abundance(~ !!.cell_type, .abundance = !!.count) %>%
+    # This because there are no common genes to all samples. Note that quasiquotation doesn't work in a formula
+    impute_missing_abundance(.formula = as.formula(sprintf("~ %s", quo_name(.cell_type)))) %>% 
     identify_abundant() %>%
     scale_abundance() %>%
     filter(!.imputed) %>% 
@@ -1760,9 +1773,11 @@ do_scaling <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
 }
 
 # imputation
-do_imputation <- function(.scaled_counts, .sample, .symbol, .cell_type){
+do_imputation <- function(.scaled_counts, .sample, .symbol, .count, .cell_type){
+  
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
+  .count = enquo(.count)
   .cell_type = enquo(.cell_type)
   
   .scaled_counts %>% 
@@ -1771,15 +1786,23 @@ do_imputation <- function(.scaled_counts, .sample, .symbol, .cell_type){
     as_SummarizedExperiment(!!.sample, !!.symbol, .abundance = c(!!.count, count_scaled)) %>%
     
     # Hierarchical imputation. Suffix = "" equated to overwrite counts
-    impute_missing_abundance(~ !!.cell_type, .abundance = c(!!.count, count_scaled)) %>%
+    impute_missing_abundance(.formula = as.formula(sprintf("~ %s", quo_name(.cell_type))),
+                             .abundance = c(!!.count, count_scaled)) %>%
     
-    {
-      for(level in (.) %>% colnames %>% str_extract("level\\_\\d") %>% .[!is.na(.)]) {
-        (.) <- (.) %>% 
-          impute_missing_abundance(~ !!as.symbol(level), .abundance = c(!!.count, count_scaled))
-      }
-      
-    } %>% 
+    # AUTOMATE THIS!
+    impute_missing_abundance(~ level_5, .abundance = c(!!.count, count_scaled)) %>%
+    impute_missing_abundance(~ level_4, .abundance = c(!!.count, count_scaled)) %>%
+    impute_missing_abundance(~ level_3, .abundance = c(!!.count, count_scaled)) %>%
+    impute_missing_abundance(~ level_2, .abundance = c(!!.count, count_scaled)) %>%
+    impute_missing_abundance(~ level_1, .abundance = c(!!.count, count_scaled)) %>% 
+    
+    # {
+    #   for(level in (.) %>% colnames %>% str_extract("level\\_\\d") %>% .[!is.na(.)]) {
+    #     (.) <- (.) %>% 
+    #       impute_missing_abundance(~ !!as.symbol(level), .abundance = c(!!.count, count_scaled))
+    #   }
+    #   
+    # } %>% 
     
     # Convert back to tibble
     as_tibble() %>%
