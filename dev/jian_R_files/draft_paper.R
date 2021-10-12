@@ -164,542 +164,6 @@ single_marker_pw_select <-
              nest(sig_df = - ancestor))
   }
 
-
-# # Shiny APP
-# # Inside main panel
-# fluidRow(
-#   h4("Level 2"),
-#   column(6,
-#          plotlyOutput("plot_immune")  
-#   ),
-#   column(6, 
-#          DT::dataTableOutput("markers_immune")
-#   ),
-# ),
-# 
-# fluidRow(
-#   h4("Level 2"),
-#   column(6,
-#          plotlyOutput("plot_immune")
-#   ),
-#   textOutput("sig_immune")),
-# 
-# fluidRow(
-#   h4("Level 3"),
-#   fluidRow(
-#     column(6, 
-#            plotlyOutput("plot_mono_derived"),
-#            textOutput("sig_mono_derived")
-#     ),
-#     column(6, 
-#            plotlyOutput("plot_t_cell"),
-#            textOutput("sig_t_cell"))
-#   ),
-#   
-#   fluidRow(
-#     column(6, 
-#            plotlyOutput("plot_granulocyte"),
-#            textOutput("sig_granulocyte")
-#     ),
-#     column(6,
-#            plotlyOutput("plot_b_cell"),
-#            textOutput("sig_b_cell")
-#     )
-#   ),
-#   
-#   fluidRow(
-#     column(6, 
-#            plotlyOutput("plot_NK"),
-#            textOutput("sig_NK")
-#     )
-#   )
-# ),
-# 
-# fluidRow(
-#   h4("Level 4"),
-#   fluidRow(
-#     column(6,
-#            plotlyOutput("plot_t_CD4"),
-#            textOutput("sig_t_CD4")
-#     ),
-#     column(6,
-#            plotlyOutput("plot_macrophage"),
-#            textOutput("sig_macrophage")
-#     )
-#   ),
-#   
-#   fluidRow(
-#     column(6,
-#            plotlyOutput("plot_t_CD8"),
-#            textOutput("sig_t_CD8")
-#     ),
-#     column(6,
-#            plotlyOutput("plot_DC_myeloid"),
-#            textOutput("sig_DC_myeloid")
-#     )
-#   ),
-#   
-#   fluidRow(
-#     column(6,
-#            plotlyOutput("plot_NK_primed"),
-#            textOutput("sig_NK_primed")
-#     )
-#   )
-# ),
-# 
-# fluidRow(
-#   h4("Level 5"),
-#   fluidRow(
-#     column(6,
-#            plotlyOutput("plot_t_CD4_memory"),
-#            textOutput("sig_t_CD4_memory")
-#     ),
-#     column(6,
-#            plotlyOutput("plot_t_CD8_memory"),
-#            textOutput("sig_t_CD8_memory")
-#     )
-#   ),
-#   
-#   fluidRow(
-#     column(6,
-#            plotlyOutput("plot_t_helper"),
-#            textOutput("sig_t_helper")
-#     )
-#   )
-# 
-# # Inside server function
-# plotImmune <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_immune <- sig_data() %>% 
-#       pluck("sil", 2) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_2, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw() 
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_immune <- sig_data() %>% 
-#       pluck("sil", 2) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_2, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_immune))
-# })
-# 
-# output$plot_immune <- renderPlotly({ plotImmune() })
-# 
-# output$sig_immune <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 2) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotMono <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_mono <- sig_data() %>% 
-#       pluck("sil", 3) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_mono <- sig_data() %>% 
-#       pluck("sil", 3) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_mono))
-# })
-# 
-# output$plot_mono_derived <- renderPlotly({ plotMono() })
-# 
-# output$sig_mono_derived <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 3) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotT <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_t <- sig_data() %>% 
-#       pluck("sil", 4) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_t <- sig_data() %>% 
-#       pluck("sil", 4) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_t))
-# })
-# 
-# output$plot_t_cell <- renderPlotly({plotT() })
-# 
-# output$sig_t_cell <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 4) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotGranulo <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_granulo <- sig_data() %>% 
-#       pluck("sil", 5) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_granulo <- sig_data() %>% 
-#       pluck("sil", 5) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_granulo))
-# })
-# 
-# output$plot_granulocyte <- renderPlotly({ plotGranulo() })
-# 
-# output$sig_granulocyte <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 5) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotB <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_b <- sig_data() %>% 
-#       pluck("sil", 6) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_b <- sig_data() %>% 
-#       pluck("sil", 6) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_b))
-# })
-# 
-# output$plot_b_cell <- renderPlotly({ plotB() })
-# 
-# output$sig_b_cell <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 6) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotNK <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_nk <- sig_data() %>% 
-#       pluck("sil", 6) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_nk <- sig_data() %>% 
-#       pluck("sil", 6) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_nk))
-# })
-# 
-# output$plot_NK <- renderPlotly({ plotNK() })
-# 
-# output$sig_NK <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 7) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotCD4 <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_cd4 <- sig_data() %>% 
-#       pluck("sil", 8) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_cd4 <- sig_data() %>% 
-#       pluck("sil", 8) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_cd4))
-# })
-# 
-# output$plot_t_CD4 <- renderPlotly({ plotCD4() })
-# 
-# output$sig_t_CD4 <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 8) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotMacro <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_macro <- sig_data() %>% 
-#       pluck("sil", 9) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_macro <- sig_data() %>% 
-#       pluck("sil", 9) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_macro))
-# })
-# 
-# output$plot_macrophage <- renderPlotly({ plotMacro() })
-# 
-# output$sig_macrophage <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 9) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotCD8 <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_cd8 <- sig_data() %>% 
-#       pluck("sil", 10) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_cd8 <- sig_data() %>% 
-#       pluck("sil", 10) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_cd8))
-# })
-# 
-# output$plot_t_CD8 <- renderPlotly({ plotCD8() })
-# 
-# output$sig_t_CD8 <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 10) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotDC <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_dc <- sig_data() %>% 
-#       pluck("sil", 11) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_dc <- sig_data() %>% 
-#       pluck("sil", 11) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_dc))
-# })
-# 
-# output$plot_DC_myeloid <- renderPlotly({ plotDC() })
-# 
-# output$sig_DC_myeloid <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 11) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotNKP <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_nkp <- sig_data() %>% 
-#       pluck("sil", 12) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_nkp <- sig_data() %>% 
-#       pluck("sil", 12) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_nkp))
-# })
-# 
-# output$plot_NK_primed <- renderPlotly({ plotNKP() })
-# 
-# output$sig_NK_primed <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 12) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotCD4memo <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_cd4memo <- sig_data() %>% 
-#       pluck("sil", 13) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_5, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_cd4memo <- sig_data() %>% 
-#       pluck("sil", 13) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_5, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_cd4memo))
-# })
-# 
-# output$plot_t_CD4_memory <- renderPlotly({ plotCD4memo() })
-# 
-# output$sig_t_CD4_memory <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 13) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotCD8memo <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_cd8memo <- sig_data() %>% 
-#       pluck("sil", 14) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_5, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_cd8memo <- sig_data() %>% 
-#       pluck("sil", 14) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_5, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_cd8memo))
-# })
-# 
-# output$plot_t_CD8_memory <- renderPlotly({ plotCD8memo() })
-# 
-# output$sig_t_CD8_memory <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 14) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotTH <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_th <- sig_data() %>% 
-#       pluck("sil", 15) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_5, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_th <- sig_data() %>% 
-#       pluck("sil", 15) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_5, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_th))
-# })
-# 
-# output$plot_t_helper <- renderPlotly({ plotTH() })
-# 
-# output$sig_t_helper <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 15) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# # old shiny server variable
-# sig_data <- eventReactive(input$run, {
-#   markers_collect %>% 
-#     mutate(sil_df = 
-#              pmap(list(!!as.symbol(format_name(sig_select_method())), level, rdim_method()),
-#                   ~ sil_func(..1, ..2, ..3))) %>% 
-#     mutate(sig =
-#              map(!!as.symbol(format_name(sig_select_method())), 
-#                  ~.x %>% 
-#                    pull(symbol) %>% 
-#                    unique()))
-# })
-
 dat <- structure(list(x = c(1.158362492, 1.1430148, 1.11058971, 1.120573931, 
                             1.149219113, 1.123851641, 1.096910013), 
                       y = c(1.322219295, 1.267171728, 1.252853031, 1.260071388, 
@@ -3623,7 +3087,7 @@ do_scaling <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
     
     # Scale with first degree imputation. 
     # This because there are no common genes to all samples
-    impute_missing_abundance(~ !!.cell_type, suffix="") %>%
+    impute_missing_abundance(~ !!.cell_type, .sample=sample, .transcript = symbol, .abundance = count) %>%
     identify_abundant() %>%
     scale_abundance() %>%
     filter(!.imputed) %>% 
@@ -3691,11 +3155,74 @@ counts_scaled_old_tree <- counts %>%
 
 counts_scaled_old_tree <- counts_scaled_old_tree %>% 
   
+  nest(data = -c(level_1, symbol)) %>%
+  add_count(symbol) %>%
+  filter(n==n_distinct(.$level_1)) %>%
+  select(-n) %>%
+  unnest(data)
+
+counts_scaled_old_tree %>% 
+  
+  # impute_missing_abundance(~ cell_type, .sample=sample, .transcript = symbol, .abundance = count)
+  
+  # Convert to SE
+  # as_SummarizedExperiment(sample, symbol, count) %>% 
+  
   do_scaling(.sample = sample, .symbol=symbol, .count = count, .cell_type = cell_type)
 
 counts_imputed_old_tree <- counts_scaled_old_tree %>% 
   
   do_imputation(.sample = sample, .symbol=symbol, .cell_type = cell_type)
+
+x <- counts_scaled_cellsig_tree %>% 
+  
+  # Convert to SE
+  as_SummarizedExperiment(sample, feature, c(count, count_scaled))
+
+y0 <- x %>% 
+  
+  # Hierarchical imputation. Suffix = "" equated to overwrite counts
+  impute_missing_abundance(~ cell_type, .abundance = c(count, count_scaled))
+y1 <- y0 %>% 
+  impute_missing_abundance(~ level_5, .abundance = c(count, count_scaled)) %>%
+  impute_missing_abundance(~ level_4, .abundance = c(count, count_scaled)) %>%
+  impute_missing_abundance(~ level_3, .abundance = c(count, count_scaled)) %>%
+  impute_missing_abundance(~ level_2, .abundance = c(count, count_scaled)) %>%
+  impute_missing_abundance(~ level_1, .abundance = c(count, count_scaled)) %>% 
+  
+levelwise_imputation <- function(.scaled_data, level){
+  if (level == "level_6") {
+    return(.scaled_data %>% 
+             impute_missing_abundance(.formula = as.formula(sprintf("~ %s", pre(level))),
+                                      .abundance = c(count, count_scaled))
+    )
+  }else{
+    
+    level <- level %>% 
+      str_split("_") %>%
+      {as.numeric(.[[1]][2]) + 1} %>%
+      paste("level", ., sep = "_")
+      
+    return(
+        levelwise_imputation(.scaled_data, level)
+      )
+    }
+}
+  
+  
+  # Convert back to tibble
+  as_tibble() %>%
+  
+  mutate(.imputed = if_any(contains("imputed"), ~ .x != 0)) %>% 
+  
+  select(-matches("imputed\\.\\d")) %>% 
+  
+  # Merge the imputed column
+  mutate(.imputed = .imputed | .imputed.1 | .imputed.2 | .imputed.3 |.imputed.4 |.imputed.5  ) %>%
+  select(-c( .imputed.1 , .imputed.2 , .imputed.3 ,.imputed.4 ,.imputed.5  )) %>%
+  
+  # Save
+  saveRDS("dev/intermediate_data/counts_imputed.rds", compress = "xz")
 
 ## create reference file
 
