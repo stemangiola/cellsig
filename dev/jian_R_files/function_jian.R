@@ -1599,11 +1599,11 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
       #                                .symbol=!!.symbol, .count=!!.count) %>%
       
       # # Remove redundant samples
-      # remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+      # remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
       # droplevels() %>%
       # 
       # # Eliminate suspicious samples
-      # filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>%
+      # filter(!grepl("GSM3722278|GSM3722276|GSM3722277", !!.sample)) %>%
       
       # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
       #   
@@ -1651,11 +1651,11 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
       #                                .symbol=!!.symbol, .count=!!.count) %>% 
       
       # # Remove redundant samples
-      # remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+      # remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
       # droplevels() %>% 
       # 
       # # Eliminate suspicious samples
-      # filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>% 
+      # filter(!grepl("GSM3722278|GSM3722276|GSM3722277", !!.sample)) %>% 
       
       # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
       #   

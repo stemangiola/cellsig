@@ -32,62 +32,7 @@ do_imputation <- function(.scaled_counts, .sample, .symbol, .count, .cell_type){
     select(-matches("imputed\\.\\d"))
 }
 
-do_hierarchy <- function(.imputed_counts, .sample, .symbol, .cell_type, .tree, .is_hierarchy = TRUE, .level = NULL){
-  
-  .sample = enquo(.sample)
-  .symbol = enquo(.symbol)
-  .cell_type = enquo(.cell_type)
-  
-  if (.is_hierarchy) { # scaling under each ancestor node at each level
-    
-    if (is.null(.level)) { # scale counts for all levels present
-      
-      tibble(level = names(.imputed_counts) %>% str_subset("level")) %>%
-        
-        mutate(tt = map(level, ~ .imputed_counts %>%
-                          
-                          mutate(level_0 = "root") %>%
-                          
-                          create_hierarchy(.level=.x, .sample=!!.sample, .symbol=!!.symbol))) %>%
-        
-        mutate(tt = map2(tt, level, ~ .x %>% dplyr::rename(ancestor = pre(.y))))
-      
-    } else { # scale counts for the level specified by .level
-      
-      tibble(level = .level) %>%
-        
-        mutate(tt = map(level, ~ .imputed_counts %>%
-                          
-                          mutate(level_0 = "root") %>%
-                          
-                          create_hierarchy(.level=.x, .sample=!!.sample, .symbol=!!.symbol))) %>%
-        
-        mutate(tt = map2(tt, level, ~ .x %>% dplyr::rename(ancestor = pre(.y))))
-    }
-    
-  } else { # non-hierarchical: scaling all cell types under the root node
-    
-    .level <- "root"
-    
-    tibble(level = .level) %>%
-      
-      mutate(tt = map(level, ~ .imputed_counts %>%
-                        
-                        # non-hierarchical methods should only compare leaf cell types
-                        filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
-                        
-                        # create a root column for pre(.level)
-                        mutate(!!as.symbol(.level) := !!.cell_type) %>%
-                        mutate(!!as.symbol(pre(.level)) := .level) %>%
-                        
-                        create_hierarchy(.level=.x, .sample=!!.sample, .symbol=!!.symbol))) %>%
-      
-      mutate(tt = map2(tt, level, ~ .x %>% dplyr::rename(ancestor = pre(.y))))
-    
-  }
-}
-
-create_hierarchy <- function(.imputed_counts, .level, .sample, .symbol) {
+create_hierarchy_and_calculate_imputation_ratio <- function(.imputed_counts, .level, .sample, .symbol) {
   # this preproces function ranged data in hierarchy(or non_hierarchy) and
   # calculates the imputation ratio for genes in each hierarchy
   .sample = enquo(.sample)
@@ -96,10 +41,7 @@ create_hierarchy <- function(.imputed_counts, .level, .sample, .symbol) {
   
   # load data
   .imputed_counts %>%
-    
-    # tidybulk(sample, symbol, count_scaled) %>% for imputed counts data
-    # tidybulk(.sample = !!.sample, .transcript = !!.symbol, .abundance = !!.count) %>%
-    
+
     # filter for cells at the level of interest. .level == level_1
     filter(!is.na(!!as.symbol(.level))) %>%
     
@@ -107,6 +49,7 @@ create_hierarchy <- function(.imputed_counts, .level, .sample, .symbol) {
     nest(data = - !!as.symbol(pre(.level)))
   
 }
+
 
 counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_type,
                                        .is_hierarchy=TRUE, .level=NULL, 
@@ -136,11 +79,11 @@ counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_t
       
       # comment out these five lines when using your single cell data, keep when using bulk data
       # Remove redundant samples
-      remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+      remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
       droplevels() %>%
       
       # Eliminate suspicious samples
-      filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>%
+      filter(!grepl("GSM3722278|GSM3722276|GSM3722277", !!.sample)) %>%
       
       do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
       
@@ -194,11 +137,11 @@ counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_t
       
       # comment out these five lines when using your single cell data, keep when using bulk data
       # Remove redundant samples
-      remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+      remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
       droplevels() %>%
       
       # Eliminate suspicious samples
-      filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>%
+      filter(!grepl("GSM3722278|GSM3722276|GSM3722277", !!.sample)) %>%
       
       do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
       
