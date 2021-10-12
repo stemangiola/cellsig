@@ -1749,7 +1749,7 @@ do_scaling <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
     # ensure all genes are present to all level_1 cell types(missing genes for other level cell types can be imputed)
     nest(data = -c(level_1, !!.symbol)) %>%
     add_count(!!.symbol) %>%
-    filter(n==n_distinct(.$level_1)) %>%
+    filter(n==n_distinct(.data_tree$level_1)) %>%
     select(-n) %>%
     unnest(data) %>%
     
