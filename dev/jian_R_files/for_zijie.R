@@ -223,7 +223,7 @@ zijie_input_expression_data %>%
 
     .ranking_method = rank_edgR_quasi_likelihood, .rank_stat = "PValue",
     
-    .selection_method = "naive",
+    .selection_method = "silhouette", dims = 4,
     
     .optimisation_method = "penalty") %>% 
   
@@ -246,7 +246,7 @@ counts %>%
     
     .ranking_method = rank_edgR_quasi_likelihood, .rank_stat = "PValue",
     
-    .selection_method = "naive",
+    .selection_method = "silhouette", .dims=4,
     
     .optimisation_method = "penalty") %>% 
   
