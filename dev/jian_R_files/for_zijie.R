@@ -88,6 +88,8 @@ counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_t
       do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
       
       do_imputation(.sample = !!.sample, .symbol=feature, .count = !!.count, .cell_type=!!.cell_type) %>%
+      
+      rename(symbol = feature) %>% 
       ##
       
       
@@ -146,6 +148,8 @@ counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_t
       do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
       
       do_imputation(.sample = !!.sample, .symbol=feature, .count = !!.count, .cell_type=!!.cell_type) %>%
+      
+      rename(symbol = feature) %>% 
       ##
       
       
@@ -196,7 +200,7 @@ counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_t
 # load input data =============================================================================
 
 # MODIFY THIS: load your own tree
-tree = read_yaml("dev/tree.yaml") %>% as.Node
+zijie_tree = read_yaml("dev/intermediate_data/tree_zijie.yaml") %>% as.Node
 
 # MODIFY THIS: load your own input data
 zijie_input_expression_data
@@ -240,7 +244,7 @@ counts %>%
     
     .is_hierarchy=TRUE,
     
-    .tree = tree, # change to your tree!!!
+    .tree = zijie_tree, # change to your tree!!!
     
     .contrast_method = pairwise_contrast, 
     
@@ -252,7 +256,7 @@ counts %>%
   
   # save the output signature of the function
   # PLEASE MODIFY THIS LINE OF CODE
-  saveRDS("your_directory/name_of_the_output_file.rds", compress = "xz")
+  saveRDS("dev/intermediate_data/zijie_bulk_signature.rds", compress = "xz")
 
 
 # Jian's example ====================================================================
