@@ -3340,3 +3340,11 @@ tibble(levels = if(TRUE){"root"}else{sprintf("level_%s", 1:5)}
       ungroup
   )) %>% 
   select(levels, data, leaf_nodes, reduced_dimensions)
+
+
+
+c("\tRscript dev/jian_R_files/for_zijie.R dev/intermediate_data/zijie_bulk_signature.rds") %>% 
+  
+  purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=30000\nCORES=2\nWALL_TIME=86400") %>%
+  
+  write_lines("dev/benchmark_code/zijie_bulk_signaure.makeflow")
