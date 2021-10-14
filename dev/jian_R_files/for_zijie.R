@@ -163,6 +163,7 @@ counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_t
       
       do_ranking(.sample=!!.sample, 
                  .symbol=!!.symbol,
+                 .cell_type = !!.cell_type,
                  .ranking_method=.ranking_method, 
                  .contrast_method=.contrast_method, 
                  .rank_stat=.rank_stat, 
