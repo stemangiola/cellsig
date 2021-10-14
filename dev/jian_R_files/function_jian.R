@@ -19,7 +19,7 @@ library(data.tree)
 library(cluster)
 library(tidyverse)
 library(tidybulk)
-library(cellsig)
+# library(cellsig)
 library(patchwork)
 library(tidySummarizedExperiment)
 
@@ -1671,6 +1671,7 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
       
       do_ranking(.sample=!!.sample, 
                  .symbol=!!.symbol,
+                 .cell_type = !!.cell_type,
                  .ranking_method=.ranking_method, 
                  .contrast_method=.contrast_method, 
                  .rank_stat=.rank_stat, 
