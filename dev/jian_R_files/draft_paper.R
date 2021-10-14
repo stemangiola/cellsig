@@ -3348,3 +3348,35 @@ c("\tRscript dev/jian_R_files/for_zijie.R dev/intermediate_data/zijie_bulk_signa
   purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=30000\nCORES=2\nWALL_TIME=86400") %>%
   
   write_lines("dev/benchmark_code/zijie_bulk_signaure.makeflow")
+
+counts %>% 
+  
+  adapt_tree(.tree = new_tree) %>%
+
+  tree_and_signatures_to_database(tree=new_tree, ., .sample=sample, .cell_type=cell_type,
+                                 .symbol=symbol, .count=count) %>%
+
+  # Remove redundant samples
+  remove_redundancy(.element=sample, .feature=symbol, .abundance=count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+  droplevels() %>%
+  
+  # Eliminate suspicious samples
+  filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>%
+
+  do_scaling(.sample = sample, .symbol= symbol , .count= count, .cell_type= cell_type) %>%
+  
+  saveRDS("dev/intermediate_data/counts_scaled.rds", compress = "xz")
+
+counts_imputed_hierarchy %>% 
+  
+  main(.sample=sample, .symbol=symbol, .count = NULL, .cell_type = cell_type,
+       .is_hierarchy=TRUE, 
+       .contrast_method=pairwise_contrast, 
+       .ranking_method=rank_bayes, 
+       .rank_stat=NULL, 
+       .bayes=counts_bayes_imputed_hierarchy, 
+       .tree = NULL,
+       .selection_method="silhouette", .kmax=60, .discard_number=2000, .reduction_method = "tSNE",
+       .dims=2,
+       .optimisation_method = "penalty", .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
+       .is_complete = TRUE)
