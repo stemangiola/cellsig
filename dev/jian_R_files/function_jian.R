@@ -3332,76 +3332,7 @@ vector_to_formatted_text <- function(.vector, .k=6){
   return(text)
 }
 
-# function for zijie
-# counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_type,
-#                                        .is_hierarchy=TRUE, .level=NULL, 
-#                                        .tree, .node=NULL,
-#                                        .contrast_method, .ranking_method, .rank_stat=NULL, .bayes=NULL, 
-#                                        .selection_method, .kmax=60, .discard_number=2000, .reduction_method = "PCA", .dims=2,
-#                                        .optimisation_method, .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
-#                                        .is_complete = TRUE) {
-#   
-#   .sample = enquo(.sample)
-#   .symbol = enquo(.symbol)
-#   .count = enquo(.count)
-#   .cell_type = enquo(.cell_type)
-#   
-#   subtree = tree_subset(.tree=.tree, .node=.node)
-#   
-#   do_hierarchy <- function(.imputed_counts, .sample, .symbol, .cell_type, .tree, .is_hierarchy = TRUE, .level = NULL){
-#     
-#     .sample = enquo(.sample)
-#     .symbol = enquo(.symbol)
-#     .cell_type = enquo(.cell_type)
-#     
-#     if (.is_hierarchy) { # scaling under each ancestor node at each level
-#       
-#       if (is.null(.level)) { # scale counts for all levels present
-#         
-#         tibble(level = names(.imputed_counts) %>% str_subset("level")) %>%
-#           
-#           mutate(tt = map(level, ~ .imputed_counts %>%
-#                             
-#                             mutate(level_0 = "root") %>%
-#                             
-#                             create_hierarchy_and_calculate_imputation_ratio(.level=.x, .sample=!!.sample, .symbol=!!.symbol))) %>%
-#           
-#           mutate(tt = map2(tt, level, ~ .x %>% dplyr::rename(ancestor = pre(.y))))
-#         
-#       } else { # scale counts for the level specified by .level
-#         
-#         tibble(level = .level) %>%
-#           
-#           mutate(tt = map(level, ~ .imputed_counts %>%
-#                             
-#                             mutate(level_0 = "root") %>%
-#                             
-#                             create_hierarchy_and_calculate_imputation_ratio(.level=.x, .sample=!!.sample, .symbol=!!.symbol))) %>%
-#           
-#           mutate(tt = map2(tt, level, ~ .x %>% dplyr::rename(ancestor = pre(.y))))
-#       }
-#       
-#     } else { # non-hierarchical: scaling all cell types under the root node
-#       
-#       .level <- "root"
-#       
-#       tibble(level = .level) %>%
-#         
-#         mutate(tt = map(level, ~ .imputed_counts %>%
-#                           
-#                           # non-hierarchical methods should only compare leaf cell types
-#                           filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
-#                           
-#                           # create a root column for pre(.level)
-#                           mutate(!!as.symbol(.level) := !!.cell_type) %>%
-#                           mutate(!!as.symbol(pre(.level)) := .level) %>%
-#                           
-#                           create_hierarchy_and_calculate_imputation_ratio(.level=.x, .sample=!!.sample, .symbol=!!.symbol))) %>%
-#         
-#         mutate(tt = map2(tt, level, ~ .x %>% dplyr::rename(ancestor = pre(.y))))
-#       
-#     }
-#   }
+
 # old preprocessing where data rectangularisation(same set of genes for all cell types), 
 # imputation, scale_abundance was done
 # preprocess <- function(.transcript, .level) {
