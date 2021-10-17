@@ -19,6 +19,7 @@ do_imputation <- function(.scaled_counts, .sample, .symbol, .count, .cell_type){
                              .abundance = c(!!.count, count_scaled)) %>%
     
     # AUTOMATE THIS!
+    impute_missing_abundance(~ level_5, .abundance = c(!!.count, count_scaled)) %>%
     impute_missing_abundance(~ level_4, .abundance = c(!!.count, count_scaled)) %>%
     impute_missing_abundance(~ level_3, .abundance = c(!!.count, count_scaled)) %>%
     impute_missing_abundance(~ level_2, .abundance = c(!!.count, count_scaled)) %>%
