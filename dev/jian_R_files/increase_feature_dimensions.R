@@ -47,30 +47,41 @@ pca <- counts_imputed_non_hierarchy %>%
   prcomp()
 
 #scree plot
-png("scree.png", height = 800, width = 800)
-par(mfrow=c(2, 2))
-plot(x = 1:30, y = pca$sdev[1:30], xlab = "number of PC", ylab = "standard devidation explained",
-     main = "Scree plot")
+png("dev/jian_R_files/pca_var_indiv.png", height = 800, width = 800)
+# par(mfrow=c(1, 2))
+# plot(x = 1:30, y = pca$sdev[1:30], xlab = "number of PC", ylab = "standard devidation explained",
+#      main = "Scree plot")
 
 # proportion of variance explained by individual PCs
 barplot(100*(pca$sdev^2 / sum(pca$sdev^2))[1:30],
         ylab = "proportion of variance explained (%)",
         xlab = "number of PC",
         names.arg = 1:30,
-        axisnames = TRUE)
+        axisnames = TRUE,
+        font.lab = 2,
+        cex.lab = 2,
+        cex.axis = 1.5)
+
+dev.off()
+
 
 # cumulative proportion of variance explained by PCs
 # cumsum(pca$sdev^2 / sum(pca$sdev^2))[1:30]
+
+png("dev/jian_R_files/pca_var_cumu.png", height = 800, width = 800)
 
 barplot(100*cumsum(pca$sdev^2 / sum(pca$sdev^2))[1:30], 
         ylab = "cumulative porportion of variance (%)",
         xlab = "number of PC",
         ylim = c(0, 100),
         names.arg = 1:30,
-        axisnames = TRUE)
-abline(h=90, col = "red", lty=2)
+        axisnames = TRUE,
+        font.lab = 2,
+        cex.lab = 2,
+        cex.axis = 1.5)
+abline(h=90, col = "red", lty=2, lwd=2)
 
-par(mfrow=c(1, 1))
+# par(mfrow=c(1, 1))
 dev.off()
 
 # produce umap plot using 2 components(default) from signatures of best stream by deconvolution:
