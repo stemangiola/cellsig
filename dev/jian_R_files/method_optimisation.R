@@ -1350,16 +1350,16 @@ library(KernSmooth)
 library(splus2R)
 
 mean_contrast.silhouette.hierarchy.unOP <- 
-  readRDS("topInf_scaleFALSE/unoptimised/mean_contrast.silhouette.hierarchy.unOP.new.rds")
+  readRDS("dev/topInf_scaleFALSE/unoptimised/mean_contrast.silhouette.hierarchy.unOP.rds")
 
 pairwise.silhouette.hierarchy.unOP <- 
-  readRDS("topInf_scaleFALSE/unoptimised/pairwise.silhouette.hierarchy.unOP.new.rds")
+  readRDS("topInf_scaleFALSE/unoptimised/pairwise.silhouette.hierarchy.unOP.rds")
 
 mean_contrast.naive.hierarchy.unOP <- 
-  readRDS("topInf_scaleFALSE/unoptimised/mean_contrast.naive.hierarchy.unOP.new.rds")
+  readRDS("topInf_scaleFALSE/unoptimised/mean_contrast.naive.hierarchy.unOP.rds")
 
 pairwise.naive.hierarchy.unOP <- 
-  readRDS("topInf_scaleFALSE/unoptimised/pairwise.naive.hierarchy.unOP.new.rds")
+  readRDS("topInf_scaleFALSE/unoptimised/pairwise.naive.hierarchy.unOP.rds")
 
 curvature <- function(.drv1, .drv2){
   abs(.drv2) / (1 + .drv1^2)^(3/2)
@@ -1455,7 +1455,7 @@ x <- mean_contrast.silhouette.hierarchy.unOP %>%
     data,
     ~ locpoly(.x$size.rescaled, .x$silhouette, 
               drv = 0L, degree=2, kernel = "normal", 
-              bandwidth = 0.05, gridsize = 100) %>% 
+              bandwidth = 0.1, gridsize = 100) %>% 
       as_tibble() %>% 
       `colnames<-`(c("grid", "estimate"))
   )) %>% 
@@ -1464,18 +1464,18 @@ x <- mean_contrast.silhouette.hierarchy.unOP %>%
     data,
     ~ locpoly(.x$size.rescaled, .x$silhouette, 
               drv = 1L, degree=2, kernel = "normal", 
-              bandwidth = 0.05, gridsize = 100) %>% 
+              bandwidth = 0.1, gridsize = 100) %>% 
       as_tibble() %>% 
-      `colnames<-`(c("grid", "deriv1"))
+      `colnames<-`(c("grid", "derivative.1st"))
   )) %>% 
   
   mutate(second.derivative = map(
     data,
     ~ locpoly(.x$size.rescaled, .x$silhouette, 
               drv = 2L, degree=2, kernel = "normal", 
-              bandwidth = 0.05, gridsize = 100) %>% 
+              bandwidth = 0.1, gridsize = 100) %>% 
       as_tibble() %>% 
-      `colnames<-`(c("grid", "deriv2"))
+      `colnames<-`(c("grid", "derivative.2nd"))
   )) %>% 
   
   mutate(smoothed = pmap(
@@ -1489,307 +1489,365 @@ x <- mean_contrast.silhouette.hierarchy.unOP %>%
     smoothed,
     ~ .x %>% 
       mutate(curvature = map2_dbl(
-        deriv1, deriv2,
+        derivative.1st, derivative.2nd,
         ~ curvature(.x, .y)
       ))
   )) %>% 
   
   select(-c(smoothed.estimate, first.derivative, second.derivative))
 
-p1 <- x %>% 
+y <- x %>% 
+  mutate(smoothed = map(
+    smoothed, 
+    ~ .x %>% 
+      mutate(derivative.1st.scaled = derivative.1st/10) %>% 
+      mutate(curvature.scaled = rescale(curvature)) %>% 
+      select(-c(derivative.1st, derivative.2nd, curvature)) %>% 
+      pivot_longer(-grid, names_to = "y_value_type", values_to = "value")
+  ))
+
+p1 <- y %>% 
   pluck("data", 1) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
   geom_line() +
-  # geom_point(colour="blue", alpha=0.5) + 
-  geom_point(aes(grid, estimate), data=pluck(x, "smoothed", 1), colour="black") +
-  geom_point(aes(grid, deriv1/10), data=pluck(x, "smoothed", 1),  colour="dodgerblue") +
-  geom_point(aes(grid, rescale(curvature)), data=pluck(x, "smoothed", 1),  colour="tomato")+
+  geom_point(aes(grid, value, colour=y_value_type, alpha=0.99), data=pluck(y, "smoothed", 1)) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 1) %>% filter(curvature==max(curvature[peaks(curvature)])),
-             colour = "tomato"
+             data=pluck(y, "smoothed", 1) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               filter(curvature.scaled==max(curvature.scaled[peaks(curvature.scaled)])),
+             colour = "tomato", shape = 8, size=5
   ) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 1) %>% 
-               with(.[which.min(abs(deriv1-1)), ]),
-             colour = "dodgerblue"
+             data=pluck(y, "smoothed", 1) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               with(.[which.min(abs(derivative.1st.scaled-1)), ]),
+             colour = "limegreen", shape = 8, size=5
   ) +
+  guides(alpha = FALSE) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("root node, manual.size=30")
+  ggtitle("root, manual.size=30")
 
 
-p2 <- x %>% 
+p2 <- y %>% 
   pluck("data", 2) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
   geom_line() +
-  # geom_point(colour="blue", alpha=0.5) + 
-  geom_point(aes(grid, estimate), data=pluck(x, "smoothed", 2), colour="black") +
-  geom_point(aes(grid, deriv1/10), data=pluck(x, "smoothed", 2),  colour="dodgerblue") +
-  geom_point(aes(grid, rescale(curvature)), data=pluck(x, "smoothed", 2),  colour="tomato")+
+  geom_point(aes(grid, value, colour=y_value_type, alpha=0.99), data=pluck(y, "smoothed", 2)) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 2) %>% filter(curvature==max(curvature[peaks(curvature)])),
-             colour = "tomato"
+             data=pluck(y, "smoothed", 2) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               filter(curvature.scaled==max(curvature.scaled[peaks(curvature.scaled)])),
+             colour = "tomato", shape = 8, size=5
   ) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 2) %>% 
-               with(.[which.min(abs(deriv1-1)), ]),
-             colour = "dodgerblue"
+             data=pluck(y, "smoothed", 2) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               with(.[which.min(abs(derivative.1st.scaled-1)), ]),
+             colour = "limegreen", shape = 8, size=5
   ) +
-  # annotate(geom="text", x=0.18, y=0.65, label="72", color="tomato") +
-  ggtitle("immune node, manual.size=54")
+  guides(alpha = FALSE) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = "none") +
+  # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
+  ggtitle("immune, manual.size=54")
 
-p3 <- x %>% 
+p3 <- y %>% 
   pluck("data", 3) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
   geom_line() +
-  # geom_point(colour="blue", alpha=0.5) + 
-  geom_point(aes(grid, estimate), data=pluck(x, "smoothed", 3), colour="black") +
-  geom_point(aes(grid, deriv1/10), data=pluck(x, "smoothed", 3),  colour="dodgerblue") +
-  geom_point(aes(grid, rescale(curvature)), data=pluck(x, "smoothed", 3),  colour="tomato")+
+  geom_point(aes(grid, value, colour=y_value_type, alpha=0.99), data=pluck(y, "smoothed", 3)) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 3) %>% filter(curvature==max(curvature[peaks(curvature)])),
-             colour = "tomato"
+             data=pluck(y, "smoothed", 3) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               filter(curvature.scaled==max(curvature.scaled[peaks(curvature.scaled)])),
+             colour = "tomato", shape = 8, size=5
   ) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 3) %>% 
-               with(.[which.min(abs(deriv1-1)), ]),
-             colour = "dodgerblue"
+             data=pluck(y, "smoothed", 3) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               with(.[which.min(abs(derivative.1st.scaled-1)), ]),
+             colour = "limegreen", shape = 8, size=5
   ) +
-  # annotate(geom="text", x=0.13, y=0.62, label="13", color="tomato") +
+  guides(alpha = FALSE) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = "none") +
+  # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
   ggtitle("mono_derived, manual.size=12")
 
-p4 <- x %>% 
+p4 <- y %>% 
   pluck("data", 4) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
   geom_line() +
-  # geom_point(colour="blue", alpha=0.5) + 
-  geom_point(aes(grid, estimate), data=pluck(x, "smoothed", 4), colour="black") +
-  geom_point(aes(grid, deriv1/10), data=pluck(x, "smoothed", 4),  colour="dodgerblue") +
-  geom_point(aes(grid, rescale(curvature)), data=pluck(x, "smoothed", 4),  colour="tomato")+
+  geom_point(aes(grid, value, colour=y_value_type, alpha=0.99), data=pluck(y, "smoothed", 4)) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 4) %>% filter(curvature==max(curvature[peaks(curvature)])),
-             colour = "tomato"
+             data=pluck(y, "smoothed", 4) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               filter(curvature.scaled==max(curvature.scaled[peaks(curvature.scaled)])),
+             colour = "tomato", shape = 8, size=5
   ) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 4) %>% 
-               with(.[which.min(abs(deriv1-1)), ]),
-             colour = "dodgerblue"
+             data=pluck(y, "smoothed", 4) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               with(.[which.min(abs(derivative.1st.scaled-1)), ]),
+             colour = "limegreen", shape = 8, size=5
   ) +
-  # annotate(geom="text", x=0.2, y=0.55, label="14", color="tomato") +
+  guides(alpha = FALSE) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = "none") +
+  # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
   ggtitle("t_cell, manual.size=13")
 
 
-p5 <- x %>% 
+p5 <- y %>% 
   pluck("data", 5) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
   geom_line() +
-  # geom_point(colour="blue", alpha=0.5) + 
-  geom_point(aes(grid, estimate), data=pluck(x, "smoothed", 5), colour="black") +
-  geom_point(aes(grid, deriv1/10), data=pluck(x, "smoothed", 5),  colour="dodgerblue") +
-  geom_point(aes(grid, rescale(curvature)), data=pluck(x, "smoothed", 5),  colour="tomato")+
+  geom_point(aes(grid, value, colour=y_value_type, alpha=0.99), data=pluck(y, "smoothed", 5)) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 5) %>% filter(curvature==max(curvature[peaks(curvature)])),
-             colour = "tomato"
+             data=pluck(y, "smoothed", 5) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               filter(curvature.scaled==max(curvature.scaled[peaks(curvature.scaled)])),
+             colour = "tomato", shape = 8, size=5
   ) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 5) %>% 
-               with(.[which.min(abs(deriv1-1)), ]),
-             colour = "dodgerblue"
+             data=pluck(y, "smoothed", 5) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               with(.[which.min(abs(derivative.1st.scaled-1)), ]),
+             colour = "limegreen", shape = 8, size=5
   ) +
-  # annotate(geom="text", x=0.05, y=0.33, label="5", color="tomato") +
+  guides(alpha = FALSE) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = "none") +
+  # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
   ggtitle("granulocyte, manual.size=26")
 
-p6 <- x %>% 
+p6 <- y %>% 
   pluck("data", 6) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
   geom_line() +
-  # geom_point(colour="blue", alpha=0.5) + 
-  geom_point(aes(grid, estimate), data=pluck(x, "smoothed", 6), colour="black") +
-  geom_point(aes(grid, deriv1/10), data=pluck(x, "smoothed", 6),  colour="dodgerblue") +
-  geom_point(aes(grid, rescale(curvature)), data=pluck(x, "smoothed", 6),  colour="tomato")+
+  geom_point(aes(grid, value, colour=y_value_type, alpha=0.99), data=pluck(y, "smoothed", 6)) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 6) %>% filter(curvature==max(curvature[peaks(curvature)])),
-             colour = "tomato"
+             data=pluck(y, "smoothed", 6) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               filter(curvature.scaled==max(curvature.scaled[peaks(curvature.scaled)])),
+             colour = "tomato", shape = 8, size=5
   ) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 6) %>% 
-               with(.[which.min(abs(deriv1-1)), ]),
-             colour = "dodgerblue"
+             data=pluck(y, "smoothed", 6) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               with(.[which.min(abs(derivative.1st.scaled-1)), ]),
+             colour = "limegreen", shape = 8, size=5
   ) +
-  # annotate(geom="text", x=0.08, y=0.82, label="6", color="tomato") +
+  guides(alpha = FALSE) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = "none") +
+  # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
   ggtitle("b_cell, manual.size=5")
 
 
-p7 <- x %>% 
+p7 <- y %>% 
   pluck("data", 7) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
   geom_line() +
-  # geom_point(colour="blue", alpha=0.5) + 
-  geom_point(aes(grid, estimate), data=pluck(x, "smoothed", 7), colour="black") +
-  geom_point(aes(grid, deriv1/10), data=pluck(x, "smoothed", 7),  colour="dodgerblue") +
-  geom_point(aes(grid, rescale(curvature)), data=pluck(x, "smoothed", 7),  colour="tomato")+
+  geom_point(aes(grid, value, colour=y_value_type, alpha=0.99), data=pluck(y, "smoothed", 7)) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 7) %>% filter(curvature==max(curvature[peaks(curvature)])),
-             colour = "tomato"
+             data=pluck(y, "smoothed", 7) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               filter(curvature.scaled==max(curvature.scaled[peaks(curvature.scaled)])),
+             colour = "tomato", shape = 8, size=5
   ) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 7) %>% 
-               with(.[which.min(abs(deriv1-1)), ]),
-             colour = "dodgerblue"
+             data=pluck(y, "smoothed", 7) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               with(.[which.min(abs(derivative.1st.scaled-1)), ]),
+             colour = "limegreen", shape = 8, size=5
   ) +
-  # annotate(geom="text", x=0.03, y=0.85, label="3", color="tomato") +
+  guides(alpha = FALSE) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = "none") +
+  # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
   ggtitle("natural_killer, manual.size=10")
 
 
-p8 <- x %>% 
+p8 <- y %>% 
   pluck("data", 8) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
   geom_line() +
-  # geom_point(colour="blue", alpha=0.5) + 
-  geom_point(aes(grid, estimate), data=pluck(x, "smoothed", 8), colour="black") +
-  geom_point(aes(grid, deriv1/10), data=pluck(x, "smoothed", 8),  colour="dodgerblue") +
-  geom_point(aes(grid, rescale(curvature)), data=pluck(x, "smoothed", 8),  colour="tomato")+
+  geom_point(aes(grid, value, colour=y_value_type, alpha=0.99), data=pluck(y, "smoothed", 8)) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 8) %>% filter(curvature==max(curvature[peaks(curvature)])),
-             colour = "tomato"
+             data=pluck(y, "smoothed", 8) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               filter(curvature.scaled==max(curvature.scaled[peaks(curvature.scaled)])),
+             colour = "tomato", shape = 8, size=5
   ) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 8) %>% 
-               with(.[which.min(abs(deriv1-1)), ]),
-             colour = "dodgerblue"
+             data=pluck(y, "smoothed", 8) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               with(.[which.min(abs(derivative.1st.scaled-1)), ]),
+             colour = "limegreen", shape = 8, size=5
   ) +
-  # annotate(geom="text", x=0.04, y=0.46, label="5", color="tomato") +
+  guides(alpha = FALSE) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = "none") +
+  # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
   ggtitle("t_CD4, manual.size=30")
 
 
-p9 <- x %>% 
+p9 <- y %>% 
   pluck("data", 9) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
   geom_line() +
-  # geom_point(colour="blue", alpha=0.5) + 
-  geom_point(aes(grid, estimate), data=pluck(x, "smoothed", 9), colour="black") +
-  geom_point(aes(grid, deriv1/10), data=pluck(x, "smoothed", 9),  colour="dodgerblue") +
-  geom_point(aes(grid, rescale(curvature)), data=pluck(x, "smoothed", 9),  colour="tomato")+
+  geom_point(aes(grid, value, colour=y_value_type, alpha=0.99), data=pluck(y, "smoothed", 9)) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 9) %>% filter(curvature==max(curvature[peaks(curvature)])),
-             colour = "tomato"
+             data=pluck(y, "smoothed", 9) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               filter(curvature.scaled==max(curvature.scaled[peaks(curvature.scaled)])),
+             colour = "tomato", shape = 8, size=5
   ) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 9) %>% 
-               with(.[which.min(abs(deriv1-1)), ]),
-             colour = "dodgerblue"
+             data=pluck(y, "smoothed", 9) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               with(.[which.min(abs(derivative.1st.scaled-1)), ]),
+             colour = "limegreen", shape = 8, size=5
   ) +
-  # annotate(geom="text", x=0.13, y=0.82, label="9", color="tomato") +
+  guides(alpha = FALSE) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = "none") +
+  # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
   ggtitle("macrophage, manual.size=9")
 
-p10 <- x %>% 
+p10 <- y %>% 
   pluck("data", 10) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
   geom_line() +
-  # geom_point(colour="blue", alpha=0.5) + 
-  geom_point(aes(grid, estimate), data=pluck(x, "smoothed", 10), colour="black") +
-  geom_point(aes(grid, deriv1/10), data=pluck(x, "smoothed", 10),  colour="dodgerblue") +
-  geom_point(aes(grid, rescale(curvature)), data=pluck(x, "smoothed", 10),  colour="tomato")+
+  geom_point(aes(grid, value, colour=y_value_type, alpha=0.99), data=pluck(y, "smoothed", 10)) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 10) %>% filter(curvature==max(curvature[peaks(curvature)])),
-             colour = "tomato"
+             data=pluck(y, "smoothed", 10) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               filter(curvature.scaled==max(curvature.scaled[peaks(curvature.scaled)])),
+             colour = "tomato", shape = 8, size=5
   ) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 10) %>% 
-               with(.[which.min(abs(deriv1-1)), ]),
-             colour = "dodgerblue"
+             data=pluck(y, "smoothed", 10) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               with(.[which.min(abs(derivative.1st.scaled-1)), ]),
+             colour = "limegreen", shape = 8, size=5
   ) +
-  # annotate(geom="text", x=0.28, y=0.83, label="14", color="tomato") +
+  guides(alpha = FALSE) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = "none") +
+  # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
   ggtitle("t_CD8, manual.size=13")
 
 
-p11 <- x %>% 
+p11 <- y %>% 
   pluck("data", 11) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
   geom_line() +
-  # geom_point(colour="blue", alpha=0.5) + 
-  geom_point(aes(grid, estimate), data=pluck(x, "smoothed", 11), colour="black") +
-  geom_point(aes(grid, deriv1/10), data=pluck(x, "smoothed", 11),  colour="dodgerblue") +
-  geom_point(aes(grid, rescale(curvature)), data=pluck(x, "smoothed", 11),  colour="tomato")+
+  geom_point(aes(grid, value, colour=y_value_type, alpha=0.99), data=pluck(y, "smoothed", 11)) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 11) %>% filter(curvature==max(curvature[peaks(curvature)])),
-             colour = "tomato"
+             data=pluck(y, "smoothed", 11) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               filter(curvature.scaled==max(curvature.scaled[peaks(curvature.scaled)])),
+             colour = "tomato", shape = 8, size=5
   ) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 11) %>% 
-               with(.[which.min(abs(deriv1-1)), ]),
-             colour = "dodgerblue"
+             data=pluck(y, "smoothed", 11) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               with(.[which.min(abs(derivative.1st.scaled-1)), ]),
+             colour = "limegreen", shape = 8, size=5
   ) +
-  # annotate(geom="text", x=0.07, y=0.65, label="10", color="tomato") +
+  guides(alpha = FALSE) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = "none") +
+  # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
   ggtitle("nk_primed, manual.size=12")
 
 
-p12 <- x %>% 
+p12 <- y %>% 
   pluck("data", 12) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
   geom_line() +
-  # geom_point(colour="blue", alpha=0.5) + 
-  geom_point(aes(grid, estimate), data=pluck(x, "smoothed", 12), colour="black") +
-  geom_point(aes(grid, deriv1/10), data=pluck(x, "smoothed", 12),  colour="dodgerblue") +
-  geom_point(aes(grid, rescale(curvature)), data=pluck(x, "smoothed", 12),  colour="tomato")+
+  geom_point(aes(grid, value, colour=y_value_type, alpha=0.99), data=pluck(y, "smoothed", 12)) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 12) %>% filter(curvature==max(curvature[peaks(curvature)])),
-             colour = "tomato"
+             data=pluck(y, "smoothed", 12) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               filter(curvature.scaled==max(curvature.scaled[peaks(curvature.scaled)])),
+             colour = "tomato", shape = 8, size=5
   ) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 12) %>% 
-               with(.[which.min(abs(deriv1-1)), ]),
-             colour = "dodgerblue"
+             data=pluck(y, "smoothed", 12) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               with(.[which.min(abs(derivative.1st.scaled-1)), ]),
+             colour = "limegreen", shape = 8, size=5
   ) +
-  # annotate(geom="text", x=0.1, y=4, label="3", color="tomato") +
+  guides(alpha = FALSE) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = "none") +
+  # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
   ggtitle("t_CD4_memory, manual.size=3")
 
 
-p13 <- x %>% 
+p13 <- y %>% 
   pluck("data", 13) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
   geom_line() +
-  # geom_point(colour="blue", alpha=0.5) + 
-  geom_point(aes(grid, estimate), data=pluck(x, "smoothed", 13), colour="black") +
-  geom_point(aes(grid, deriv1/10), data=pluck(x, "smoothed", 13),  colour="dodgerblue") +
-  geom_point(aes(grid, rescale(curvature)), data=pluck(x, "smoothed", 13),  colour="tomato")+
+  geom_point(aes(grid, value, colour=y_value_type, alpha=0.99), data=pluck(y, "smoothed", 13)) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 13) %>% filter(curvature==max(curvature[peaks(curvature)])),
-             colour = "tomato"
+             data=pluck(y, "smoothed", 13) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               filter(curvature.scaled==max(curvature.scaled[peaks(curvature.scaled)])),
+             colour = "tomato", shape = 8, size=5
   ) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 13) %>% 
-               with(.[which.min(abs(deriv1-1)), ]),
-             colour = "dodgerblue"
+             data=pluck(y, "smoothed", 13) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               with(.[which.min(abs(derivative.1st.scaled-1)), ]),
+             colour = "limegreen", shape = 8, size=5
   ) +
-  # annotate(geom="text", x=0.08, y=0.42, label="3", color="tomato") +
+  guides(alpha = FALSE) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = "none") +
+  # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
   ggtitle("t_CD8_memory, manual.size=10")
 
 
-p14 <- x %>% 
+p14 <- y %>% 
   pluck("data", 14) %>% 
   ggplot(aes(size.rescaled, silhouette)) +
   geom_line() +
-  # geom_point(colour="blue", alpha=0.5) + 
-  geom_point(aes(grid, estimate), data=pluck(x, "smoothed", 14), colour="black") +
-  geom_point(aes(grid, deriv1/10), data=pluck(x, "smoothed", 14),  colour="dodgerblue") +
-  geom_point(aes(grid, rescale(curvature)), data=pluck(x, "smoothed", 14),  colour="tomato")+
+  geom_point(aes(grid, value, colour=y_value_type, alpha=0.99), data=pluck(y, "smoothed", 14)) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 14) %>% filter(curvature==max(curvature[peaks(curvature)])),
-             colour = "tomato"
+             data=pluck(y, "smoothed", 14) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               filter(curvature.scaled==max(curvature.scaled[peaks(curvature.scaled)])),
+             colour = "tomato", shape = 8, size=5
   ) +
   geom_point(aes(grid, estimate), 
-             data=pluck(x, "smoothed", 14) %>% 
-               with(.[which.min(abs(deriv1-1)), ]),
-             colour = "dodgerblue"
+             data=pluck(y, "smoothed", 14) %>% 
+               pivot_wider(names_from = "y_value_type", values_from = "value") %>% 
+               with(.[which.min(abs(derivative.1st.scaled-1)), ]),
+             colour = "limegreen", shape = 8, size=5
   ) +
-  # annotate(geom="text", x=0.1, y=0.6, label="3", color="tomato") +
+  guides(alpha = FALSE) +
+  theme(plot.title = element_text(hjust=0.5),
+        legend.position = "none") +
+  # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
   ggtitle("t_helper, manual.size=5")
 
 
 p1+p2+p3+p4+p5+p6+p7+p8+p9+p10+p11+p12+p13+p14+
-  plot_layout(ncol=4, nrow=4)+
+  plot_layout(ncol=4, nrow=4, byrow = TRUE, guides="collect")+
+  guides(color = guide_legend(title.position = "top", ncol = 1, byrow = TRUE))+
+  theme(
+    plot.title = element_text(hjust=0.5),
+    legend.position = "right"
+  ) +
   plot_annotation(
-    title = "mean_contrast.silhouette.hierarchy, bandwidth=0.05"
+    title = "bandwidth=0.1, mean_contrast.silhouette.hierarchy",
+    theme = theme(plot.title = element_text(hjust = 0.5))
   )
 
 x %>% 
