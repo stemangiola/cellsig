@@ -19,7 +19,7 @@ library(data.tree)
 library(cluster)
 library(tidyverse)
 library(tidybulk)
-# library(cellsig)
+library(cellsig)
 library(patchwork)
 library(tidySummarizedExperiment)
 
@@ -3155,7 +3155,9 @@ deconvolution_evaluation <- function(.markers, .mixture, .tree,
     # join by the true proportion
     left_join(.mixture %>%
                 unnest(data_samples) %>%
-                distinct(replicate, !!.cell_type, proportion))
+                distinct(replicate, !!.cell_type, proportion),
+              by = c(quo_name(.cell_type), "replicate")
+              )
 
 }
 
