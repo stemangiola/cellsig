@@ -2,6 +2,101 @@
 # load all necessary functions YOU DO NOT WANT TO CHANGE DEFAULT parameter values for your own run ================
 source("dev/jian_R_files/function_jian.R")
 
+produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .sample, .cell_type, .count, 
+                                                 .dir, .tree=NULL, .suffix=NULL){
+  
+  # Args: 
+  # .expression_df is a tibble with shape: transcript | sample | cell_type | count
+  # .transcript: tell the function which column in the data represents gene symbol
+  # .sample: tell the function which column in the data represents sample
+  # .cell_type: tell the function which column in the data represents cell_type
+  # .count: tell the function which column in the data represents count
+  # .tree: optional argument. if .tree = NULL, cell types will be sourced from those present in the .expression_df column
+  #       if provided, the cell types used for cibersortx will be the leaves of the tree
+  # .dir: the path to the directory where the two output files should be saved e.g. cellsig/dev/
+  # .suffix: optional argument which adds suffix to the output filename: reference.txt and phenoclass.txt
+  
+  .transcript = enquo(.transcript)
+  .sample = enquo(.sample)
+  .cell_type = enquo(.cell_type)
+  .count = enquo(.count)
+  
+  .dir <- ifelse(grepl("\\/$", .dir), .dir, paste0(.dir, "/"))
+  
+  ## ref_names is produced to create header for reference file
+  ref_names <- .expression_df %>% 
+    {
+      if (is.null(.tree)){
+        (.)
+      } else {
+        (.) %>% 
+          filter(!!.cell_type %in% as.phylo(.tree)$tip.label)
+      }
+      
+    } %>% 
+    mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
+    unite(cell_sample, c(!!.cell_type, !!.sample), sep = ".") %>% 
+    pull(cell_sample) %>% 
+    unique()
+  
+  
+  # create reference file
+  .expression_df %>% 
+    
+    # filter for leaf cell types in the tree
+    {
+      if (is.null(.tree)){
+        (.)
+      } else {
+        (.) %>% 
+          filter(!!.cell_type %in% as.phylo(.tree)$tip.label)
+      }
+      
+    } %>% 
+    select(!!.sample, !!.cell_type, !!.count, !!.transcript) %>% 
+    mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
+    pivot_wider(names_from = c(!!.cell_type, !!.sample), values_from = !!.count, names_sep=".") %>% 
+    `names<-`(ref_names %>% 
+                str_extract(".*(?=\\.)") %>% 
+                prepend(quo_name(.transcript))
+    ) %>% 
+    # save files as txt files (tab separated files)
+    write_tsv(glue("{.dir}reference{.suffix}.txt"))
+  
+  # create phenoclass file
+  tibble(cell_type = 
+           {
+             if (is.null(.tree)){
+               .expression_df %>% 
+                 distinct(!!.cell_type) %>% 
+                 pull %>% 
+                 as.character
+             } else {
+               as.phylo(.tree)$tip.label
+             }
+             
+           }
+         
+  ) %>% 
+    bind_cols(
+      tibble(ref_names, value=1L) %>% 
+        pivot_wider(names_from = ref_names, values_from = value)
+    ) %>% 
+    pivot_longer(-cell_type, names_to="ref_names", values_to="membership") %>% 
+    
+    # assign membership according to cibersortx tutorial 6: 
+    # "1" indicates membership of the reference sample to the class as defined in that row,
+    # "2" indicates the class that the sample will be compared against
+    mutate(membership = if_else(str_detect(ref_names, cell_type), 1L, 2L)) %>% 
+    
+    pivot_wider(names_from = ref_names, values_from = membership) %>% 
+    
+    # set col_names to FALSE following cibersortx format for phenoclass
+    write_tsv(glue("{.dir}phenoclass{.suffix}.txt"), col_names = FALSE)
+  
+}
+
+
 do_imputation <- function(.scaled_counts, .sample, .symbol, .count, .cell_type){
   
   .sample = enquo(.sample)
