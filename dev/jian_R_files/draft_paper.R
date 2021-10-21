@@ -3232,7 +3232,7 @@ debugonce(produce_cibersortx_bulk_rnaseq_input)
 counts_imputed %>% 
   rename(symbol = feature) %>% 
   produce_cibersortx_bulk_rnaseq_input(.transcript=symbol, .sample=sample, .cell_type=cell_type, .count=count_scaled, 
-                                         .dir="dev/jian_R_files/cibersortx", .suffix="_test")
+                                         .dir="dev/jian_R_files/cibersortx", .suffix="_zijie")
 
 
 toy_data <- counts_imputed %>%  
