@@ -1499,25 +1499,11 @@ produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .s
   
   .dir <- ifelse(grepl("\\/$", .dir), .dir, paste0(.dir, "/"))
   
-  ## ref_names is produced to create header for reference file
-  ref_names <- .expression_df %>% 
-    {
-     if (is.null(.tree)){
-       (.)
-     } else {
-       (.) %>% 
-         filter(!!.cell_type %in% as.phylo(.tree)$tip.label)
-     }
-       
-    } %>% 
-    mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
-    unite(cell_sample, c(!!.cell_type, !!.sample), sep = ".") %>% 
-    pull(cell_sample) %>% 
-    unique()
-  
   
   # create reference file
-  .expression_df %>% 
+  reference <- 
+    .expression_df %>% 
+    mutate(!!.cell_type :=  as.character(!!.cell_type)) %>% 
     
     # filter for leaf cell types in the tree
     {
@@ -1529,15 +1515,11 @@ produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .s
       }
       
     } %>% 
-    select(!!.sample, !!.cell_type, !!.count, !!.transcript) %>% 
-    mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
-    pivot_wider(names_from = c(!!.cell_type, !!.sample), values_from = !!.count, names_sep=".") %>% 
-    `names<-`(ref_names %>% 
-                str_extract(".*(?=\\.)") %>% 
-                prepend(quo_name(.transcript))
-    ) %>% 
-    # save files as txt files (tab separated files)
-    write_tsv(glue("{.dir}reference{.suffix}.txt"))
+    distinct(!!.sample, !!.cell_type, !!.count, !!.transcript) %>% 
+    pivot_wider(names_from = c(!!.cell_type, !!.sample), values_from = !!.count, names_sep=".")
+
+  # save files as txt files (tab separated files)
+  write_tsv(reference, glue("{.dir}reference{.suffix}.txt"))
   
   # create phenoclass file
   tibble(cell_type = 
@@ -1550,14 +1532,15 @@ produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .s
              } else {
                as.phylo(.tree)$tip.label
              }
-             
            }
          
          ) %>% 
     bind_cols(
-      tibble(ref_names, value=1L) %>% 
+      tibble(ref_names = names(reference)[-1],
+             value=1L) %>% 
         pivot_wider(names_from = ref_names, values_from = value)
     ) %>% 
+    
     pivot_longer(-cell_type, names_to="ref_names", values_to="membership") %>% 
     
     # assign membership according to cibersortx tutorial 6: 
