@@ -307,7 +307,8 @@ fit_mixed_effect = function(df,mod,  assoc_intercept, assoc_slope, assoc_sd_sd, 
       df %>% 
       mutate(database_for_cell_type = factor(database_for_cell_type), .feature = factor(.feature)) %>% 
       select(database_for_cell_type, .feature) %>% 
-      distinct()
+      distinct(),
+    grainsize=1
   )
   
   

@@ -24,7 +24,7 @@ data = list(
   grouping_idx = factor(df$database) %>% as.integer
 )
 
-mod = stan_model("~/PostDoc/cellsig/dev/mixed_effect.stan")
+#mod = stan_model("~/PostDoc/cellsig/dev/mixed_effect.stan")
 mod <- stan_model(stanc_ret = stanc_builder('~/PostDoc/cellsig/dev/mixed_effect.stan'),auto_write = F,verbose = T)
 
 
@@ -108,7 +108,7 @@ df =
   filter(level_4=="t_CD4_memory") %>%
   mutate(count_scaled = as.integer(count_scaled)) 
 
-mod = stan_model("dev/mixed_effect.stan")
+# mod = stan_model("dev/mixed_effect.stan")
 
 fit_mix =
   fit_mixed_effect(
@@ -127,7 +127,7 @@ fit_mix %>% spread_draws(gene_mean[G], gene_sd[G]) %>% mutate(mu = rnorm(n(), ge
 
 plot(summary(fit_mix, "gene_mean")$summary[,1], summary(fit_mix, "gene_sd")$summary[,1])
 
-gen_mod = stan_model("dev/mixed_effect_generate.stan")
+gen_mod = stan_model("~/PostDoc/cellsig/dev/mixed_effect_generate.stan")
 
 
 data = list(
@@ -192,10 +192,8 @@ df %>%
 # install.packages("StanHeaders", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
 # install.packages("rstan", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
 
-install.packages("~/third_party_sofware/StanHeaders_2.26.4.tar.gz", type="source")
-
-Sys.setenv(TBB_LIB = RcppParallel::tbbLibraryPath())
-Sys.setenv(TBB_INC  = RcppParallel::CxxFlags())
+# Sys.setenv(TBB_LIB = RcppParallel::tbbLibraryPath())
+# Sys.setenv(TBB_INC  = RcppParallel::CxxFlags())
 
 
 unloadNamespace( asNamespace("rstan"))

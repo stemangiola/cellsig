@@ -71,6 +71,6 @@ model {
   // prior association
   shape ~ normal(  gene_mean * assoc_slope + assoc_intercept, assoc_sd_shape);
   //target += normal_lpdf(shape |  0, 3);
-  #shape ~  normal(  gene_mean * assoc_slope + assoc_intercept, assoc_sd_sd);
+  //shape ~  normal(  gene_mean * assoc_slope + assoc_intercept, assoc_sd_sd);
   
 }
