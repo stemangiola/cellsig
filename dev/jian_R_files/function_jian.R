@@ -2222,7 +2222,8 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
 # Selection
 
 do_selection <-
-  function(.ranked, .sample, .symbol, .selection_method, .reduction_method, .kmax=NULL, .discard_number=NULL, .dims=2) {
+  function(.ranked, .sample, .symbol, .selection_method, .reduction_method, 
+           .kmax=NULL, .discard_number=NULL, .dims=2) {
 
     .sample = enquo(.sample)
     .symbol = enquo(.symbol)
@@ -2549,6 +2550,8 @@ do_silhouette_selection <-
            all(map_int(ranked_copy$markers,
                        # hence the boundary should be the number of satisfactory genes selected
                        ~ .x %>% unnest(stat_df) %>% nrow()) > 0)) {
+      
+      cat("step_a: ", ranked_copy$level, "\n")
 
       contrast_pair_tb <-
 
@@ -2624,6 +2627,9 @@ do_silhouette_selection <-
 
         # silhouette score
         mutate(silhouette = map_dbl(data, ~ .x[[1, "silhouette"]]))
+      
+      
+      cat("step_b: ", ranked_copy$level, "\n")
 
 
       # append the base + 1 markers that result in highest silhouette score
@@ -2640,6 +2646,8 @@ do_silhouette_selection <-
             with(contrast_pair_tb, silhouette[ancestor==.x])
           } else {.y}
         ))
+      
+      cat("step_c: ", ranked_copy$level, "\n")
 
       # append the winning signatures into the output summary table
       summary_tb <- summary_tb %>%
@@ -2649,6 +2657,8 @@ do_silhouette_selection <-
             # mutate(reduced_dimensions = map(data, ~ .x$reduced_dimensions[[1]])) %>%
             select(-data)
         )
+      
+      cat("step_d: ", ranked_copy$level, "\n")
 
       # remove the signatures and unsuccessful genes from the selection list(ranked_copy)
       ranked_copy <- ranked_copy %>%
@@ -2666,6 +2676,8 @@ do_silhouette_selection <-
               nest(stat_df = -contrast)
           }
         ))
+      
+      cat("step_e: ", ranked_copy$level, "\n")
 
       # number of genes discarded for each node
       j <- j +
@@ -2680,9 +2692,13 @@ do_silhouette_selection <-
 
       cat("genes discarded for each node: ", j, "\n")
       cat("genes selected for each node: ", map_int(signature$signature, ~ length(.x)),  "\n")
+      
+      cat("step_f: ", ranked_copy$level, "\n")
 
       i <- i + 1L
       cat("iteration: ", i, "\n")
+      
+      cat("step_g: ", ranked_copy$level, "\n")
 
     }
 
@@ -3007,7 +3023,7 @@ evaluation <- function(.signature_df, .stream, .markers,
     unnest(deconvolution) %>% 
     mutate(squared_error = (estimated_proportion - proportion)^2) %>% 
     nest(data = -c(!!.stream, !!.cell_type)) %>% 
-    mutate(mean_MSE_for_cell_type = map_dbl(data, ~ mean(.x$squared_error))) %>% 
+    mutate(MSE_over_cell_type = map_dbl(data, ~ mean(.x$squared_error))) %>% 
     unnest(data) %>% 
     
     select(-c(!!.markers, mixture_ID, mix, replicate, estimated_proportion, proportion, squared_error))
