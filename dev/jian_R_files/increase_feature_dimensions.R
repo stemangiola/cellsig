@@ -38,16 +38,15 @@ abline(h=80, col = "red", lty=2)
 
 counts_imputed_non_hierarchy <- readRDS("dev/intermediate_data/counts_imputed_non_hierarchy.rds")
 
-pca <- counts_imputed_non_hierarchy %>% 
-  unnest(tt) %>% 
-  unnest(data) %>% 
+pca <- counts_imputed %>% 
+  rename(symbol = feature) %>% 
   select(sample, symbol, count_scaled) %>% 
   pivot_wider(names_from = symbol, values_from = count_scaled) %>% 
   as_matrix(rownames = sample) %>%
   prcomp()
 
 #scree plot
-png("dev/jian_R_files/pca_var_indiv.png", height = 800, width = 800)
+png("dev/jian_R_files/pca_var_indiv.png", height = 500, width = 600)
 # par(mfrow=c(1, 2))
 # plot(x = 1:30, y = pca$sdev[1:30], xlab = "number of PC", ylab = "standard devidation explained",
 #      main = "Scree plot")
@@ -68,7 +67,7 @@ dev.off()
 # cumulative proportion of variance explained by PCs
 # cumsum(pca$sdev^2 / sum(pca$sdev^2))[1:30]
 
-png("dev/jian_R_files/pca_var_cumu.png", height = 800, width = 800)
+png("dev/jian_R_files/pca_var_cumu.png", height = 500, width = 600)
 
 barplot(100*cumsum(pca$sdev^2 / sum(pca$sdev^2))[1:30], 
         ylab = "cumulative porportion of variance (%)",
