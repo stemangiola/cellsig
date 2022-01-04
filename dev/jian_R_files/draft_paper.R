@@ -3380,3 +3380,377 @@ counts_imputed_hierarchy %>%
        .dims=2,
        .optimisation_method = "penalty", .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
        .is_complete = TRUE)
+
+
+do_silhouette_selection <-
+  function(.ranked, .sample, .symbol, .discard_number, .reduction_method, .dims=2) {
+    
+    .sample = enquo(.sample)
+    .symbol = enquo(.symbol)
+    
+    # initialize variables
+    
+    # ranked_copy is created as a pool of markers for selection,
+    # which continuously decrease with each iterative selection,
+    # input .rank is used for calculating silhouette score for the selected markers
+    ranked_copy <- .ranked
+    
+    # initialise a signature tibble to store signature markers for each cell type in each iteration
+    signature <- .ranked %>%
+      select(level, ancestor) %>%
+      mutate(signature = map(ancestor, ~ vector())) %>%
+      mutate(last_silhouette = 0)
+    
+    # initialise an output tibble containing all results of interest
+    summary_tb <- tibble(
+      level = character(),
+      ancestor = character(),
+      new_challengers = list(),
+      winner = list(),
+      children = list(),
+      signature = list(),
+      # reduced_dimensions = list(),
+      silhouette = double()
+    )
+    
+    # set the base markers
+    contrast_pair_tb0 <-
+      
+      # contrast_copy contains all the statistics of all cell_type contrasts for each gene
+      .ranked %>%
+      
+      # calculate the minimum number of genes need to be selected for feasible dimension reduction
+      mutate(k0 = map_int(markers, ~ min_markers_per_contrast(.x, .dims=.dims, .symbol = !!.symbol))) %>% 
+      
+      # nest by k0 because naive selection takes the whole ranked data frame
+      nest(data = -k0) %>% 
+      
+      # select the minimum number of base markers for each ancestor node
+      mutate(data = map2(data, k0, ~ naive_selection(.ranked=.x, .k=.y, .symbol=!!.symbol))) %>% 
+      
+      unnest(data) %>% 
+      
+      # clean up data
+      select(-k0) %>% 
+      
+      dplyr::rename(new_challengers = signature) %>%
+      
+      mutate(winner = map(new_challengers, ~ unique(.x))) %>%
+      
+      mutate(signature = winner) %>%
+      
+      silhouette_function(.sample=!!.sample, .symbol=!!.symbol, .reduction_method=.reduction_method, .dims=.dims) %>%
+      
+      select(-c(reduced_dimensions, real_size))
+    
+    
+    signature <- signature %>%
+      
+      # append cumulative markers
+      mutate(signature = map2(
+        signature, ancestor,
+        ~ .x %>%
+          append(with(contrast_pair_tb0, signature[ancestor==.y][[1]]))
+      )) %>%
+      
+      # append silhouette scores for these markers
+      mutate(last_silhouette = map_dbl(
+        ancestor,
+        ~ with(contrast_pair_tb0, silhouette[ancestor==.x])
+      ))
+    
+    summary_tb <- summary_tb %>%
+      bind_rows(contrast_pair_tb0)
+    
+    # remove base markers from contrast_copy input before further selection
+    ranked_copy <- ranked_copy %>%
+      mutate(markers = map2(
+        markers, ancestor,
+        ~ .x %>%
+          unnest(stat_df) %>%
+          filter(!(!!.symbol %in% with(signature, signature[ancestor==.y][[1]]))) %>%
+          nest(stat_df = - contrast)
+      ))
+    
+    # counter for number of genes discarded
+    j <- map_int(signature$signature, ~ length(.x))
+    
+    # count the number of iterations
+    i <- 0L
+    while (any(j < .discard_number) &
+           # markers contains genes including many that do not satisfy logFC > 2 & FDR < 0.05 & logCPM > mean(logCPM)
+           all(map_int(ranked_copy$markers,
+                       # hence the boundary should be the number of satisfactory genes selected
+                       ~ .x %>% unnest(stat_df) %>% nrow()) > 0)) {
+      
+      cat("step_a: ", ranked_copy$level, "\n")
+      
+      contrast_pair_tb <-
+        
+        # contrast_PW_L1 contains all the statistics of all cell_type contrasts for each gene
+        ranked_copy %>%
+        
+        # select top 1 markers from each contrast, ignore the signature output
+        naive_selection(.k=1, .symbol=!!.symbol) %>%
+        
+        # pick the one new challenger from each contrast
+        select(-c(markers, signature, real_size)) %>%
+        unnest(children) %>%
+        unnest(enriched) %>%
+        dplyr::rename(new_challenger = !!.symbol) %>%
+        
+        # append the new challenger from each contrast to the base markers for that ancestor node
+        mutate(challengers_for_silhouette = map2(
+          new_challenger, ancestor,
+          ~ with(signature, signature[ancestor==.y][[1]]) %>%
+            append(.x)
+        )) %>%
+        
+        # calculate silhouette score for the challengers from each contrast
+        mutate(silhouette = map2_dbl(
+          challengers_for_silhouette, ancestor,
+          ~ silhouette_for_markers(.ranked=.ranked, .sample=!!.sample, .symbol=!!.symbol,
+                                   .signature=.x, .ancestor=.y, 
+                                   .reduction_method=.reduction_method, .dims=.dims) %>%
+            pull(silhouette)
+        )) %>%
+        
+        # arrange silhouette score in a descending manner within each ancestor node
+        group_by(ancestor) %>%
+        arrange(desc(silhouette), .by_group = TRUE) %>%
+        ungroup() %>%
+        
+        # check if the silhouette score for the challengers is greater than previous silhouette score
+        mutate(is_greater = map2_lgl(
+          silhouette, ancestor,
+          ~ if(.x > with(signature, last_silhouette[ancestor==.y])){TRUE}else{FALSE}
+        )) %>%
+        
+        # nest under ancestor node to select markers that is TRUE for is_greater
+        nest(data = - c(level, ancestor)) %>%
+        
+        # record new_challengers
+        mutate(new_challengers = map(data, ~ .x %>% pull(new_challenger))) %>%
+        
+        # check if the biggest silhouette score is greater than previous score, if true we have a winner, else no winner
+        mutate(winner = map(data, ~ if(.x[1, ]$is_greater){
+          .x[1, ]$new_challenger
+        } else {NA}
+        )) %>%
+        
+        # record which contrast the winner comes from
+        mutate(children = map(data, ~ if(.x[1, ]$is_greater){
+          .x[1, ] %>%
+            select(contrast, !!.symbol := new_challenger, rank) %>%
+            nest(enriched = -contrast)
+        } else {NA}
+        )) %>%
+        
+        
+        # cummulative signature: winner + previously selected
+        mutate(signature = pmap(
+          list(data, winner, ancestor),
+          ~ if(!is.na(..2)) {
+            with(..1[1, ], challengers_for_silhouette[[1]])
+          } else {
+            with(signature, signature[ancestor==..3][[1]])
+          }
+        )) %>%
+        
+        # silhouette score
+        mutate(silhouette = map_dbl(data, ~ .x[[1, "silhouette"]]))
+      
+      cat("step_b: ", ranked_copy$level, "\n")
+      
+      
+      # append the base + 1 markers that result in highest silhouette score
+      signature <- signature %>%
+        
+        mutate(signature = map(
+          ancestor,
+          ~ with(contrast_pair_tb, signature[ancestor==.x][[1]])
+        )) %>%
+        
+        mutate(last_silhouette = map2_dbl(
+          ancestor, last_silhouette,
+          ~ if(!is.na(with(contrast_pair_tb, winner[ancestor==.x]))) {
+            with(contrast_pair_tb, silhouette[ancestor==.x])
+          } else {.y}
+        ))
+      
+      cat("step_c: ", ranked_copy$level, "\n")
+      
+      # append the winning signatures into the output summary table
+      summary_tb <- summary_tb %>%
+        bind_rows(
+          contrast_pair_tb %>%
+            filter(!is.na(winner)) %>%
+            # mutate(reduced_dimensions = map(data, ~ .x$reduced_dimensions[[1]])) %>%
+            select(-data)
+        )
+      
+      cat("step_d: ", ranked_copy$level, "\n")
+      
+      # remove the signatures and unsuccessful genes from the selection list(ranked_copy)
+      ranked_copy <- ranked_copy %>%
+        mutate(markers = map2(
+          markers, ancestor,
+          ~ if(is.na(with(contrast_pair_tb, winner[ancestor==.y]))){
+            .x %>%
+              unnest(stat_df) %>%
+              filter(!(!!.symbol %in% with(contrast_pair_tb, new_challengers[ancestor==.y][[1]]))) %>%
+              nest(stat_df = -contrast)
+          } else {
+            .x %>%
+              unnest(stat_df) %>%
+              filter(!!.symbol != with(contrast_pair_tb, winner[ancestor==.y][[1]])) %>%
+              nest(stat_df = -contrast)
+          }
+        ))
+      
+      cat("step_e: ", ranked_copy$level, "\n")
+      
+      # number of genes discarded for each node
+      j <- j +
+        
+        # unsuccessful candidates
+        map_int(contrast_pair_tb$new_challengers, ~length(.x)) *
+        is.na(contrast_pair_tb$winner) +
+        
+        # winning candidates
+        map_int(contrast_pair_tb$winner, ~length(.x)) *
+        !is.na(contrast_pair_tb$winner)
+      
+      cat("genes discarded for each node: ", j, "\n")
+      cat("genes selected for each node: ", map_int(signature$signature, ~ length(.x)),  "\n")
+      
+      cat("step_f: ", ranked_copy$level, "\n")
+      
+      i <- i + 1L
+      cat("iteration: ", i, "\n")
+      
+      cat("step_g: ", ranked_copy$level, "\n")
+      
+    }
+    
+    # format output for optimisation
+    # output <- summary_tb %>%
+    #   mutate(real_size = map_int(signature, ~ length(.x))) %>%
+    #   nest(data = - c(level, ancestor))
+    
+    return(ranked_copy)
+  }
+
+packages <- c("library(yaml)", "library(tidytext)",
+"library(data.tree)",
+"library(tidytree)",
+"library(ape)",
+"library(glue)",
+"library(rlang)",
+"library(factoextra)",
+"library(stringr)",
+"library(scales)",
+"library(KernSmooth)",
+"library(splus2R)",
+"library(data.tree)",
+"library(cluster)",
+"library(tidyverse)",
+"library(tidybulk)",
+"library(cellsig)",
+"library(patchwork)",
+"library(tidySummarizedExperiment)",
+"library(networkD3)",
+"library(htmlwidgets)",
+"library(webshot)",
+"library(kableExtra)",
+"library(shiny)",
+"library(shinyjs)",
+"library(DT)",
+"library(plotly)")
+
+packages %>% 
+  str_extract("(?<=\\().*(?=\\))") %>% 
+  unique() %>% 
+  str_sort()
+
+org <- data.frame(
+  Manager = c(
+    NA, "Ana", "Ana", "Bill", "Bill", "Bill", "Claudette", "Claudette", "Danny",
+    "Fred", "Fred", "Grace", "Larry", "Larry", "Nicholas", "Nicholas"
+  ),
+  Employee = c(
+    "Ana", "Bill", "Larry", "Claudette", "Danny", "Erika", "Fred", "Grace",
+    "Henri", "Ida", "Joaquin", "Kate", "Mindy", "Nicholas", "Odette", "Peter"
+  ),
+  Title = c(
+    "President", "VP Operations", "VP Finance", "Director", "Director", "Scientist",
+    "Manager", "Manager", "Jr Scientist", "Operator", "Operator", "Associate",
+    "Analyst", "Director", "Accountant", "Accountant"
+  )
+)
+
+cellsig::tree
+
+
+new_tree <- read_yaml("dev/jian_R_files/new_tree.yaml") %>% as.Node
+
+tally <- expression %>% 
+  mutate(across(where(is.factor), as.character)) %>% 
+  group_by(level, cell_type2) %>% 
+  summarise(n_sample = n_distinct(sample), n_study = n_distinct(database), .groups = "drop") %>% 
+  drop_na() %>% 
+  distinct()
+
+new_tree %>% 
+  ToDataFrameNetwork() %>%
+  left_join(tally, by = c("to" = "cell_type2")) %>%
+  # create the root node
+  rbind(c(from=NA, to="Tissue", level="level_0", n_sample=1053L, n_study=41L), .) %>%
+  # rename level because it's a reserved name for collapseTreeNetwork
+  rename(levels = level) %>% 
+  mutate(across(starts_with("n_"), as.integer)) %>% 
+  mutate(color = colorspace::rainbow_hcl(41)) %>% 
+  mutate(tooltip = paste0(to, "<br>",
+                          levels,
+                          "<br>n_sample: ", n_sample,
+                          "<br>n_study: ", n_study)
+         ) %>% 
+  collapsibleTreeNetwork(attribute = "n_sample", 
+                         aggFun = identity,
+                         nodeSize = "n_sample",
+                         fill = "color",
+                         tooltipHtml = "tooltip",
+                         collapsed=TRUE)
+
+
+job::job({saveRDS(pca_df, "dev/intermediate_data/pca_df.rds", compress = "xz")})
+
+# check object size
+object.size(pca_with_counts )
+
+object.size(pca_with_counts ) %>% `/` (1e6)
+
+object.size(pca_with_counts_se)
+
+object.size(pca_with_counts_se) %>% `/` (1e6)
+
+expression <-
+  # counts_imputed %>%
+  readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/intermediate_data/counts_imputed.rds") %>%
+  rename(symbol = feature) %>%
+  pivot_longer(contains("level"), names_to = "level", values_to="cell_type2")
+
+x = expression %>%
+  select(symbol, sample, count_scaled, cell_type, level, cell_type2) %>%
+  mutate(count_scaled = as.integer(count_scaled)) %>%
+  # tidybulk(sample, symbol, count_scaled) %>%
+  tidybulk::as_SummarizedExperiment(sample, symbol, count_scaled)
+
+expression %>% 
+  assay()
+
+input_address = "/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig"
+
+sprintf("%s/output.txt:\n\tRscript %s/test.R %s/output.R", input_address, input_address, input_address) %>% cat()
+  prepend("CATEGORY=yes_no_hierarchy\nMEMORY=80000\nCORES=2\nWALL_TIME=172800") %>% 
+  write_lines(glue("{input_address}makeflow.makeflow"))
