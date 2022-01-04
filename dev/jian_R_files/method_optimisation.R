@@ -15,7 +15,8 @@ penalised_silhouette <- function(.plot_data, .penality_rate=0.2) {
     
     filter(penalised_silhouette==max(penalised_silhouette)) %>% 
     
-    select(real_size, silhouette)
+    # select(real_size, silhouette)
+    pull(real_size)
 }
 
 ratio <- function(.plot_data) {
@@ -129,19 +130,21 @@ new <- new %>%
 full_data <- bind_rows(new, naive)
 
 # 
-naive <- list.files("topInf_scaleFALSE/unoptimised/", pattern = ".*naive\\..*\\..*")
-silhouette <- list.files("topInf_scaleFALSE/unoptimised/", pattern = ".*silhouette\\..*\\..*")
+naive <- list.files("dev/topInf_scaleFALSE/unoptimised/", pattern = ".*naive\\..*\\..*")
+silhouette <- list.files("dev/topInf_scaleFALSE/unoptimised/", pattern = ".*silhouette\\..*\\..*")
 
-naive_df <- map_dfr(naive, ~ readRDS(paste0("topInf_scaleFALSE/unoptimised/", .x))) %>% 
-  mutate(method = rep(str_replace_all(naive, '\\.unOP\\.new\\.rds', ''), c(14, 1, 14, 1)))
+naive_df <- map_dfr(naive, ~ readRDS(paste0("dev/topInf_scaleFALSE/unoptimised/", .x))) %>% 
+  mutate(method = rep(str_replace_all(naive, '\\.unOP\\.rds', ''), c(14, 1, 14, 1)))
 
-o <- rep(str_replace_all(silhouette, '\\.unOP\\.new\\.rds', ''), c(14, 1, 14))
-silhouette_df <- map_dfr(silhouette, ~ readRDS(paste0("topInf_scaleFALSE/unoptimised/", .x))) %>% 
+o <- rep(str_replace_all(silhouette, '\\.unOP\\.rds', ''), c(14, 1, 14))
+silhouette_df <- map_dfr(silhouette, ~ readRDS(paste0("dev/topInf_scaleFALSE/unoptimised/", .x))) %>% 
   mutate(method = o)
 rm(o)
 
 full_df <- silhouette_df %>% 
   bind_rows(naive_df)
+
+rm(naive_df, silhouette_df, naive, silhouette)
 
 # 1 Optimisation by Penalised silhouette ==========================
 ## 1.1 choose penalty rate===============
@@ -183,11 +186,17 @@ penalty %>%
     position = position_nudge(y = -0.1)
   ) +
   geom_line() +
-  facet_wrap(~ penalty_rate)
+  facet_wrap(~ penalty_rate) +
+  labs(title = "root, pairwise.silhouette.hierarchy", 
+       y= "penalised mean silhouette score",
+       x = "signature size") +
+  theme(
+    plot.title = element_text(hjust=0.5)
+  )
 
 ## 1.2 Output optimal sizes and their silhouette ===============
 op <- full_df %>% 
-  mutate(optimal_size = map_int(data, ~ penalised_silhouette(.x, 0.8))) %>% 
+  mutate(optimal_size = map_int(data, ~ penalised_silhouette(.x, 0.5))) %>% 
   mutate(optimal_silhouette = map2_dbl(data, optimal_size, ~ with(.x, silhouette[real_size == .y])))
 
 saveRDS(op, "optimal_size_penalty.rds")
@@ -197,12 +206,13 @@ saveRDS(op, "optimal_size_penalty.rds")
 full_df %>% 
   unnest(data) %>% 
   ggplot(aes(real_size, silhouette, color = method))+
-  geom_point(size=0.1)+
+  geom_point()+
   geom_point(
     data = op,
     aes(x = optimal_size, y = optimal_silhouette),
     colour = "black",
-    size=1
+    shape = 8,
+    size = 2
   ) +
   geom_line()+
   xlim(0, 100)+
@@ -211,12 +221,14 @@ full_df %>%
     title.position = "left",
     nrow = 2,
     byrow = TRUE))+
+  labs(y = "mean silhouette score", x="signature size") +
   theme(legend.position = "bottom",
         legend.title = element_text(size=10),
+        legend.text = element_text(size=12),
         legend.title.align = 0.5,
         plot.title = element_text(hjust = 0.5)
   ) +
-  ggtitle("penalty optimisation, penalty rate = 0.2")
+  ggtitle("penalty optimisation, lambda = 0.5")
 
 # 2 Optimisation by Ratio ==========================
 
@@ -1455,7 +1467,7 @@ x <- mean_contrast.silhouette.hierarchy.unOP %>%
     data,
     ~ locpoly(.x$size.rescaled, .x$silhouette, 
               drv = 0L, degree=2, kernel = "normal", 
-              bandwidth = 0.1, gridsize = 100) %>% 
+              bandwidth = 0.05, gridsize = 100) %>% 
       as_tibble() %>% 
       `colnames<-`(c("grid", "estimate"))
   )) %>% 
@@ -1464,7 +1476,7 @@ x <- mean_contrast.silhouette.hierarchy.unOP %>%
     data,
     ~ locpoly(.x$size.rescaled, .x$silhouette, 
               drv = 1L, degree=2, kernel = "normal", 
-              bandwidth = 0.1, gridsize = 100) %>% 
+              bandwidth = 0.05, gridsize = 100) %>% 
       as_tibble() %>% 
       `colnames<-`(c("grid", "derivative.1st"))
   )) %>% 
@@ -1473,7 +1485,7 @@ x <- mean_contrast.silhouette.hierarchy.unOP %>%
     data,
     ~ locpoly(.x$size.rescaled, .x$silhouette, 
               drv = 2L, degree=2, kernel = "normal", 
-              bandwidth = 0.1, gridsize = 100) %>% 
+              bandwidth = 0.05, gridsize = 100) %>% 
       as_tibble() %>% 
       `colnames<-`(c("grid", "derivative.2nd"))
   )) %>% 
@@ -1524,10 +1536,11 @@ p1 <- y %>%
              colour = "limegreen", shape = 8, size=5
   ) +
   guides(alpha = FALSE) +
+  labs(y = "mean silhouette score") + 
   theme(plot.title = element_text(hjust=0.5),
         legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("root, manual.size=30")
+  ggtitle("root")
 
 
 p2 <- y %>% 
@@ -1548,10 +1561,11 @@ p2 <- y %>%
              colour = "limegreen", shape = 8, size=5
   ) +
   guides(alpha = FALSE) +
+  labs(y = "mean silhouette score") + 
   theme(plot.title = element_text(hjust=0.5),
         legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("immune, manual.size=54")
+  ggtitle("immune")
 
 p3 <- y %>% 
   pluck("data", 3) %>% 
@@ -1571,10 +1585,11 @@ p3 <- y %>%
              colour = "limegreen", shape = 8, size=5
   ) +
   guides(alpha = FALSE) +
+  labs(y = "mean silhouette score") + 
   theme(plot.title = element_text(hjust=0.5),
         legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("mono_derived, manual.size=12")
+  ggtitle("mono_derived")
 
 p4 <- y %>% 
   pluck("data", 4) %>% 
@@ -1594,10 +1609,11 @@ p4 <- y %>%
              colour = "limegreen", shape = 8, size=5
   ) +
   guides(alpha = FALSE) +
+  labs(y = "mean silhouette score") + 
   theme(plot.title = element_text(hjust=0.5),
         legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("t_cell, manual.size=13")
+  ggtitle("t_cell")
 
 
 p5 <- y %>% 
@@ -1618,10 +1634,11 @@ p5 <- y %>%
              colour = "limegreen", shape = 8, size=5
   ) +
   guides(alpha = FALSE) +
+  labs(y = "mean silhouette score") + 
   theme(plot.title = element_text(hjust=0.5),
         legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("granulocyte, manual.size=26")
+  ggtitle("granulocyte")
 
 p6 <- y %>% 
   pluck("data", 6) %>% 
@@ -1641,10 +1658,11 @@ p6 <- y %>%
              colour = "limegreen", shape = 8, size=5
   ) +
   guides(alpha = FALSE) +
+  labs(y = "mean silhouette score") + 
   theme(plot.title = element_text(hjust=0.5),
         legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("b_cell, manual.size=5")
+  ggtitle("b_cell")
 
 
 p7 <- y %>% 
@@ -1665,10 +1683,11 @@ p7 <- y %>%
              colour = "limegreen", shape = 8, size=5
   ) +
   guides(alpha = FALSE) +
+  labs(y = "mean silhouette score") + 
   theme(plot.title = element_text(hjust=0.5),
         legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("natural_killer, manual.size=10")
+  ggtitle("natural_killer")
 
 
 p8 <- y %>% 
@@ -1689,10 +1708,11 @@ p8 <- y %>%
              colour = "limegreen", shape = 8, size=5
   ) +
   guides(alpha = FALSE) +
+  labs(y = "mean silhouette score") + 
   theme(plot.title = element_text(hjust=0.5),
         legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("t_CD4, manual.size=30")
+  ggtitle("t_CD4")
 
 
 p9 <- y %>% 
@@ -1713,10 +1733,11 @@ p9 <- y %>%
              colour = "limegreen", shape = 8, size=5
   ) +
   guides(alpha = FALSE) +
+  labs(y = "mean silhouette score") + 
   theme(plot.title = element_text(hjust=0.5),
         legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("macrophage, manual.size=9")
+  ggtitle("macrophage")
 
 p10 <- y %>% 
   pluck("data", 10) %>% 
@@ -1736,10 +1757,11 @@ p10 <- y %>%
              colour = "limegreen", shape = 8, size=5
   ) +
   guides(alpha = FALSE) +
+  labs(y = "mean silhouette score") + 
   theme(plot.title = element_text(hjust=0.5),
         legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("t_CD8, manual.size=13")
+  ggtitle("t_CD8")
 
 
 p11 <- y %>% 
@@ -1760,10 +1782,11 @@ p11 <- y %>%
              colour = "limegreen", shape = 8, size=5
   ) +
   guides(alpha = FALSE) +
+  labs(y = "mean silhouette score") + 
   theme(plot.title = element_text(hjust=0.5),
         legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("nk_primed, manual.size=12")
+  ggtitle("nk_primed")
 
 
 p12 <- y %>% 
@@ -1784,10 +1807,11 @@ p12 <- y %>%
              colour = "limegreen", shape = 8, size=5
   ) +
   guides(alpha = FALSE) +
+  labs(y = "mean silhouette score") + 
   theme(plot.title = element_text(hjust=0.5),
         legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("t_CD4_memory, manual.size=3")
+  ggtitle("t_CD4_memory")
 
 
 p13 <- y %>% 
@@ -1808,10 +1832,11 @@ p13 <- y %>%
              colour = "limegreen", shape = 8, size=5
   ) +
   guides(alpha = FALSE) +
+  labs(y = "mean silhouette score") + 
   theme(plot.title = element_text(hjust=0.5),
         legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("t_CD8_memory, manual.size=10")
+  ggtitle("t_CD8_memory")
 
 
 p14 <- y %>% 
@@ -1832,10 +1857,11 @@ p14 <- y %>%
              colour = "limegreen", shape = 8, size=5
   ) +
   guides(alpha = FALSE) +
+  labs(y = "mean silhouette score") + 
   theme(plot.title = element_text(hjust=0.5),
         legend.position = "none") +
   # annotate(geom="text", x=0.14, y=0.7, label="40", color="tomato") +
-  ggtitle("t_helper, manual.size=5")
+  ggtitle("t_helper")
 
 
 p1+p2+p3+p4+p5+p6+p7+p8+p9+p10+p11+p12+p13+p14+
@@ -1843,10 +1869,11 @@ p1+p2+p3+p4+p5+p6+p7+p8+p9+p10+p11+p12+p13+p14+
   guides(color = guide_legend(title.position = "top", ncol = 1, byrow = TRUE))+
   theme(
     plot.title = element_text(hjust=0.5),
-    legend.position = "right"
+    legend.position = "right",
+    legend.text = element_text(size=12)
   ) +
   plot_annotation(
-    title = "bandwidth=0.1, mean_contrast.silhouette.hierarchy",
+    title = "bandwidth=0.05, mean_contrast.silhouette.hierarchy",
     theme = theme(plot.title = element_text(hjust = 0.5))
   )
 
