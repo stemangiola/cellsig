@@ -1,5 +1,7 @@
 # install tidybulk package from Stefano's github repository (install once is enough)
 # devtools::install_github("stemangiola/tidybulk@dev")
+# install cellsig package from Stefano's github repository (once is enought)
+# devtools::install_github("stemangiola/cellsig@dev", force = TRUE)
 
 # load libraries
 library(yaml)
