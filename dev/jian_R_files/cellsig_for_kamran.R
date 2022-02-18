@@ -1,9 +1,8 @@
-# install tidybulk package from Stefano's github repository (install once is enough)
-# devtools::install_github("stemangiola/tidybulk@dev")
-# install cellsig package from Stefano's github repository (once is enought)
+# devtools::install_github("stemangiola/nanny@convert-to-S3", force = TRUE)
+# devtools::install_github("stemangiola/tidybulk@dev", force = TRUE)
+# devtools::install_github("stemangiola/tidybulk@for-jian", force = TRUE)
 # devtools::install_github("stemangiola/cellsig@dev", force = TRUE)
 
-# load libraries
 library(yaml)
 library(tidytext)
 library(data.tree)
@@ -20,11 +19,93 @@ library(data.tree)
 library(cluster)
 library(tidyverse)
 library(tidybulk)
+library(cellsig)
+library(patchwork)
 library(tidySummarizedExperiment)
 
-# load functions =======================================================================================
+# Load functions ====================================================
+
+# create input files for cibersortx cell signature selection using bulk RNA-seq data
+produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .sample, .cell_type, .count, 
+                                                 .dir, .tree=NULL, .suffix=NULL){
+  
+  # Args: 
+  # .expression_df is a tibble with shape: transcript | sample | cell_type | count
+  # .transcript: tell the function which column in the data represents gene symbol
+  # .sample: tell the function which column in the data represents sample
+  # .cell_type: tell the function which column in the data represents cell_type
+  # .count: tell the function which column in the data represents count
+  # .tree: optional argument. if .tree = NULL, cell types will be sourced from those present in the .expression_df column
+  #       if provided, the cell types used for cibersortx will be the leaves of the tree
+  # .dir: the path to the directory where the two output files should be saved
+  # .suffix: optional argument which adds suffix to the output filename: reference.txt and phenoclass.txt
+  
+  .transcript = enquo(.transcript)
+  .sample = enquo(.sample)
+  .cell_type = enquo(.cell_type)
+  .count = enquo(.count)
+  
+  .dir <- ifelse(grepl("\\/$", .dir), .dir, paste0(.dir, "/"))
+  
+  
+  # create reference file
+  reference <- 
+    .expression_df %>% 
+    mutate(!!.cell_type :=  as.character(!!.cell_type)) %>% 
+    
+    # filter for leaf cell types in the tree
+    {
+      if (is.null(.tree)){
+        (.)
+      } else {
+        (.) %>% 
+          filter(!!.cell_type %in% as.phylo(.tree)$tip.label)
+      }
+      
+    } %>% 
+    distinct(!!.sample, !!.cell_type, !!.count, !!.transcript) %>% 
+    pivot_wider(names_from = c(!!.cell_type, !!.sample), values_from = !!.count, names_sep=".")
+  
+  # save files as txt files (tab separated files)
+  write_tsv(reference, glue("{.dir}reference{.suffix}.txt"))
+  
+  # create phenoclass file
+  tibble(cell_type = 
+           {
+             if (is.null(.tree)){
+               .expression_df %>% 
+                 distinct(!!.cell_type) %>% 
+                 pull %>% 
+                 as.character
+             } else {
+               as.phylo(.tree)$tip.label
+             }
+           }
+         
+  ) %>% 
+    bind_cols(
+      tibble(ref_names = names(reference)[-1],
+             value=1L) %>% 
+        pivot_wider(names_from = ref_names, values_from = value)
+    ) %>% 
+    
+    pivot_longer(-cell_type, names_to="ref_names", values_to="membership") %>% 
+    
+    # assign membership according to cibersortx tutorial 6: 
+    # "1" indicates membership of the reference sample to the class as defined in that row,
+    # "2" indicates the class that the sample will be compared against
+    mutate(membership = if_else(str_detect(ref_names, cell_type), 1L, 2L)) %>% 
+    
+    pivot_wider(names_from = ref_names, values_from = membership) %>% 
+    
+    # set col_names to FALSE following cibersortx format for phenoclass
+    write_tsv(glue("{.dir}phenoclass{.suffix}.txt"), col_names = FALSE)
+  
+}
+
+
 # when stefano fixes missing count in as_summarisedExp(), remove the default NULL value for .count
-main <- function(.input, .sample, .symbol, .count, .cell_type,
+main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
                  .is_hierarchy=TRUE, .level=NULL, 
                  .tree, .node=NULL,
                  .contrast_method, .ranking_method, .rank_stat=NULL, .bayes=NULL, 
@@ -54,10 +135,11 @@ main <- function(.input, .sample, .symbol, .count, .cell_type,
   
       # Eliminate suspicious samples
       filter(!grepl("GSM3722278|GSM3722276|GSM3722277", !!.sample)) %>%
-      
-      # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
+    
+      do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
   
       do_imputation(.sample = !!.sample, .symbol=feature, .count= !!.count, .cell_type=!!.cell_type) %>%
+      dplyr::rename(!!.symbol := .feature, !!sample := .sample) %>% 
       
       do_hierarchy(.sample=!!.sample,
                    .symbol=!!.symbol,
@@ -75,20 +157,20 @@ main <- function(.input, .sample, .symbol, .count, .cell_type,
                  .rank_stat=.rank_stat, 
                  .bayes=.bayes,
                  .tree = .tree) %>%  
-        
-        # Input: data.frame columns_1 <int> | ...
-        # Output: 
-        do_selection(.sample=!!.sample, 
-                     .symbol=!!.symbol,
-                     .selection_method=.selection_method, 
-                     .reduction_method=.reduction_method, 
-                     .discard_number=.discard_number, 
-                     .kmax=.kmax,
-                     .dims=.dims) %>% 
-        
-        do_optimisation(.optimisation_method=.optimisation_method, .symbol=!!.symbol) %>% 
-        
-        format_output(.is_complete = .is_complete)
+      
+      # Input: data.frame columns_1 <int> | ...
+      # Output: 
+      do_selection(.sample=!!.sample, 
+                   .symbol=!!.symbol,
+                   .selection_method=.selection_method, 
+                   .reduction_method=.reduction_method, 
+                   .discard_number=.discard_number, 
+                   .kmax=.kmax,
+                   .dims=.dims) %>% 
+      
+      do_optimisation(.optimisation_method=.optimisation_method, .symbol=!!.symbol) %>% 
+      
+      format_output(.is_complete = .is_complete)
     
   } else {
     
@@ -98,17 +180,18 @@ main <- function(.input, .sample, .symbol, .count, .cell_type,
 
       tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
                                      .symbol=!!.symbol, .count=!!.count) %>%
+      
       # Remove redundant samples
       remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
       droplevels() %>%
   
       # Eliminate suspicious samples
       filter(!grepl("GSM3722278|GSM3722276|GSM3722277", !!.sample)) %>%
-      
-      # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
+    
+      do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
   
       do_imputation(.sample = !!.sample, .symbol=feature, .count= !!.count, .cell_type=!!.cell_type) %>%
-      
+      dplyr::rename(symbol = .feature, sample = .sample) %>%
       
       do_hierarchy(.sample=!!.sample,
                    .symbol=!!.symbol,
@@ -125,30 +208,30 @@ main <- function(.input, .sample, .symbol, .count, .cell_type,
                  .rank_stat=.rank_stat, 
                  .bayes=.bayes,
                  .tree = .tree) %>% 
-        
-        mutate(level.copy = level) %>% 
-        nest(data = -level.copy) %>% 
-        
-        mutate(data = map(
-          data,
-          ~ .x %>% 
-            
-            do_selection(.sample=!!.sample, 
-                         .symbol=!!.symbol,
-                         .selection_method=.selection_method, 
-                         .reduction_method=.reduction_method, 
-                         .discard_number=.discard_number, 
-                         .kmax=.kmax,
-                         .dims=.dims) %>%
-            
-            do_optimisation(.optimisation_method = .optimisation_method, .symbol=!!.symbol) %>%
-            
-            format_output(.is_complete = .is_complete)
+      
+      mutate(level.copy = level) %>% 
+      nest(data = -level.copy) %>% 
+      
+      mutate(data = map(
+        data,
+        ~ .x %>% 
           
-        )) %>% 
+          do_selection(.sample=!!.sample, 
+                       .symbol=!!.symbol,
+                       .selection_method=.selection_method, 
+                       .reduction_method=.reduction_method, 
+                       .discard_number=.discard_number, 
+                       .kmax=.kmax,
+                       .dims=.dims) %>%
+          
+          do_optimisation(.optimisation_method = .optimisation_method, .symbol=!!.symbol) %>%
+          
+          format_output(.is_complete = .is_complete)
         
-        unnest(data) %>% 
-        select(-level.copy)
+      )) %>% 
+      
+      unnest(data) %>% 
+      select(-level.copy)
     
   }
 }
@@ -489,25 +572,25 @@ rank_edgR_quasi_likelihood <- function(.hierarchical_counts, .sample, .symbol, .
     unnest(markers) %>%
     
     # remove prefixes from contrast expressions
-    mutate(contrast = map2_chr(contrast, level, ~ str_remove_all(.x, .y) ))
-  
-  # # only used for the user pipeline, not for benchmark
-  # # filter for genes that have imputation rate less than 0.2
-  # mutate(stat_df = pmap(
-  #   list(data, contrast, stat_df),
-  #
-  #   ~..1 %>%
-  #
-  #     # filter for target cell type in data
-  #     filter(!!.cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>%
-  #
-  #     # select the symbols and ratio of imputed samples for that gene in the target cell type
-  #     distinct(!!.symbol, ratio_imputed_samples) %>%
-  #
-  #     right_join(..3, by = quo_name(.symbol)) %>%
-  #
-  #     filter(ratio_imputed_samples < 0.2)
-  # ))
+    mutate(contrast = map2_chr(contrast, level, ~ str_remove_all(.x, .y) )) %>% 
+    
+    # # only used for the user pipeline, not for benchmark
+    # # filter for genes that have imputation rate less than 0.2
+    mutate(stat_df = pmap(
+      list(data, contrast, stat_df),
+      
+      ~..1 %>%
+        
+        # filter for target cell type in data
+        filter(!!.cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>%
+        
+        # select the symbols and ratio of imputed samples for that gene in the target cell type
+        distinct(!!.symbol, ratio_imputed_samples) %>%
+        
+        right_join(..3, by = quo_name(.symbol)) %>%
+        
+        filter(ratio_imputed_samples < 0.2)
+    ))
   
 }
 
@@ -545,25 +628,25 @@ rank_edgR_robust_likelihood_ratio <- function(.hierarchical_counts, .sample, .sy
     unnest(markers) %>%
     
     # remove prefixes from contrast expressions
-    mutate(contrast = map2_chr(contrast, level, ~ str_remove_all(.x, .y) ))
-  
-  # # only used for the user pipeline, not for benchmark
-  # # filter for genes that have imputation rate less than 0.2
-  # mutate(stat_df = pmap(
-  #   list(data, contrast, stat_df),
-  #
-  #   ~..1 %>%
-  #
-  #     # filter for target cell type in data
-  #     filter(!!.cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>%
-  #
-  #     # select the symbols and ratio of imputed samples for that gene in the target cell type
-  #     distinct(!!.symbol, ratio_imputed_samples) %>%
-  #
-  #     right_join(..3, by = quo_name(.symbol)) %>%
-  #
-  #     filter(ratio_imputed_samples < 0.2)
-  #   ))
+    mutate(contrast = map2_chr(contrast, level, ~ str_remove_all(.x, .y) )) %>% 
+    
+    # only used for the user pipeline, not for benchmark
+    # filter for genes that have imputation rate less than 0.2
+    mutate(stat_df = pmap(
+      list(data, contrast, stat_df),
+      
+      ~..1 %>%
+        
+        # filter for target cell type in data
+        filter(!!.cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>%
+        
+        # select the symbols and ratio of imputed samples for that gene in the target cell type
+        distinct(!!.symbol, ratio_imputed_samples) %>%
+        
+        right_join(..3, by = quo_name(.symbol)) %>%
+        
+        filter(ratio_imputed_samples < 0.2)
+    ))
 }
 
 rank_by_stat <-  function(.markers, .rank_stat){
@@ -584,13 +667,12 @@ rank_by_stat <-  function(.markers, .rank_stat){
     # Reshape inside each contrast
     mutate(stat_df = map(stat_df, ~.x %>% pivot_wider(names_from = stats, values_from = .value))) %>%
     
-    # Keep significant genes and rank the significant ones
-    # THIS WILL HAVE TO CHANGE
-    mutate(stat_df = map(
-      stat_df,
-      ~ .x %>%
-        filter(FDR < 0.05 & logFC > 2) %>%
-        filter(logCPM > mean(logCPM)) )) %>%
+    # Keep significantly enriched genes and rank the significant ones
+    # mutate(stat_df = map(
+    #   stat_df,
+    #   ~ .x %>%
+    #     filter(FDR < 0.05 & logFC > 2) %>%
+    #     filter(logCPM > mean(logCPM)) )) %>%
     
     mutate(stat_df = map(
       stat_df,
@@ -599,7 +681,29 @@ rank_by_stat <-  function(.markers, .rank_stat){
       }else{
         .x %>% dplyr::arrange(PValue)
       }
-    ))
+    )) %>% 
+    
+    {
+      filtered_df <- (.) %>%
+        mutate(stat_df = map(
+          stat_df,
+          ~ .x %>%
+            filter(FDR < 0.05 & abs(logFC) > 2) %>%
+            filter(logCPM > mean(logCPM)) )) %>%
+        mutate(n_marker = map_int(stat_df, ~.x %>% nrow))
+      
+      if(
+        any(filtered_df$n_marker<2L)
+      ){
+        warning(sprintf("No significant differential expression for %s\n ",
+                        with(filtered_df, contrast[n_marker<2L])
+        ))
+        (.)
+        
+      }else{(.)}
+      
+    }
+  
 }
 
 rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type, 
@@ -610,7 +714,7 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
   # .bayes is the bayes data that have been imputed and obtained gene imputation ratio by the code:
   # counts_bayes_imputed %>%
   #   select(-level) %>%
-  #  do_hierarchy(.is_hierarchy = TRUE) 
+  #   scale_input_counts(.is_hierarchy = TRUE)
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
   .cell_type = enquo(.cell_type)
@@ -1418,7 +1522,215 @@ format_output <- function(.optimised, .is_complete=TRUE){
   
 }
 
+# Benchmark evaluation
+evaluation <- function(.signature_df, .stream, .markers,
+                       .imputed_counts, .sample, .symbol, .cell_type,
+                       .mixture, 
+                       .reduction_method, .dims=2, .tree){
+  
+  .stream = enquo(.stream)
+  .markers = enquo(.markers)
+  .sample = enquo(.sample)
+  .symbol = enquo(.symbol)
+  .cell_type = enquo(.cell_type)
+  
+  
+  .signature_df %>% 
+    
+    # silhouette evaluation
+    mutate(silhouette = map(
+      !!.markers, 
+      ~ silhouette_evaluation(
+        .markers = .x,
+        .reduction_method = .reduction_method,
+        .tree = .tree,
+        .imputed_counts = .imputed_counts,
+        .sample = !!.sample,
+        .symbol = !!.symbol,
+        .cell_type = !!.cell_type,
+        .dims = .dims)
+    )) %>% 
+    
+    mutate(avg_silhouette = map_dbl(silhouette, ~ mean(.x$sil_width))) %>%
+    
+    mutate(silhouette = map(
+      silhouette, 
+      ~ .x %>% 
+        group_by(!!.cell_type) %>% 
+        summarise(cluster_silhouette = mean(sil_width), cluster_size = n()) %>% 
+        distinct() %>% 
+        ungroup()
+    )) %>% 
+    
+    # deconvolution evaluation
+    # for each mixture, combine with the signatures from all methods
+    expand_grid(.mixture, .) %>% 
+    
+    mutate(deconvolution = map2(
+      !!.markers, mix, 
+      ~ deconvolution_evaluation(
+        .markers = .x, 
+        .mixture = .y, 
+        .tree = .tree,
+        .imputed_counts = .imputed_counts,
+        .sample = !!.sample,
+        .symbol = !!.symbol,
+        .cell_type = !!.cell_type)
+    )) %>% 
+    
+    # mse by method
+    mutate(MSE = map_dbl(
+      deconvolution,
+      ~ mean((.x$estimated_proportion - .x$proportion)^2)
+    )) %>% 
+    nest(data=-!!.stream) %>% 
+    # mutate(median_MSE_over_mixes = map_dbl(data, ~ median(.x$MSE))) %>%
+    mutate(mean_MSE_over_mixes = map_dbl(data, ~ mean(.x$MSE))) %>%
+    unnest(data) %>% 
+    
+    # mse by cell type
+    unnest(deconvolution) %>% 
+    mutate(squared_error = (estimated_proportion - proportion)^2) %>% 
+    nest(data = -c(!!.stream, !!.cell_type)) %>% 
+    mutate(MSE_over_cell_type = map_dbl(data, ~ mean(.x$squared_error))) %>% 
+    unnest(data) %>% 
+    
+    select(-c(!!.markers, mixture_ID, mix, replicate, estimated_proportion, proportion, squared_error))
+  
+}
+
+silhouette_evaluation <- function(.markers, .reduction_method, .dims=2, .tree, 
+                                  .imputed_counts, .sample, .symbol, .cell_type){
+  
+  .sample = enquo(.sample)
+  .symbol = enquo(.symbol)
+  .cell_type = enquo(.cell_type)
+  
+  # modified silhouette_function and silhouette_score for evaluation
+  
+  silhouette_info <- function(.reduced_dimensions, .distance, .level, .cell_type){
+    
+    .cell_type = enquo(.cell_type)
+    
+    silhouette <- .reduced_dimensions %>%
+      
+      pull(!!as.symbol(.level)) %>%
+      
+      as.factor() %>%
+      
+      as.numeric() %>%
+      
+      silhouette(.distance)
+    
+    
+    tibble(cluster = silhouette[, "cluster"],
+           neighbor = silhouette[, "neighbor"],
+           sil_width= silhouette[, "sil_width"]
+    ) %>%
+      
+      mutate(!!.cell_type := .reduced_dimensions %>%
+               pull(!!as.symbol(.level)) %>%
+               as.factor())
+    
+  }
+  
+  silhouette_function <- function(.selected, .sample, .symbol, .reduction_method, .dims, .cell_type){
+    
+    .sample = enquo(.sample)
+    .symbol = enquo(.symbol)
+    .cell_type = enquo(.cell_type)
+    
+    .selected %>%
+      
+      # reduce dimensions
+      mutate(reduced_dimensions = map2(
+        markers, level,
+        ~ dimension_reduction(.markers=.x, .level=.y,
+                              .sample=!!.sample,
+                              .symbol=!!.symbol,
+                              .reduction_method=.reduction_method,
+                              .dims=.dims)
+      )) %>%
+      
+      # calculate distance matrix using PC1 & PC2
+      mutate(distance = map(
+        reduced_dimensions,
+        ~ distance_matrix(.x, .reduction_method=.reduction_method)
+      )) %>%
+      
+      # calculate silhouette score
+      mutate(silhouette = pmap(
+        list(reduced_dimensions, distance, level),
+        ~ silhouette_info(.reduced_dimensions=..1, .distance=..2,  .level=..3, .cell_type=!!.cell_type)
+      )) %>%
+      
+      # remove unnecessary columns
+      select(-c(markers, distance))
+    
+  }
+  
+  .imputed_counts %>%
+    mutate(level = "root") %>% 
+    mutate(root = !!.cell_type) %>% 
+    filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
+    filter(!!.symbol %in% .markers) %>%
+    nest(markers = - level) %>%
+    # calculate silhouette score for all signatures combined in each method
+    silhouette_function(.sample=!!.sample, .symbol=!!.symbol, .cell_type=!!.cell_type,
+                        .reduction_method = .reduction_method, .dims=.dims) %>%
+    select(silhouette) %>%
+    unnest(silhouette)
+}
+
+deconvolution_evaluation <- function(.markers, .mixture, .tree, 
+                                     .imputed_counts, .sample, .symbol, .cell_type){
+  
+  .sample = enquo(.sample)
+  .symbol = enquo(.symbol)
+  .cell_type = enquo(.cell_type)
+  
+  # filter out data for signature genes
+  reference <- .imputed_counts %>%
+    
+    filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
+    filter(!!.symbol %in% .markers) %>%
+    
+    # reshape the input matrix for deconvolve_cellularity():
+    select(!!.symbol, !!.cell_type, !!.sample, count_scaled) %>%
+    group_by(!!.symbol, !!.cell_type) %>%
+    summarise(count_scaled_median = median(count_scaled)) %>%
+    ungroup() %>%
+    pivot_wider(id_cols = !!.symbol, names_from = !!.cell_type, values_from = count_scaled_median) %>%
+    # must be a matrix
+    tidybulk::as_matrix(rownames = !!.symbol)
+  
+  tidybulk::deconvolve_cellularity(
+    .data = .mixture,
+    .sample = replicate,
+    .transcript = symbol, # the column in the mixture is called symbol not provided by the pipeline
+    .abundance = count_mix,
+    reference = reference,
+    method = "llsr",
+    prefix = "llsr_",
+    action = "get",
+    intercept = FALSE) %>%
+    
+    pivot_longer(cols=starts_with("llsr_"),
+                 names_prefix ="llsr_",
+                 names_to=quo_name(.cell_type),
+                 values_to="estimated_proportion") %>%
+    
+    # join by the true proportion
+    left_join(.mixture %>%
+                unnest(data_samples) %>%
+                distinct(replicate, !!.cell_type, proportion),
+              by = c(quo_name(.cell_type), "replicate")
+    )
+  
+}
+
 # subset tree
+
 # adapt_tree modifies the cell_type in the data according to the tree structure specified
 adapt_tree <- function(.data, .tree, .node=NULL){
   
@@ -1536,6 +1848,61 @@ update_tree_edge_matrix <- function(.tree_tbl) {
   
 }
 
+# Shiny App functions
+# get leaf nodes at a specific level
+get_leaf_nodes_at_a_level <- function(.tree, .level){
+  
+  if(.level == "root"){
+    .tree %>% as.phylo %>% .$tip.label
+  }else{
+    L  = .level %>% str_split("_") %>% {as.numeric(.[[1]][2])+1}
+    
+    Clone(.tree, pruneFun = function(node) node$level <= L) %>% 
+      as.phylo %>% 
+      .$tip.label
+  }
+}
+
+get_target_cell_markers <- function(.data, .k=6){
+  
+  .data %>%
+    unnest(data) %>% 
+    unnest(children) %>% 
+    mutate(contrast = str_extract(contrast, ".*(?=\\s\\-)")) %>% 
+    rename(target = contrast) %>% 
+    select(target, enriched) %>% 
+    unnest(enriched) %>% 
+    distinct(target, symbol, rank) %>% 
+    nest(enriched = -target) %>% 
+    mutate(enriched = map_chr(enriched, ~ .x %>% 
+                                arrange(rank) %>% 
+                                pull(symbol) %>% 
+                                vector_to_formatted_text(.k=.k)
+    ))
+}
+
+vector_to_formatted_text <- function(.vector, .k=6){
+  
+  L <- length(.vector)
+  
+  if(L <= .k){text = paste(.vector, collapse = " ")}
+  else{
+    
+    text=c()
+    
+    for (i in seq(1, L-.k, by = .k)) {
+      text = text %>% append(paste(.vector[i:(i+.k-1)], collapse = " "))
+    }
+    
+    text = text %>% 
+      append(paste(.vector[(L%/%.k*.k+1):L], collapse = " ")) %>% 
+      paste(collapse = "\n")
+  }
+  
+  return(text)
+}
+
+
 
 # Runing cell signature algorithm ======================================================
 
@@ -1544,22 +1911,22 @@ update_tree_edge_matrix <- function(.tree_tbl) {
 # tree is the cell differentiation tree
 
 # load the input gene expression database for cell types in comparison
-counts = readRDS("counts.rds")
+counts = readRDS("dev/jian_R_files/raw_counts_kam.rds")
 
 # load the cell differentiation tree as a data.tree object
-tree = read_yaml("dev/jian_R_files/new_tree.yaml") %>% 
+kamran_tree = read_yaml("dev/jian_R_files/kamran_tree.yaml") %>% 
   as.Node
 
 
 # get cell signature
-counts %>% 
-  main(.sample = sample, .symbol = gene, .count = count, .cell_type = cell_type,
+counts_imputed_kamran %>% 
+  main(.sample = sample, .symbol = symbol, .count = count, .cell_type = cell_type,
        .is_hierarchy=TRUE,
-       .tree = NULL,
+       .tree = kamran_tree,
        .contrast_method = pairwise_contrast, .ranking_method = rank_edgR_quasi_likelihood, .rank_stat="PValue",
        .selection_method = "silhouette", .reduction_method = "PCA", .dims=4,
        .optimisation_method = "penalty",
        .is_complete = TRUE) %>% 
   
-  saveRDS("cellsignature.rds", compress = "xz")
+  saveRDS("dev/jian_R_files/cellsignature_kamran.rds", compress = "xz")
 
