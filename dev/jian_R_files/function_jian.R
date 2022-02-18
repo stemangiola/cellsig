@@ -1570,7 +1570,7 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
   .count = enquo(.count)
   .cell_type = enquo(.cell_type)
   
-  # subtree = tree_subset(.tree=.tree, .node=.node)
+  subtree = tree_subset(.tree=.tree, .node=.node)
   
   if ( (!.is_hierarchy)|(.selection_method == "naive")) {
     
@@ -1591,14 +1591,14 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
       # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
       #   
       # do_imputation(.sample = !!.sample, .symbol=feature, .count= !!.count, .cell_type=!!.cell_type) %>% 
-      
+      dplyr::rename(!!.symbol := .feature, !!sample := .sample) %>% 
 
-      # do_hierarchy(.sample=!!.sample,
-      #              .symbol=!!.symbol,
-      #              .cell_type = !!.cell_type,
-      #              .tree = .tree,
-      #              .is_hierarchy=.is_hierarchy,
-      #              .level=.level) %>%
+      do_hierarchy(.sample=!!.sample,
+                   .symbol=!!.symbol,
+                   .cell_type = !!.cell_type,
+                   .tree = .tree,
+                   .is_hierarchy=.is_hierarchy,
+                   .level=.level) %>%
       
       # Input: data.frame columns_1 <int> | ...
       do_ranking(.sample=!!.sample, 
@@ -1643,14 +1643,14 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
       # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
       #   
       # do_imputation(.sample = !!.sample, .symbol=feature, .count= !!.count, .cell_type=!!.cell_type) %>% 
-      
+      dplyr::rename(symbol = .feature, sample = .sample) %>%
  
-      # do_hierarchy(.sample=!!.sample,
-      #              .symbol=!!.symbol,
-      #              .cell_type = !!.cell_type,
-      #              .tree = .tree,
-      #              .is_hierarchy=.is_hierarchy,
-      #              .level=.level) %>%
+      do_hierarchy(.sample=!!.sample,
+                   .symbol=!!.symbol,
+                   .cell_type = !!.cell_type,
+                   .tree = .tree,
+                   .is_hierarchy=.is_hierarchy,
+                   .level=.level) %>%
       
       do_ranking(.sample=!!.sample, 
                  .symbol=!!.symbol,
@@ -2024,25 +2024,25 @@ rank_edgR_quasi_likelihood <- function(.hierarchical_counts, .sample, .symbol, .
     unnest(markers) %>%
 
     # remove prefixes from contrast expressions
-    mutate(contrast = map2_chr(contrast, level, ~ str_remove_all(.x, .y) ))
+    mutate(contrast = map2_chr(contrast, level, ~ str_remove_all(.x, .y) )) %>% 
 
     # # only used for the user pipeline, not for benchmark
     # # filter for genes that have imputation rate less than 0.2
-    # mutate(stat_df = pmap(
-    #   list(data, contrast, stat_df),
-    #
-    #   ~..1 %>%
-    #
-    #     # filter for target cell type in data
-    #     filter(!!.cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>%
-    #
-    #     # select the symbols and ratio of imputed samples for that gene in the target cell type
-    #     distinct(!!.symbol, ratio_imputed_samples) %>%
-    #
-    #     right_join(..3, by = quo_name(.symbol)) %>%
-    #
-    #     filter(ratio_imputed_samples < 0.2)
-    # ))
+    mutate(stat_df = pmap(
+      list(data, contrast, stat_df),
+
+      ~..1 %>%
+
+        # filter for target cell type in data
+        filter(!!.cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>%
+
+        # select the symbols and ratio of imputed samples for that gene in the target cell type
+        distinct(!!.symbol, ratio_imputed_samples) %>%
+
+        right_join(..3, by = quo_name(.symbol)) %>%
+
+        filter(ratio_imputed_samples < 0.2)
+    ))
 
 }
 
@@ -2080,25 +2080,25 @@ rank_edgR_robust_likelihood_ratio <- function(.hierarchical_counts, .sample, .sy
     unnest(markers) %>%
 
     # remove prefixes from contrast expressions
-    mutate(contrast = map2_chr(contrast, level, ~ str_remove_all(.x, .y) ))
+    mutate(contrast = map2_chr(contrast, level, ~ str_remove_all(.x, .y) )) %>% 
 
-    # # only used for the user pipeline, not for benchmark
-    # # filter for genes that have imputation rate less than 0.2
-    # mutate(stat_df = pmap(
-    #   list(data, contrast, stat_df),
-    #
-    #   ~..1 %>%
-    #
-    #     # filter for target cell type in data
-    #     filter(!!.cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>%
-    #
-    #     # select the symbols and ratio of imputed samples for that gene in the target cell type
-    #     distinct(!!.symbol, ratio_imputed_samples) %>%
-    #
-    #     right_join(..3, by = quo_name(.symbol)) %>%
-    #
-    #     filter(ratio_imputed_samples < 0.2)
-    #   ))
+    # only used for the user pipeline, not for benchmark
+    # filter for genes that have imputation rate less than 0.2
+    mutate(stat_df = pmap(
+      list(data, contrast, stat_df),
+
+      ~..1 %>%
+
+        # filter for target cell type in data
+        filter(!!.cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>%
+
+        # select the symbols and ratio of imputed samples for that gene in the target cell type
+        distinct(!!.symbol, ratio_imputed_samples) %>%
+
+        right_join(..3, by = quo_name(.symbol)) %>%
+
+        filter(ratio_imputed_samples < 0.2)
+      ))
 }
 
 rank_by_stat <-  function(.markers, .rank_stat){
@@ -2119,13 +2119,12 @@ rank_by_stat <-  function(.markers, .rank_stat){
     # Reshape inside each contrast
     mutate(stat_df = map(stat_df, ~.x %>% pivot_wider(names_from = stats, values_from = .value))) %>%
 
-    # Keep significant genes and rank the significant ones
-    # THIS WILL HAVE TO CHANGE
-    mutate(stat_df = map(
-      stat_df,
-      ~ .x %>%
-        filter(FDR < 0.05 & logFC > 2) %>%
-        filter(logCPM > mean(logCPM)) )) %>%
+    # Keep significantly enriched genes and rank the significant ones
+    # mutate(stat_df = map(
+    #   stat_df,
+    #   ~ .x %>%
+    #     filter(FDR < 0.05 & logFC > 2) %>%
+    #     filter(logCPM > mean(logCPM)) )) %>%
 
     mutate(stat_df = map(
       stat_df,
@@ -2134,7 +2133,29 @@ rank_by_stat <-  function(.markers, .rank_stat){
       }else{
         .x %>% dplyr::arrange(PValue)
       }
-    ))
+    )) %>% 
+    
+    {
+      filtered_df <- (.) %>%
+        mutate(stat_df = map(
+          stat_df,
+          ~ .x %>%
+            filter(FDR < 0.05 & abs(logFC) > 2) %>%
+            filter(logCPM > mean(logCPM)) )) %>%
+        mutate(n_marker = map_int(stat_df, ~.x %>% nrow))
+      
+      if(
+          any(filtered_df$n_marker<2L)
+        ){
+        warning(sprintf("No significant differential expression for %s\n ",
+                        with(filtered_df, contrast[n_marker<2L])
+                        ))
+        (.)
+        
+        }else{(.)}
+        
+    }
+  
 }
 
 rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type, 
@@ -2153,9 +2174,9 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
   .bayes %>%
     
     # force the column names of bayes data to be consistent with input expression data
-    # dplyr::rename(!!.symbol := feature, !!.sample := sample, !!.cell_type := cell_type) %>%
-    # do_hierarchy(.is_hierarchy = all(.hierarchical_counts$level != "root"), .tree = .tree,
-    #              .sample=!!.sample, .symbol=!!.symbol, .cell_type= !!.cell_type) %>%
+    dplyr::rename(!!.symbol := feature, !!.sample := sample, !!.cell_type := cell_type) %>%
+    do_hierarchy(.is_hierarchy = all(.hierarchical_counts$level != "root"), .tree = .tree,
+                 .sample=!!.sample, .symbol=!!.symbol, .cell_type= !!.cell_type) %>%
 
     unnest(tt) %>%
 
@@ -2170,7 +2191,7 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
         # filter for target cell type in the contrast
         filter(!!.cell_type == str_extract(.y, ".*(?=\\s\\-)")) %>%
         # filter out genes with imputation ratio greater than 0.2 (only used for user pipeline not benchmark)
-        # filter(ratio_imputed_samples < 0.2) %>%
+        filter(ratio_imputed_samples < 0.2) %>%
         select(!!.symbol, lower_quantile='25%')
     )) %>%
 
