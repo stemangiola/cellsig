@@ -183,6 +183,8 @@ x <- list(
   list(-1, x = 1, y = c(2), z = "a"),
   list(-2, x = 4, y = c(5, 6), z = "b"),
   list(-3, x = 8, y = c(9, 10, 11))
+  
+
 )
 x
 product(c(1, 2))
@@ -3754,3 +3756,179 @@ input_address = "/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig"
 sprintf("%s/output.txt:\n\tRscript %s/test.R %s/output.R", input_address, input_address, input_address) %>% cat()
   prepend("CATEGORY=yes_no_hierarchy\nMEMORY=80000\nCORES=2\nWALL_TIME=172800") %>% 
   write_lines(glue("{input_address}makeflow.makeflow"))
+  
+  
+path = "/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/jian_R_files/error_files/"
+sprintf("%s:\n\tRscript %screate_input.R %s", path, path, path) %>% 
+  prepend("CATEGORY=yes_no_hierarchy\nMEMORY=1000\nCORES=1\nWALL_TIME=200") %>% 
+  write_lines(glue("{path}test.makeflow"))
+
+raw_counts_kam %>%
+  
+  adapt_tree(.tree = kamran_tree, .node = NULL) %>%
+  
+  tree_and_signatures_to_database(tree=kamran_tree, ., .sample=sample, .cell_type=cell_type,
+                                  .symbol=symbol, .count=count) %>% 
+  
+  # Remove redundant samples
+  remove_redundancy(.element=sample, .feature=symbol, .abundance=count, 
+                    correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+  droplevels() %>% 
+  
+  # Eliminate suspicious samples
+  filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>%
+  
+  do_scaling(.sample = sample, .symbol= symbol , .count= count, .cell_type=cell_type) %>% 
+  
+  saveRDS("dev/intermediate_data/counts_scaled_kamran.rds", compress = "xz")
+
+counts_scaled_kamran %>% 
+  
+  do_imputation(.sample = .sample, .symbol = .feature, .count = count, .cell_type = cell_type) %>% 
+  
+  saveRDS("dev/intermediate_data/counts_imputed_kamran.rds", compress = "xz")
+
+counts_hierarchy_kamran <- counts_imputed_kamran %>% 
+  dplyr::rename(symbol = .feature, sample = .sample) %>% 
+  do_hierarchy(.sample=sample,
+               .symbol=symbol,
+               .cell_type = cell_type,
+               .tree = kamran_tree,
+               .is_hierarchy=TRUE)
+
+counts_ranked_kamran <- counts_hierarchy_kamran %>% 
+  do_ranking(.sample=sample, 
+             .symbol=symbol,
+             .cell_type = cell_type,
+             .ranking_method=rank_edgR_quasi_likelihood, 
+             .contrast_method=pairwise_contrast, 
+             .rank_stat="PValue", 
+             .tree = kamran_tree)
+
+
+de_kamran <- counts_hierarchy_kamran %>%
+  unnest(tt) %>%
+  
+  # Differential transcription: generate contrast
+  mutate(markers = map2(
+    data, level,
+    ~ .x %>%
+      test_differential_abundance(
+        .formula = as.formula(sprintf("~ 0 + %s", .y)),
+        .sample = sample,
+        .transcript = symbol,
+        .abundance = count_scaled,
+        .contrasts = pairwise_contrast(.x, .y),
+        method = "edger_robust_likelihood_ratio",
+        test_above_log2_fold_change = 1,
+        action="only")
+  ))
+ 
+
+de_kamran %>% 
+  slice_tail(n=2) %>% 
+  saveRDS("dev/intermediate_data/kamran_memory_de.rds", compress = "xz")
+
+x <- kamran_memory_de %>% 
+  mutate(markers = map(
+    markers,
+    ~ rank_by_stat(.x, "PValue")
+  ))
+  
+de_jian %>% 
+  mutate(markers = map(
+    markers,
+    ~ rank_by_stat(.x, "PValue")
+  ))
+  
+counts_imputed_kamran %>% 
+  as_tibble() %>% 
+  group_by(cell_type) %>% 
+  summarise(n_sample = n_distinct(.sample), 
+            n_gene = n_distinct(.feature),
+            .groups = "drop") %>% 
+  saveRDS("dev/intermediate_data/n_sample_after_imputation_kamran.rds", compress = "xz")
+
+counts_imputed %>% 
+  group_by(cell_type) %>% 
+  summarise(n_sample = n_distinct(sample), 
+            n_gene = n_distinct(feature),
+            .groups = "drop") %>% 
+  saveRDS("dev/intermediate_data/n_sample_after_imputation_jian.rds", compress = "xz")
+
+n_sample_after_imputation_kamran$cell_type %>% 
+  .[!n_sample_after_imputation_kamran$cell_type %in% n_sample_after_imputation_jian$cell_type]
+
+n_sample_after_imputation_jian %>% 
+  left_join(n_sample_after_imputation_kamran, by = "cell_type", suffix = c(".jian", ".kamran")) %>% 
+  drop_na() %>% 
+  print(n=37)
+
+
+de_jian <- counts_imputed_hierarchy %>%
+  unnest(tt) %>%
+  slice(13, 15) %>% 
+  # Differential transcription: generate contrast
+  mutate(markers = map2(
+    data, level,
+    ~ .x %>%
+      test_differential_abundance(
+        .formula = as.formula(sprintf("~ 0 + %s", .y)),
+        .sample = sample,
+        .transcript = symbol,
+        .abundance = count_scaled,
+        .contrasts = pairwise_contrast(.x, .y),
+        method = "edger_robust_likelihood_ratio",
+        test_above_log2_fold_change = 1,
+        action="only")
+  ))
+
+
+de_jian %>% 
+  pluck("markers", 1) %>% 
+  pivot_longer(contains("___"), 
+               names_to = c("stats", "contrast"), 
+               values_to = ".value", 
+               names_sep = "___") %>% 
+  nest(stat_df = - contrast) %>% 
+  mutate(stat_df = map(stat_df, ~.x %>%
+                         pivot_wider(names_from = stats, values_from = ".value" )
+                       ))
+
+de_jian %>% 
+  pluck("markers", 2) %>% 
+  pivot_longer(contains("___"), 
+               names_to = c("stats", "contrast"), 
+               values_to = ".value", 
+               names_sep = "___") %>% 
+  nest(stat_df = - contrast) %>% 
+  mutate(stat_df = map(stat_df, ~.x %>%
+                         pivot_wider(names_from = stats, values_from = ".value" )
+  )) %>% 
+  pluck("stat_df", 1) %>% 
+  arrange(FDR)
+
+
+x = kamran_memory_de %>% 
+  # pluck("markers", 1) %>% 
+  mutate(markers = map(
+    markers,
+    ~ .x %>% 
+      pivot_longer(
+        cols = contains("___"),
+        names_to = c("stats", "contrast"),
+        values_to = ".value",
+        names_sep="___"
+      ) %>%
+      # Markers selection within each pair of contrast
+      nest(stat_df = -contrast) %>%
+      # Reshape inside each contrast
+      mutate(stat_df = map(stat_df, ~.x %>% pivot_wider(names_from = stats, values_from = .value)))
+  ))
+
+
+x %>% 
+  pluck("markers", 2) %>% 
+  pluck("stat_df", 1) %>% 
+  filter(FDR < 0.05 & logFC > 2) %>%
+  filter(logCPM > mean(logCPM))
