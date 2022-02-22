@@ -1561,7 +1561,7 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
                  .is_hierarchy=TRUE, .level=NULL, 
                  .tree, .node=NULL,
                  .contrast_method, .ranking_method, .rank_stat=NULL, .bayes=NULL, 
-                 .selection_method, .kmax=60, .discard_number=2000, .reduction_method = "PCA", .dims=2,
+                 .selection_method, .kmax=60, .discard_number=1000, .reduction_method = "PCA", .dims=2,
                  .optimisation_method, .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
                  .is_complete = TRUE) {
   
@@ -1774,6 +1774,7 @@ do_imputation <- function(.scaled_counts, .sample, .symbol, .count, .cell_type){
                              .abundance = c(!!.count, count_scaled)) %>%
     
     impute_abundance_by_level(
+      .count = !!.count,
       .max_level = .@colData %>% colnames %>% str_subset("level\\_\\d") %>% max
                     ) %>% 
     
@@ -1785,19 +1786,22 @@ do_imputation <- function(.scaled_counts, .sample, .symbol, .count, .cell_type){
     select(-matches("imputed\\.\\d"))
 }
 
-impute_abundance_by_level <- function(.scaled_counts, .max_level){
+impute_abundance_by_level <- function(.scaled_counts, .count, .max_level){
+  
+  .count = enquo(.count)
   
   if (.max_level == "level_1") {
     return(
       .scaled_counts %>% 
         impute_missing_abundance(.formula = ~ level_1,
-                                 .abundance = c(count, count_scaled))
+                                 .abundance = c(!!.count, count_scaled))
     )
   }else{
     .scaled_counts %>% 
       impute_missing_abundance(.formula = as.formula(sprintf("~ %s", .max_level)),
-                               .abundance = c(count, count_scaled)) %>% 
+                               .abundance = c(!!.count, count_scaled)) %>% 
       impute_abundance_by_level(
+        .count = !!.count,
         .max_level = .max_level %>% str_sub(-1L) %>% {as.integer(.)-1} %>% paste("level", ., sep = "_")
       )
   }
@@ -2037,17 +2041,18 @@ rank_edgR_quasi_likelihood <- function(.hierarchical_counts, .sample, .symbol, .
     # # only used for the user pipeline, not for benchmark
     # # filter for genes that have imputation rate less than 0.2
     mutate(stat_df = pmap(
-      list(data, contrast, stat_df),
+      list(data, contrast, level, stat_df),
 
       ~..1 %>%
 
         # filter for target cell type in data
-        filter(!!.cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>%
+        filter(eval(sym(..3)) == str_extract(..2, ".*(?=\\s\\-)")) %>%
 
         # select the symbols and ratio of imputed samples for that gene in the target cell type
         distinct(!!.symbol, ratio_imputed_samples) %>%
-
-        right_join(..3, by = quo_name(.symbol)) %>%
+        
+        # use left_join because mutate join preserves the order of dataframe x, or we'll need to arrange(PValue) using right_join
+        left_join(..4, ., by = quo_name(.symbol)) %>%
 
         filter(ratio_imputed_samples < 0.2)
     ))
@@ -2093,17 +2098,18 @@ rank_edgR_robust_likelihood_ratio <- function(.hierarchical_counts, .sample, .sy
     # only used for the user pipeline, not for benchmark
     # filter for genes that have imputation rate less than 0.2
     mutate(stat_df = pmap(
-      list(data, contrast, stat_df),
+      list(data, contrast, level, stat_df),
 
       ~..1 %>%
 
         # filter for target cell type in data
-        filter(!!.cell_type == str_extract(..2, ".*(?=\\s\\-)")) %>%
+        filter(eval(sym(..3)) == str_extract(..2, ".*(?=\\s\\-)")) %>%
 
         # select the symbols and ratio of imputed samples for that gene in the target cell type
         distinct(!!.symbol, ratio_imputed_samples) %>%
-
-        right_join(..3, by = quo_name(.symbol)) %>%
+        
+        # use left_join because mutate join preserves the order of dataframe x, or we'll need to arrange(PValue) using right_join
+        left_join(..4, ., by = quo_name(.symbol)) %>%
 
         filter(ratio_imputed_samples < 0.2)
       ))
@@ -2182,9 +2188,9 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
   .bayes %>%
     
     # force the column names of bayes data to be consistent with input expression data
-    dplyr::rename(!!.symbol := feature, !!.sample := sample, !!.cell_type := cell_type) %>%
-    do_hierarchy(.is_hierarchy = all(.hierarchical_counts$level != "root"), .tree = .tree,
-                 .sample=!!.sample, .symbol=!!.symbol, .cell_type= !!.cell_type) %>%
+    # dplyr::rename(!!.symbol := feature, !!.sample := sample, !!.cell_type := cell_type) %>%
+    # do_hierarchy(.is_hierarchy = all(.hierarchical_counts$level != "root"), .tree = .tree,
+    #              .sample=!!.sample, .symbol=!!.symbol, .cell_type= !!.cell_type) %>%
 
     unnest(tt) %>%
 
