@@ -3782,7 +3782,7 @@ raw_counts_kam %>%
   
   saveRDS("dev/intermediate_data/counts_scaled_kamran.rds", compress = "xz")
 
-counts_scaled_kamran %>% 
+x_imputed <- counts_scaled_kamran %>% 
   
   do_imputation(.sample = .sample, .symbol = .feature, .count = count, .cell_type = cell_type) %>% 
   
@@ -3932,3 +3932,134 @@ x %>%
   pluck("stat_df", 1) %>% 
   filter(FDR < 0.05 & logFC > 2) %>%
   filter(logCPM > mean(logCPM))
+
+
+x <- counts_scaled_kamran %>% 
+  
+  do_imputation()
+  
+  # Convert to SE
+  # as_SummarizedExperiment(.sample, .feature, count) %>%
+  as_SummarizedExperiment(.sample, .feature, .abundance = c(count, count_scaled)) %>%
+  
+  # Hierarchical imputation. Suffix = "" equated to overwrite counts
+  impute_missing_abundance(.formula = ~ cell_type,
+                           .abundance = c(count, count_scaled))
+
+max_level <- x@colData %>% colnames() %>% str_subset("level\\_\\d") %>% str_sub(-1L) %>% max()
+
+impute_abundance_by_level <- function(.scaled_counts, .max_level){
+  
+  if (.max_level == "level_1") {
+    return(
+      .scaled_counts %>% 
+        impute_missing_abundance(.formula = ~ level_1,
+                                 .abundance = c(count, count_scaled))
+    )
+  }else{
+    .scaled_counts %>% 
+      impute_missing_abundance(.formula = as.formula(sprintf("~ %s", .max_level)),
+                               .abundance = c(count, count_scaled)) %>% 
+      impute_abundance_by_level(
+        .max_level = .max_level %>% str_sub(-1L) %>% as.integer %>% {(.)-1} %>% paste("level", ., sep = "_")
+      )
+  }
+  
+}
+
+
+  
+  # AUTOMATE THIS!
+  impute_missing_abundance(~ level_5, .abundance = c(!!.count, count_scaled)) %>%
+  impute_missing_abundance(~ level_4, .abundance = c(!!.count, count_scaled)) %>%
+  impute_missing_abundance(~ level_3, .abundance = c(!!.count, count_scaled)) %>%
+  impute_missing_abundance(~ level_2, .abundance = c(!!.count, count_scaled)) %>%
+  impute_missing_abundance(~ level_1, .abundance = c(!!.count, count_scaled)) %>% 
+  
+  # {
+  #   for (level in (.)@colData %>% colnames() %>% str_subset("level\\_\\d") %>% sort(decreasing = TRUE)) {
+  #     (.) <- (.) %>% 
+  #       impute_missing_abundance(~ !!as.symbol(level), .abundance = c(!!.count, count_scaled))
+  #   }
+  #   
+  # } %>% 
+  
+  # Convert back to tibble
+  as_tibble() %>%
+  
+  mutate(.imputed = if_any(contains("imputed"), ~ .x != 0)) %>% 
+  
+  select(-matches("imputed\\.\\d"))
+  
+
+# talk to Stefano about this new calculation of imputation ratio
+create_hierarchy_and_calculate_imputation_ratio <- function(.imputed_counts, .level, .sample, .symbol) {
+    # this preproces function ranged data in hierarchy(or non_hierarchy) and
+    # calculates the imputation ratio for genes in each hierarchy
+    .sample = enquo(.sample)
+    .symbol = enquo(.symbol)
+    
+    
+    # load data
+    .imputed_counts %>%
+      
+      # tidybulk(sample, symbol, count_scaled) %>% for imputed counts data
+      # tidybulk(.sample = !!.sample, .transcript = !!.symbol, .abundance = !!.count) %>%
+      
+      # filter for cells at the level of interest. .level == level_1
+      filter(!is.na(!!as.symbol(.level))) %>%
+      
+      # calculate the ratio of imputation for genes in a cell type
+      nest(data = -c(!!.symbol, !!as.symbol(.level))) %>%
+      
+      # for a cell type some samples may miss genes in other samples: so for the same cell type genes may have different number of samples
+      mutate(n_imputed_samples_per_gene = map_int(
+        data,
+        ~ with(.x, !!.sample[.imputed]) %>% 
+          n_distinct
+        )) %>%
+      
+      unnest(data) %>%
+      nest(data = -!!as.symbol(.level)) %>%
+      
+      mutate(n_samples= map_int(
+        data,
+        ~ .x$!!.sample %>%
+          n_distinct
+      )) %>%
+      
+      unnest(data) %>%
+      
+      mutate(ratio_imputed_samples = n_imputed_samples_per_gene / n_samples) %>%
+      
+      # nest by ancestor
+      nest(data = - !!as.symbol(pre(.level)))
+    
+  }
+  
+
+source("dev/jian_R_files//function_jian.R")
+new_tree <- read_yaml("dev/jian_R_files/new_tree.yaml") %>% as.Node
+readRDS("dev/raw_data/counts.rds") %>% 
+  main(.sample = sample, .symbol = symbol, .count = count, .cell_type = cell_type,
+       .is_hierarchy=TRUE,
+       .tree = new_tree,
+       .contrast_method = pairwise_contrast, .ranking_method = rank_edgR_quasi_likelihood, .rank_stat="PValue",
+       .selection_method = "silhouette", .reduction_method = "PCA", .dims=4, .discard_number = 1000,
+       .optimisation_method = "penalty",
+       .is_complete = TRUE) %>% 
+  
+  saveRDS("dev/intermediate_data/cellsignature_jian_test.rds", compress = "xz")
+
+path <- "/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/error_files/"
+tibble(
+  command = "Rscript",
+  filename = paste0(path, "pipeline_check.R")
+  ) %>% 
+  mutate(header = "pipeline_check:") %>% 
+  unite(full_command, c(-header), sep = " ", remove=FALSE) %>% 
+  # mutate(full_command = sprintf("%s\n\t%s", header, full_command)) %>% 
+  pull(full_command) %>% 
+  prepend(c("CATEGORY=yes_no_hierarchy\nMEMORY=10000\nCORES=2\nWALL_TIME=86400")) %>% 
+  write("dev/error_files/jian_test.makeflow")
+  
