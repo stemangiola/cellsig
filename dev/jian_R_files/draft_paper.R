@@ -3782,7 +3782,7 @@ raw_counts_kam %>%
   
   saveRDS("dev/intermediate_data/counts_scaled_kamran.rds", compress = "xz")
 
-x_imputed <- counts_scaled_kamran %>% 
+counts_imputed_kamran <- counts_scaled_kamran %>% 
   
   do_imputation(.sample = .sample, .symbol = .feature, .count = count, .cell_type = cell_type) %>% 
   
@@ -4063,3 +4063,13 @@ tibble(
   prepend(c("CATEGORY=yes_no_hierarchy\nMEMORY=10000\nCORES=2\nWALL_TIME=86400")) %>% 
   write("dev/error_files/jian_test.makeflow")
   
+
+counts_hierarchy %>%
+  # .bayes = .cellsig_theoretical_transcript_abundace_distribution
+  rank_bayes(.sample=sample,
+             .symbol=symbol,
+             .cell_type =cell_type,
+             .contrast_method=mean_contrast,
+             .rank_stat=NULL,
+             .bayes=counts_bayes_imputed_hierarchy,
+             .tree =kamran_tree)
