@@ -138,7 +138,7 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
     
       do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
   
-      do_imputation(.sample = !!.sample, .symbol=feature, .count= !!.count, .cell_type=!!.cell_type) %>%
+      do_imputation(.sample =.sample, .symbol=.feature, .count= !!.count, .cell_type=!!.cell_type) %>%
       dplyr::rename(!!.symbol := .feature, !!sample := .sample) %>% 
       
       do_hierarchy(.sample=!!.sample,
@@ -190,7 +190,7 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
     
       do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
   
-      do_imputation(.sample = !!.sample, .symbol=feature, .count= !!.count, .cell_type=!!.cell_type) %>%
+      do_imputation(.sample=.sample, .symbol=.feature, .count= !!.count, .cell_type=!!.cell_type) %>%
       dplyr::rename(symbol = .feature, sample = .sample) %>%
       
       do_hierarchy(.sample=!!.sample,
@@ -321,20 +321,9 @@ do_imputation <- function(.scaled_counts, .sample, .symbol, .count, .cell_type){
     impute_missing_abundance(.formula = as.formula(sprintf("~ %s", quo_name(.cell_type))),
                              .abundance = c(!!.count, count_scaled)) %>%
     
-    # AUTOMATE THIS!
-    impute_missing_abundance(~ level_5, .abundance = c(!!.count, count_scaled)) %>%
-    impute_missing_abundance(~ level_4, .abundance = c(!!.count, count_scaled)) %>%
-    impute_missing_abundance(~ level_3, .abundance = c(!!.count, count_scaled)) %>%
-    impute_missing_abundance(~ level_2, .abundance = c(!!.count, count_scaled)) %>%
-    impute_missing_abundance(~ level_1, .abundance = c(!!.count, count_scaled)) %>% 
-    
-    # {
-    #   for(level in (.) %>% colnames %>% str_extract("level\\_\\d") %>% .[!is.na(.)]) {
-    #     (.) <- (.) %>% 
-    #       impute_missing_abundance(~ !!as.symbol(level), .abundance = c(!!.count, count_scaled))
-    #   }
-    #   
-    # } %>% 
+    impute_abundance_by_level(
+      .max_level = .@colData %>% colnames %>% str_subset("level\\_\\d") %>% max
+    ) %>% 
     
     # Convert back to tibble
     as_tibble() %>%
@@ -342,6 +331,25 @@ do_imputation <- function(.scaled_counts, .sample, .symbol, .count, .cell_type){
     mutate(.imputed = if_any(contains("imputed"), ~ .x != 0)) %>% 
     
     select(-matches("imputed\\.\\d"))
+}
+
+impute_abundance_by_level <- function(.scaled_counts, .max_level){
+  
+  if (.max_level == "level_1") {
+    return(
+      .scaled_counts %>% 
+        impute_missing_abundance(.formula = ~ level_1,
+                                 .abundance = c(count, count_scaled))
+    )
+  }else{
+    .scaled_counts %>% 
+      impute_missing_abundance(.formula = as.formula(sprintf("~ %s", .max_level)),
+                               .abundance = c(count, count_scaled)) %>% 
+      impute_abundance_by_level(
+        .max_level = .max_level %>% str_sub(-1L) %>% {as.integer(.)-1} %>% paste("level", ., sep = "_")
+      )
+  }
+  
 }
 
 # Input scale abundance
