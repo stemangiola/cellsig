@@ -1576,21 +1576,21 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
     
     .input %>%
       
-      # adapt_tree(.tree = .tree, .node = .node) %>%
-      # 
-      # tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
-      #                                .symbol=!!.symbol, .count=!!.count) %>%
+      adapt_tree(.tree = .tree, .node = .node) %>%
+
+      tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
+                                     .symbol=!!.symbol, .count=!!.count) %>%
       
-      # # Remove redundant samples
-      # remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
-      # droplevels() %>%
-      # 
-      # # Eliminate suspicious samples
-      # filter(!grepl("GSM3722278|GSM3722276|GSM3722277", !!.sample)) %>%
+      # Remove redundant samples
+      remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+      droplevels() %>%
+
+      # Eliminate suspicious samples
+      filter(!grepl("GSM3722278|GSM3722276|GSM3722277", !!.sample)) %>%
       
-      # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
-      #   
-      # do_imputation(.sample = !!.sample, .symbol=feature, .count= !!.count, .cell_type=!!.cell_type) %>% 
+      do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
+
+      do_imputation(.sample =.sample, .symbol=.feature, .count= !!.count, .cell_type=!!.cell_type) %>%
       dplyr::rename(!!.symbol := .feature, !!sample := .sample) %>% 
 
       do_hierarchy(.sample=!!.sample,
@@ -1628,21 +1628,21 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
     
     .input %>%
       
-      # adapt_tree(.tree = .tree, .node = .node) %>% 
-      # 
-      # tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type, 
-      #                                .symbol=!!.symbol, .count=!!.count) %>% 
+      adapt_tree(.tree = .tree, .node = .node) %>%
+
+      tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
+                                     .symbol=!!.symbol, .count=!!.count) %>%
       
-      # # Remove redundant samples
-      # remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
-      # droplevels() %>% 
-      # 
-      # # Eliminate suspicious samples
-      # filter(!grepl("GSM3722278|GSM3722276|GSM3722277", !!.sample)) %>% 
+      # Remove redundant samples
+      remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+      droplevels() %>%
+
+      # Eliminate suspicious samples
+      filter(!grepl("GSM3722278|GSM3722276|GSM3722277", !!.sample)) %>%
       
-      # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
-      #   
-      # do_imputation(.sample = !!.sample, .symbol=feature, .count= !!.count, .cell_type=!!.cell_type) %>% 
+      do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
+
+      do_imputation(.sample=.sample, .symbol=.feature, .count=!!.count, .cell_type=!!.cell_type) %>%
       dplyr::rename(symbol = .feature, sample = .sample) %>%
  
       do_hierarchy(.sample=!!.sample,
@@ -1773,20 +1773,9 @@ do_imputation <- function(.scaled_counts, .sample, .symbol, .count, .cell_type){
     impute_missing_abundance(.formula = as.formula(sprintf("~ %s", quo_name(.cell_type))),
                              .abundance = c(!!.count, count_scaled)) %>%
     
-    # AUTOMATE THIS!
-    impute_missing_abundance(~ level_5, .abundance = c(!!.count, count_scaled)) %>%
-    impute_missing_abundance(~ level_4, .abundance = c(!!.count, count_scaled)) %>%
-    impute_missing_abundance(~ level_3, .abundance = c(!!.count, count_scaled)) %>%
-    impute_missing_abundance(~ level_2, .abundance = c(!!.count, count_scaled)) %>%
-    impute_missing_abundance(~ level_1, .abundance = c(!!.count, count_scaled)) %>% 
-    
-    # {
-    #   for(level in (.) %>% colnames %>% str_extract("level\\_\\d") %>% .[!is.na(.)]) {
-    #     (.) <- (.) %>% 
-    #       impute_missing_abundance(~ !!as.symbol(level), .abundance = c(!!.count, count_scaled))
-    #   }
-    #   
-    # } %>% 
+    impute_abundance_by_level(
+      .max_level = .@colData %>% colnames %>% str_subset("level\\_\\d") %>% max
+                    ) %>% 
     
     # Convert back to tibble
     as_tibble() %>%
@@ -1794,6 +1783,25 @@ do_imputation <- function(.scaled_counts, .sample, .symbol, .count, .cell_type){
     mutate(.imputed = if_any(contains("imputed"), ~ .x != 0)) %>% 
     
     select(-matches("imputed\\.\\d"))
+}
+
+impute_abundance_by_level <- function(.scaled_counts, .max_level){
+  
+  if (.max_level == "level_1") {
+    return(
+      .scaled_counts %>% 
+        impute_missing_abundance(.formula = ~ level_1,
+                                 .abundance = c(count, count_scaled))
+    )
+  }else{
+    .scaled_counts %>% 
+      impute_missing_abundance(.formula = as.formula(sprintf("~ %s", .max_level)),
+                               .abundance = c(count, count_scaled)) %>% 
+      impute_abundance_by_level(
+        .max_level = .max_level %>% str_sub(-1L) %>% {as.integer(.)-1} %>% paste("level", ., sep = "_")
+      )
+  }
+  
 }
 
 # Input scale abundance
@@ -3257,24 +3265,22 @@ tree_subset <- function(.tree, .node=NULL) {
 }
 
 tree_subset_tibble <- function(.tree, .node){
-
+  
   # Args:
   # .tree: a Node R6 object from data.tree
   # .node: a character specifying the cell type of interest
-
+  
   tree_tbl <- .tree %>% as.phylo %>% as_tibble
-
+  
   if (.node == "Tissue") { return( tree_tbl %>% filter(label == "Tissue") )
-
+    
   } else {
-
-    return(sibling(tree_tbl, .node) %>%
-             bind_rows(
-               tree_subset_tibble(.tree, parent(tree_tbl, .node) %>% .$label),
-               .)
-    )
+    
+    sibling(tree_tbl, .node) %>%
+      bind_rows(
+        tree_subset_tibble(.tree, parent(tree_tbl, .node) %>% .$label),
+        .)
   }
-
 }
 
 update_tree_edge_matrix <- function(.tree_tbl) {
