@@ -144,6 +144,12 @@ run_model_ref = function(
                          sampling_iterations = 100) {
 
   
+  
+  lambda_mu_prior = c(8, 2)
+  lambda_sigma_prior =  c(log(3.3) , 1)
+  lambda_skew_prior =  c(-2.7, 2)
+  sigma_intercept_prior = c(1.9 , 0.5)
+  
   exposure_rate_col = enquo(exposure_rate_col)
   
   df = ref_format(reference_filtered ) 
@@ -171,7 +177,7 @@ run_model_ref = function(
          when(
            # Variational
            (.) == TRUE ~  vb_iterative(
-             stanmodels$ARMET_ref,
+             cellsig:::stanmodels$ARMET_ref,
              #rstan::stan_model("inst/stan/ARMET_ref.stan"),
              output_samples = 5000,
              iter = 50000,
@@ -183,7 +189,7 @@ run_model_ref = function(
              
           # HMC
            ~ sampling(
-           stanmodels$ARMET_ref,
+             cellsig:::stanmodels$ARMET_ref,
            #rstan::stan_model("inst/stan/ARMET_ref.stan"),
            chains = 3,
            cores = 3,
@@ -197,6 +203,135 @@ run_model_ref = function(
          }
        ))
 
+}
+
+#' @importFrom rstan vb
+#' @importFrom rstan sampling
+#'
+#' @export
+#'
+get_mean_overdispersion_association = function(
+  reference_filtered,
+  exposure_rate_col,
+  shards,
+  approximate_posterior,
+  iterations = 250,
+  sampling_iterations = 100) {
+  
+  
+  exposure_rate_col = enquo(exposure_rate_col)
+  
+  # Make cells all the same
+  reference_filtered = 
+    reference_filtered %>%
+    
+    # Subset samples
+    nest(data = -.sample) %>% 
+    sample_n(min(30, n())) %>% 
+    unnest(data) %>% 
+    
+    # Subset genes
+    nest(data = -.feature) %>% 
+    sample_n(min(10000, n())) %>% 
+    unnest(data) 
+  
+  
+  df = ref_format(reference_filtered ) 
+  
+  G = df %>% distinct(G) %>% nrow()
+  GM = df %>% distinct(.feature) %>% nrow()
+  S = df %>% distinct(.sample) %>% nrow()
+  CL = df %>% nrow
+  
+  counts_linear = df %>%  pull(count)
+  G_to_counts_linear = df %>% pull(G)
+  exposure_rate = df %>% pull(!!exposure_rate_col)
+  
+  
+  # library(rstan)
+  # fileConn<-file("~/.R/Makevars")
+  # writeLines(c( "CXX14FLAGS += -O2","CXX14FLAGS += -DSTAN_THREADS", "CXX14FLAGS += -pthread"), fileConn)
+  # close(fileConn)
+  # ARMET_tc_model = rstan::stan_model("~/PhD/deconvolution/ARMET/inst/stan/ARMET_ref.stan", auto_write = F)
+  
+  if(shards > 1) Sys.setenv("STAN_NUM_THREADS" = shards)
+  
+  list(df,
+       approximate_posterior %>%
+         when(
+           # Variational
+           (.) == TRUE ~  vb_iterative(
+             stanmodels$ARMET_ref,
+             #rstan::stan_model("inst/stan/ARMET_ref.stan"),
+             output_samples = 5000,
+             iter = 50000,
+             tol_rel_obj = 0.01,
+             algorithm = "meanfield"
+             #,
+             #save_warmup = FALSE
+           ),  
+           
+           # HMC
+           ~ sampling(
+             stanmodels$ARMET_ref,
+             #rstan::stan_model("inst/stan/ARMET_ref.stan"),
+             chains = 3,
+             cores = 3,
+             iter = iterations,
+             warmup = iterations - sampling_iterations,
+             save_warmup = FALSE
+           ) %>%
+             {
+               (.)  %>% rstan::summary() %$% summary %>% as_tibble(rownames = "par") %>% arrange(Rhat %>% desc) %>% print
+               (.)
+             }
+         ))
+  
+}
+
+
+fit_mixed_effect = function(df,mod_estimate = stanmodels$mixed_effect, mod_rng = stanmodels$mixed_effect_generate,  assoc_intercept, assoc_slope, assoc_sd_sd, assoc_sd_shape, lambda_mu, lambda_sigma,lambda_skew,
+                            iterations = 250,
+                            sampling_iterations = 100, vb = FALSE){
+  
+  
+  
+  data = list(
+    N = nrow(df),
+    Y = df$count_scaled,
+    grouping_gene_idx_N  = df %>% mutate(database_for_cell_type = factor(database_for_cell_type), .feature = factor(.feature)) %>% select(database_for_cell_type, .feature),
+    
+    G = length(unique(df$.feature)),
+    D = length(unique(df$database_for_cell_type)),
+    grouping_gene_idx_D =
+      df %>%
+      mutate(database_for_cell_type = factor(database_for_cell_type), .feature = factor(.feature)) %>%
+      select(database_for_cell_type, .feature) %>%
+      distinct(),
+    grainsize=1
+  )
+  
+  
+  
+  if(vb) fit = (
+    vb_iterative(
+      mod_estimate,
+      iter = 10000,
+      tol_rel_obj = 0.01,
+      data = data
+    )
+    
+  )
+  else fit = (sampling(mod_estimate, data = data, cores = 4, iter = 600, warmup = 300))
+  
+  rng =  rstan::gqs(
+    mod_rng,
+    draws =  as.matrix(fit),
+    data = data
+  )
+  
+  return(list(fit = fit, rng = rng))
+  
 }
 
 

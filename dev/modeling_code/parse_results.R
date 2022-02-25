@@ -2,22 +2,52 @@ library(tidyverse)
 library(cellsig)
 library(tidybulk)
 library(tidySummarizedExperiment)
+library(magrittr)
 
-dir(sprintf("%s/dev/modeling_results/", local_dir), pattern = "result.rds", full.names = T) %>%
+# level_4_patition_801_input_result$rng %>% 
+#   rstan::summary("Y_gen", c(0.1, 0.9)) %$%
+#   summary %>% 
+#   as_tibble() %>% 
+#   rowid_to_column(var = ".feature_idx") 
+# %>% 
+#   left_join(
+#     df %>% 
+#       mutate(database_for_cell_type = factor(database_for_cell_type), .feature = factor(.feature)) %>% 
+#       select(database_for_cell_type, cell_type, .feature, count_scaled, count, level_4, multiplier) %>% 
+#       mutate(.feature_idx = as.integer(.feature))
+#   ) 
+
+library(furrr)
+plan(multisession, workers = 10)
+local_dir = "."
+
+counts_bayes = 
+  dir(sprintf("%s/dev/modeling_results/", local_dir), pattern = "result.rds", full.names = T) %>%
   grep("result.rds", ., value = T, fixed = TRUE) %>%
-  map_dfr(~ readRDS(.x)) %>%
+  future_map_dfr(~ {
+                   out  = readRDS(.x)
+                   
+                   out$output_df %>% 
+                   mutate(file = .x) %>% 
+                   mutate(log_mean = out$rng %>% rstan::extract("Y_gen") %$% Y_gen %>% log1p %>% colMeans()) %>% 
+                   mutate(log_sd = out$rng %>% rstan::extract("Y_gen") %$% Y_gen %>% log1p %>% matrixStats::colSds())
+                } ) %>%
   
   unite( "sample", c(cell_type, level), remove = FALSE) %>%
-  tree_and_signatures_to_database(tree, ., sample, cell_type, .feature,  `50%`)  %>%
+  tree_and_signatures_to_database(tree, ., sample, cell_type, .feature,  `50%`)  
+
+counts_bayes %>% saveRDS("dev/counts_bayes.rds", compress = "xz")
+
+counts_bayes %>%
 
   # Convert to SE
-  as_SummarizedExperiment(sample, .feature, c(`2.5%`, `25%`,  `50%`,  `75%`, `97.5%`) ) %>%
+  as_SummarizedExperiment(sample, .feature, c(`10%`, `50%`,  `90%`, log_mean, log_sd) ) %>%
   
   # Hierarchical imputation. Suffix = "" equated to overwrite counts
-  impute_missing_abundance(~ level_4, .abundance = c(`2.5%`, `25%`,  `50%`,  `75%`, `97.5%`)) %>%
-  impute_missing_abundance(~ level_3, .abundance = c(`2.5%`, `25%`,  `50%`,  `75%`, `97.5%`)) %>%
-  impute_missing_abundance(~ level_2, .abundance = c(`2.5%`, `25%`,  `50%`,  `75%`, `97.5%`)) %>%
-  impute_missing_abundance(~ level_1, .abundance = c(`2.5%`, `25%`,  `50%`,  `75%`, `97.5%`)) %>% 
+  impute_missing_abundance(~ level_4, .abundance = c(`10%`, `50%`,  `90%`, log_mean, log_sd)) %>%
+  impute_missing_abundance(~ level_3, .abundance = c(`10%`, `50%`,  `90%`, log_mean, log_sd)) %>%
+  impute_missing_abundance(~ level_2, .abundance = c(`10%`, `50%`,  `90%`, log_mean, log_sd)) %>%
+  impute_missing_abundance(~ level_1, .abundance = c(`10%`, `50%`,  `90%`, log_mean, log_sd)) %>% 
   
   # Convert back to tibble
   as_tibble() %>%

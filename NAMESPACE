@@ -3,6 +3,7 @@
 export(ToDataFrameTypeColFull)
 export(create_tree_object)
 export(generate_mixture_from_proportion_matrix)
+export(get_mean_overdispersion_association)
 export(impute_abundance_using_levels)
 export(infer_sequencing_depth_bias)
 export(ref_format)
