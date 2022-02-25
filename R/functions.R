@@ -290,9 +290,9 @@ get_mean_overdispersion_association = function(
 }
 
 
-fit_mixed_effect = function(df,mod,  assoc_intercept, assoc_slope, assoc_sd_sd, assoc_sd_shape, lambda_mu, lambda_sigma,lambda_skew,
+fit_mixed_effect = function(df,mod_estimate = stanmodels$mixed_effect, mod_rng = stanmodels$mixed_effect_generate,  assoc_intercept, assoc_slope, assoc_sd_sd, assoc_sd_shape, lambda_mu, lambda_sigma,lambda_skew,
                             iterations = 250,
-                            sampling_iterations = 100){
+                            sampling_iterations = 100, vb = FALSE){
   
   
   
@@ -302,20 +302,38 @@ fit_mixed_effect = function(df,mod,  assoc_intercept, assoc_slope, assoc_sd_sd, 
     grouping_gene_idx_N  = df %>% mutate(database_for_cell_type = factor(database_for_cell_type), .feature = factor(.feature)) %>% select(database_for_cell_type, .feature),
     
     G = length(unique(df$.feature)),
-    D = length(unique(df$database_for_cell_type)),  
-    grouping_gene_idx_D =  
-      df %>% 
-      mutate(database_for_cell_type = factor(database_for_cell_type), .feature = factor(.feature)) %>% 
-      select(database_for_cell_type, .feature) %>% 
+    D = length(unique(df$database_for_cell_type)),
+    grouping_gene_idx_D =
+      df %>%
+      mutate(database_for_cell_type = factor(database_for_cell_type), .feature = factor(.feature)) %>%
+      select(database_for_cell_type, .feature) %>%
       distinct(),
     grainsize=1
   )
   
   
   
-  my_fit = sampling(mod, data = data, cores = 4, iter = 600, warmup = 300)
+  if(vb) fit = (
+    vb_iterative(
+      mod_estimate,
+      iter = 10000,
+      tol_rel_obj = 0.01,
+      data = data
+    )
+    
+  )
+  else fit = (sampling(mod_estimate, data = data, cores = 4, iter = 600, warmup = 300))
+  
+  rng =  rstan::gqs(
+    mod_rng,
+    draws =  as.matrix(fit),
+    data = data
+  )
+  
+  return(list(fit = fit, rng = rng))
   
 }
+
 
 
 #' @importFrom tidyr nest

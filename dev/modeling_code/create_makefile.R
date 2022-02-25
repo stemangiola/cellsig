@@ -7,10 +7,10 @@ library(tidyverse)
 
 
 local_dir = "/stornext/Bioinf/data/bioinf-data/Papenfuss_lab/projects/mangiola.s/PostDoc/cellsig"
-cores = 8
+cores = 15
 
 # Create input
-sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s\nWALL_TIME=14000", cores) %>%
+sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s", cores) %>%
   
   c(
     dir(sprintf("%s/dev/modeling_results/", local_dir), pattern = "input.rds") %>%
