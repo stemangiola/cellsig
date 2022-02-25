@@ -2,6 +2,7 @@ library(tidyverse)
 library(magrittr)
 library(tidybulk)
 library(tidySummarizedExperiment)
+library(glue)
 
 # library(cellsig)
 # library(future)
@@ -27,11 +28,12 @@ library(tidySummarizedExperiment)
 #     nest(data = -partition)
 # }
 
+local_dir = "~/PostDoc/cellsig"
+
 # Save files
 create_partition_files = function(.data, .level, .partitions = 30){
   .data %>%
-    mutate(level = .level) %>%
-    nest(data = -c(cell_type, .feature)) %>%
+    nest(data = -c(.feature)) %>%
     
     # For testing
     #sample_frac(0.01) %>%
@@ -59,8 +61,28 @@ readRDS("dev/counts.rds") %>%
   mutate(count = as.integer(count)) %>%
   
   # Create partition files
-  nest(data = -level) %>%
-  mutate(partitions = map2(
-    data, level,
-    ~ create_partition_files(.x, .y, 15)
+  nest(data = -c(level, cell_type, .feature)) %>%
+  nest(data = -c(level, cell_type)) %>% 
+  
+  mutate(data = map(
+    data, 
+    ~ mutate(.x, partition = sample(1:100, size = n(), replace = T))
+  )) %>%
+  unnest(data) %>% 
+  unnest(data) %>% 
+  
+  # Save
+  nest(data = -c(level, cell_type, partition)) %>%
+  mutate(saved = pmap_lgl(
+    list(data, level, cell_type, partition),
+    ~ {
+      ..1 %>% 
+        mutate(
+          level = ..2,
+          cell_type = ..3,
+          partition= ..4
+        ) %>% 
+      saveRDS(glue("{local_dir}/dev/modeling_results/level_{..2}_cell_type_{..3}_partition_{..4}_input.rds") )
+      TRUE
+    }
   ))
