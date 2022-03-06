@@ -16,7 +16,8 @@ cellsig_multilevel_varing_intercept(
   priors = list(assoc_intercept = 4.2, assoc_slope = -0.55, assoc_sd_sd = 1.22,
     assoc_sd_shape = 1.14, lambda_mu = 9.8, lambda_sigma = 1.69, lambda_skew = -4.58),
   iterations_warmup = 250,
-  iterations_sampling = 300
+  iterations_sampling = 300,
+  pass_fit = FALSE
 )
 }
 \arguments{
@@ -27,6 +28,8 @@ cellsig_multilevel_varing_intercept(
 \item{.cell_group}{A column name as symbol. The cell_group identifier}
 
 \item{cores}{An integer. How many cored to be used with parallel calculations.}
+
+\item{pass_fit}{A boolean. Whether to pass the Stan fit as attribute in the output. Because the Stan fit can be very large, setting this to FALSE can be used to lower the memory imprint to save the output.}
 
 \item{formula_composition}{A formula. The formula describing the model for differential abundance, for example ~treatment.}
 
@@ -47,8 +50,6 @@ cellsig_multilevel_varing_intercept(
 \item{use_data}{A booelan. Whether to sun the model data free. This can be used for prior predictive check.}
 
 \item{max_sampling_iterations}{An integer. This limit the maximum number of iterations in case a large dataset is used, for limiting the computation time.}
-
-\item{pass_fit}{A boolean. Whether to pass the Stan fit as attribute in the output. Because the Stan fit can be very large, setting this to FALSE can be used to lower the memory imprint to save the output.}
 
 \item{approximate_posterior_inference}{A boolean. Whether the inference of the joint posterior distribution should be approximated with variational Bayes. It confers execution time advantage.}
 

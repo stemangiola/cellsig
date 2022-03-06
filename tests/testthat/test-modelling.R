@@ -1,16 +1,11 @@
 test_that("model runs", {
 
-  cellsig::counts %>%
-    filter(level ==1 & cell_type == "epithelial") %>%
+  readRDS("dev/modeling_results/level_1_cell_type_endothelial_partition_1_input.rds") %>% 
     
-    # subset
-    nest(data = -c(symbol, house_keeping)) %>%
-    nest(hk = -house_keeping) %>%
-    arrange(house_keeping ) %>%
-    mutate(how_many = c(5, 50)) %>%
-    mutate(hk = map2(hk, how_many, ~ .x %>% sample_n(.y))) %>%
-    unnest(hk) %>%
+    nest(data = -.feature) %>%
+    sample_n(50) %>%
     unnest(data) %>%
     
-    ref_intercept_only(1, cores = 1, approximate_posterior = T)
+    mutate(multiplier = exp(exposure_rate)) %>% 
+    cellsig_multilevel_varing_intercept(.sample, .feature, count, cell_type, multiplier, database)
 })
