@@ -99,6 +99,7 @@ cellsig_multilevel_varing_intercept <- function(.data,
   UseMethod("cellsig_multilevel_varing_intercept", .data)
 }
 
+#' @importFrom rstan rstan_options
 #' @export
 cellsig_multilevel_varing_intercept.data.frame = function(
                             .data,
@@ -262,8 +263,8 @@ cellsig_multilevel_varing_intercept.data.frame = function(
         summary %>% 
         .[,c("mean", "sd")] %>% 
         as_tibble() %>%
-        rowid_to_column(var = ".feature_idx") %>%  
-        setNames(c("log_mean", "log_sd")),
+        setNames(c("log_mean", "log_sd")) %>% 
+        rowid_to_column(var = ".feature_idx")  ,
       by = ".feature_idx"
     ) %>% 
     
