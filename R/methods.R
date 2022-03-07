@@ -85,13 +85,13 @@ cellsig_multilevel_varing_intercept <- function(.data,
                                                 # Other parameters
                                                 cores = detectCores(),
                                                 priors = list(
-                                                  assoc_intercept = 4.2,
-                                                  assoc_slope = -0.55,
-                                                  assoc_sd_sd = 1.22,
-                                                  assoc_sd_shape = 1.14,
-                                                  lambda_mu = 9.8,
-                                                  lambda_sigma = 1.69,
-                                                  lambda_skew = -4.58
+                                                  assoc_intercept_mean = 1,
+                                                  assoc_slope_mean = -0.55,
+                                                  assoc_sd_sd_mean = 1.22,
+                                                  assoc_sd_shape_mean = 1.14,
+                                                  lambda_mu_mean = 9.8,
+                                                  lambda_sigma_mean = 2,
+                                                  lambda_skew_mean = -5
                                                 ),
                                                 iterations_warmup = 250,
                                                 iterations_sampling = 300,
@@ -100,6 +100,7 @@ cellsig_multilevel_varing_intercept <- function(.data,
 }
 
 #' @importFrom rstan rstan_options
+#' @importFrom forcats fct_relevel
 #' @export
 cellsig_multilevel_varing_intercept.data.frame = function(
                             .data,
@@ -112,15 +113,15 @@ cellsig_multilevel_varing_intercept.data.frame = function(
                              
                              # Other parameters
                             cores = detectCores(),
-                             priors = list(
-                               assoc_intercept = 4.2,
-                               assoc_slope = -0.55,
-                               assoc_sd_sd = 1.22,
-                               assoc_sd_shape = 1.14,
-                               lambda_mu = 9.8,
-                               lambda_sigma = 1.69,
-                               lambda_skew = -4.58
-                             ),
+                            priors = list(
+                              assoc_intercept_mean = 1,
+                              assoc_slope_mean = -0.55,
+                              assoc_sd_sd_mean = 1.22,
+                              assoc_sd_shape_mean = 1.14,
+                              lambda_mu_mean = 9.8,
+                              lambda_sigma_mean = 2,
+                              lambda_skew_mean = -5
+                            ),
                              iterations_warmup = 250,
                              iterations_sampling = 300,
                             pass_fit = FALSE) {
@@ -149,10 +150,14 @@ cellsig_multilevel_varing_intercept.data.frame = function(
     
     # Unique database cell type
     unite("database_for_cell_type_feature", c(!!.multilevel_grouping, !!.cell_group, !!.feature), remove = FALSE ) %>% 
-    mutate(database_for_cell_type_feature = factor(database_for_cell_type_feature)) %>% 
-    
     unite("feature_cell_type", c(!!.feature, !!.cell_group), remove = FALSE) %>% 
+    
+    # !!! Needed for new model formatting - DO NOT CHANGE OTHERWISE THE MODEL WILL PRODUCE MEANINGLESS RESULTS
+    arrange(feature_cell_type, database_for_cell_type_feature, !!.sample) %>% 
     mutate(feature_cell_type = factor(feature_cell_type)) %>% 
+    mutate(database_for_cell_type_feature = fct_relevel(database_for_cell_type_feature, unique(as.character(database_for_cell_type_feature)))) %>% 
+    mutate(!!.sample := as.factor(!!.sample)) %>% 
+    
     
     # Count scaled
     mutate(count_scaled = !!.abundance * !!.scaling_multiplier) %>% 
@@ -180,7 +185,8 @@ cellsig_multilevel_varing_intercept.data.frame = function(
     
     grouping_gene_idx_D =
       .data %>%
-      distinct(database_for_cell_type_feature, feature_cell_type),
+      select(database_for_cell_type_feature, feature_cell_type) %>% 
+      distinct(),
     
     grainsize = 1
   ) %>%
