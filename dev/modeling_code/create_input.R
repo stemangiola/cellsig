@@ -66,7 +66,7 @@ readRDS("dev/counts.rds") %>%
   
   mutate(data = map(
     data, 
-    ~ mutate(.x, partition = sample(1:100, size = n(), replace = T))
+    ~ mutate(.x, partition = sample(1:20, size = n(), replace = T))
   )) %>%
   unnest(data) %>% 
   unnest(data) %>% 
