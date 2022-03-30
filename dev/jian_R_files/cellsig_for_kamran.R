@@ -682,7 +682,7 @@ rank_by_stat <-  function(.markers, .rank_stat){
     mutate(stat_df = map(stat_df, ~.x %>% pivot_wider(names_from = stats, values_from = .value))) %>%
     
     # Keep significantly enriched genes and rank the significant ones
-     mutate(stat_df = map(
+    mutate(stat_df = map(
        stat_df,
        ~ .x %>%
          filter(FDR < 0.05 & logFC > 2) %>%
