@@ -139,7 +139,7 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
       do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
       
       do_imputation(.sample =.sample, .symbol=.feature, .count= !!.count, .cell_type=!!.cell_type) %>%
-      dplyr::rename(!!.symbol := .feature, !!sample := .sample) %>% 
+      dplyr::rename(symbol = .feature, sample = .sample) %>% 
       
       do_hierarchy(.sample=!!.sample,
                    .symbol=!!.symbol,
