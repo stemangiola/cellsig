@@ -628,7 +628,7 @@ rank_edgR_robust_likelihood_ratio <- function(.hierarchical_counts, .sample, .sy
           .abundance = count_scaled,
           .contrasts = .contrast_method(.x, .y),
           method = "edger_robust_likelihood_ratio",
-          test_above_log2_fold_change = 1,
+          test_above_log2_fold_change = 2,
           action="only")
     )) %>%
     
@@ -682,11 +682,11 @@ rank_by_stat <-  function(.markers, .rank_stat){
     mutate(stat_df = map(stat_df, ~.x %>% pivot_wider(names_from = stats, values_from = .value))) %>%
     
     # Keep significantly enriched genes and rank the significant ones
-    # mutate(stat_df = map(
-    #   stat_df,
-    #   ~ .x %>%
-    #     filter(FDR < 0.05 & logFC > 2) %>%
-    #     filter(logCPM > mean(logCPM)) )) %>%
+     mutate(stat_df = map(
+       stat_df,
+       ~ .x %>%
+         filter(FDR < 0.05 & logFC > 2) %>%
+         filter(logCPM > mean(logCPM)) )) %>%
     
     mutate(stat_df = map(
       stat_df,
