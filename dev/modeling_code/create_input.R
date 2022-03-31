@@ -64,9 +64,10 @@ readRDS("dev/counts.rds") %>%
   nest(data = -c(level, cell_type, .feature)) %>%
   nest(data = -c(level, cell_type)) %>% 
   
-  mutate(data = map(
-    data, 
-    ~ mutate(.x, partition = sample(1:20, size = n(), replace = T))
+  mutate(number_of_partitions = if_else(cell_type=="immune_cell", 50, 20)) %>%
+  mutate(data = map2(
+    data, number_of_partitions,
+    ~ mutate(.x, partition = sample(1:.y, size = n(), replace = T))
   )) %>%
   unnest(data) %>% 
   unnest(data) %>% 
