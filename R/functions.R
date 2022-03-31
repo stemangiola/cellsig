@@ -47,9 +47,6 @@ generate_quantities_standalone = function(fit, G){
 #' @importFrom tidybayes median_qi
 #' @import tidybayes
 #'
-#' @importFrom foreach foreach
-#' @importFrom foreach %do%
-#'
 #' @import stringr
 #'
 #' @import data.tree

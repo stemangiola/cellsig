@@ -13,9 +13,9 @@ cellsig_multilevel_varing_intercept(
   .scaling_multiplier,
   .multilevel_grouping,
   cores = detectCores(),
-  priors = list(assoc_intercept_mean = 4.2, assoc_slope_mean = -0.55, assoc_sd_sd_mean
-    = 1.22, assoc_sd_shape_mean = 1.14, lambda_mu_mean = 9.8, lambda_sigma_mean = 1.69,
-    lambda_skew_mean = -4.58),
+  priors = list(assoc_intercept_mean = 1, assoc_slope_mean = -0.55, assoc_sd_sd_mean =
+    1.22, assoc_sd_shape_mean = 1.14, lambda_mu_mean = 9.8, lambda_sigma_mean = 2,
+    lambda_skew_mean = -5),
   iterations_warmup = 250,
   iterations_sampling = 300,
   pass_fit = FALSE

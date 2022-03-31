@@ -23,11 +23,11 @@ local_dir = "."
 
 counts_bayes = 
   dir(sprintf("%s/dev/modeling_results/", local_dir), pattern = "result.rds", full.names = T) %>%
-  grep("result.rds", ., value = T, fixed = TRUE) %>%
   future_map_dfr(~ {
     x = readRDS(.x) %>% mutate(file = .x)
     attr(x, "fit") = NULL
     attr(x, "rng") = NULL
+    x
   }) %>%
   
   unite( "sample", c(cell_type, level), remove = FALSE) %>%
