@@ -25,13 +25,10 @@ counts_bayes =
   dir(sprintf("%s/dev/modeling_results/", local_dir), pattern = "result.rds", full.names = T) %>%
   grep("result.rds", ., value = T, fixed = TRUE) %>%
   future_map_dfr(~ {
-                   out  = readRDS(.x)
-                   
-                   out$output_df %>% 
-                   mutate(file = .x) %>% 
-                   mutate(log_mean = out$rng %>% rstan::extract("Y_gen") %$% Y_gen %>% log1p %>% colMeans()) %>% 
-                   mutate(log_sd = out$rng %>% rstan::extract("Y_gen") %$% Y_gen %>% log1p %>% matrixStats::colSds())
-                } ) %>%
+    x = readRDS(.x) %>% mutate(file = .x)
+    attr(x, "fit") = NULL
+    attr(x, "rng") = NULL
+  }) %>%
   
   unite( "sample", c(cell_type, level), remove = FALSE) %>%
   tree_and_signatures_to_database(tree, ., sample, cell_type, .feature,  `50%`)  
