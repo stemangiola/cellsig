@@ -10,7 +10,6 @@
 #' @importFrom magrittr multiply_by
 #' @importFrom magrittr equals
 #' @importFrom rlang quo_is_null
-#' @importFrom SingleCellExperiment colData
 #' @importFrom parallel detectCores
 #'
 #' @param .data A tibble including a cell_group name column | sample name column | read counts column (optional depending on the input class) | covariate columns.
