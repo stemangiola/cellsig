@@ -44,4 +44,4 @@ SystemRequirements: GNU make
 Suggests: 
     testthat
 Remotes:  
-    https://mc-stan.org/r-packages/
+    url::https://mc-stan.org/r-packages/
