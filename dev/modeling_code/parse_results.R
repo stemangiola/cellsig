@@ -30,10 +30,11 @@ counts_bayes =
     x
   }) %>%
   
-  unite( "sample", c(cell_type, level), remove = FALSE) %>%
-  tree_and_signatures_to_database(tree, ., sample, cell_type, .feature,  `50%`)  
+  
+  #unite( "sample", c(cell_type, level), remove = FALSE) %>%
+  tree_and_signatures_to_database(tree, ., cell_type, cell_type, .feature,  `50%`)  
 
-counts_bayes %>% saveRDS("dev/counts_bayes.rds", compress = "xz")
+job::job({ counts_bayes %>% saveRDS("dev/counts_bayes.rds", compress = "xz") })
 
 counts_bayes %>%
 
