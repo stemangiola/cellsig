@@ -1923,22 +1923,22 @@ vector_to_formatted_text <- function(.vector, .k=6){
 # tree is the cell differentiation tree
 
 # load the input gene expression database for cell types in comparison
-counts = readRDS("dev/jian_R_files/raw_counts_kam.rds")
+#counts = readRDS("dev/jian_R_files/raw_counts_kam.rds")
 
 # load the cell differentiation tree as a data.tree object
-kamran_tree = read_yaml("dev/jian_R_files/kamran_tree.yaml") %>% 
+#kamran_tree = read_yaml("dev/jian_R_files/kamran_tree.yaml") %>% 
   as.Node
 
 
 # get cell signature
-counts_imputed_kamran %>% 
-  main(.sample = sample, .symbol = symbol, .count = count, .cell_type = cell_type,
-       .is_hierarchy=TRUE,
-       .tree = kamran_tree,
-       .contrast_method = pairwise_contrast, .ranking_method = rank_edgR_quasi_likelihood, .rank_stat="PValue",
-       .selection_method = "silhouette", .reduction_method = "PCA", .dims=4, .discard_number = 1000,
-       .optimisation_method = "penalty",
-       .is_complete = TRUE) %>% 
+#counts_imputed_kamran %>% 
+#  main(.sample = sample, .symbol = symbol, .count = count, .cell_type = cell_type,
+#       .is_hierarchy=TRUE,
+#       .tree = kamran_tree,
+#       .contrast_method = pairwise_contrast, .ranking_method = rank_edgR_quasi_likelihood, .rank_stat="PValue",
+#       .selection_method = "silhouette", .reduction_method = "PCA", .dims=4, .discard_number = 1000,
+#       .optimisation_method = "penalty",
+#       .is_complete = TRUE) %>% 
   
-  saveRDS("dev/jian_R_files/cellsignature_kamran.rds", compress = "xz")
+#  saveRDS("dev/jian_R_files/cellsignature_kamran.rds", compress = "xz")
 
