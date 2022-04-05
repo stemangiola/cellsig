@@ -754,7 +754,7 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
         filter(!!.cell_type == str_extract(.y, ".*(?=\\s\\-)")) %>%
         # filter out genes with imputation ratio greater than 0.2 (only used for user pipeline not benchmark)
         filter(ratio_imputed_samples < 0.2) %>%
-        select(!!.symbol, lower_quantile='25%')
+        select(!!.symbol, lower_quantile='10%')
     )) %>%
     
     mutate(mean_upper_quantile = map2(
@@ -771,7 +771,7 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
           # calculate the mean 75% quantile of each gene over all background cell types
           filter(!!.cell_type %in% background) %>%
           group_by(!!.symbol) %>%
-          summarise(!!.symbol, mean_upper_quantile = mean(`75%`)) %>%
+          summarise(!!.symbol, mean_upper_quantile = mean(`90%`)) %>%
           distinct() %>%
           ungroup()
       }
