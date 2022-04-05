@@ -1927,7 +1927,7 @@ vector_to_formatted_text <- function(.vector, .k=6){
 
 # load the cell differentiation tree as a data.tree object
 #kamran_tree = read_yaml("dev/jian_R_files/kamran_tree.yaml") %>% 
-  as.Node
+#  as.Node
 
 
 # get cell signature
