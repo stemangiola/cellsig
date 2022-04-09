@@ -36,10 +36,11 @@ counts_bayes =
 
 job::job({ counts_bayes %>% saveRDS("dev/counts_bayes.rds", compress = "xz") })
 
-counts_bayes %>%
+counts_bayes_imputed = 
+  counts_bayes %>%
 
   # Convert to SE
-  as_SummarizedExperiment(sample, .feature, c(`10%`, `50%`,  `90%`, log_mean, log_sd) ) %>%
+  as_SummarizedExperiment(cell_type, .feature, c(`10%`, `50%`,  `90%`, log_mean, log_sd) ) %>%
   
   # Hierarchical imputation. Suffix = "" equated to overwrite counts
   impute_missing_abundance(~ level_4, .abundance = c(`10%`, `50%`,  `90%`, log_mean, log_sd)) %>%
@@ -52,6 +53,6 @@ counts_bayes %>%
   
   # Merge the imputed column
   mutate(.imputed = .imputed | .imputed.1 | .imputed.2 | .imputed.3  ) %>%
-  select(-c(  .imputed.1 , .imputed.2 ,.imputed.3 )) %>%
+  select(-c(  .imputed.1 , .imputed.2 ,.imputed.3 )) 
 
-  saveRDS("dev/counts_bayes_imputed.rds", compress = "xz")
+ job::job({ saveRDS(counts_bayes_imputed, "dev/counts_bayes_imputed.rds", compress = "xz") })
