@@ -358,3 +358,48 @@ counts %>%
 # 
 # 
 # save(counts, file="data/counts.rda", compress = "xz")
+
+
+
+# Woth kamran files
+library(data.tree)
+library(yaml)
+counts = 
+  readRDS("dev/counts.rds") %>%
+  select(.feature, .sample, count, cell_type, database) %>% 
+  bind_rows(
+    readRDS("dev/counts_dataset_not_in_counts_imputed_v2.rds") %>% rename(.sample = sample, .feature = symbol)
+  ) %>%
+  distinct() %>% 
+  mutate_if(is.character, as.factor) %>% 
+  mutate(count = as.integer(count)) %>%
+  
+  # Parse into hierarchical dataset
+  tree_and_signatures_to_database(
+    read_yaml("dev/tree_kamran.yaml") %>% as.Node, 
+    ., 
+    .sample,
+    cell_type, 
+    .feature,
+    count
+  )  %>%
+  
+  # Remove redundant samples
+  remove_redundancy(.sample, .feature, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+  droplevels() %>% 
+  
+  # Eliminate suspicious samples
+  filter(!grepl("GSM3722278|GSM3722276|GSM3722277", .sample)) %>%
+  
+  # Scaling
+  identify_abundant(.sample, .feature, count) %>%
+  scale_abundance(.sample, .feature, count) %>%
+  
+  select(-TMM, -count_scaled, -.abundant)
+
+
+job::job({  saveRDS(counts, "dev/counts.rds", compress = "xz") }) 
+  
+
+ 
+  
