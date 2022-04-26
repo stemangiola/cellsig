@@ -83,7 +83,11 @@ readRDS("dev/counts.rds") %>%
           cell_type = ..3,
           partition= ..4
         ) %>% 
+      droplevels() %>% 
       saveRDS(glue("{local_dir}/dev/modeling_results/level_{..2}_cell_type_{..3}_partition_{..4}_input.rds") )
       TRUE
     }
   ))
+
+
+source("dev/modeling_code/create_makefile.R")

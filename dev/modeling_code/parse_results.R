@@ -21,6 +21,13 @@ library(furrr)
 plan(multisession, workers = 10)
 local_dir = "."
 
+library(data.tree)
+library(yaml)
+tree =  read_yaml("dev/tree_kamran.yaml") %>% as.Node
+
+# counts_bayes_OLD <- readRDS("~/counts_bayes.rds")
+# counts_bayes_new = counts_bayes %>% bind_rows(counts_bayes_OLD %>% anti_join(counts_bayes, by = c(".feature", "cell_type")))
+
 counts_bayes = 
   dir(sprintf("%s/dev/modeling_results/", local_dir), pattern = "result.rds", full.names = T) %>%
   future_map_dfr(~ {
