@@ -14,6 +14,7 @@ sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s", cores) %>%
   
   c(
     dir(sprintf("%s/dev/modeling_results/", local_dir), pattern = "input.rds") %>%
+      
       enframe(value = "file") %>%
       mutate(cores = !!cores) %>%
       mutate(command = map2_chr(
