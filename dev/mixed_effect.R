@@ -237,13 +237,13 @@ saveRDS(fit_rng_mix,"fit_rng_mix.rds")
 #   theme(axis.text.x = element_text(angle=90))
 #   
 # 
-level_1_cell_type_endothelial_partition_1_input_result$output_df  %>%
+readRDS("dev/modeling_results/level_5_cell_type_t_reg_partition_11_input_result.rds")   %>%
   nest(data = -.feature) %>%
   sample_n(100) %>%
   unnest(data) %>%
   left_join(
     counts,
-    by = c(".feature", "cell_type" = "level_1")
+    by = c(".feature", "cell_type" = "level_5")
   ) %>%
   unite("database_for_cell_type", c(database, cell_type, .feature), remove = FALSE )  %>%
 
@@ -260,7 +260,7 @@ level_1_cell_type_endothelial_partition_1_input_result$output_df  %>%
 # 
 # 
 #rstan::summary(readRDS("fit_rng_mix.rds")$rng, "Y_gen", c(0.1, 0.9))$summary %>%
-rstan::summary(readRDS("dev/modeling_results/level_5_cell_type_t_reg_partition_98_input_result.rds")$rng, "Y_gen", c(0.1, 0.9))$summary %>%
+rstan::summary(readRDS("dev/modeling_results/level_5_cell_type_t_reg_partition_11_input_result.rds") %>% attr("rng"), "Y_gen", c(0.1, 0.9))$summary %>%
   as_tibble() %>%
   rowid_to_column(var = ".feature_idx") %>%
   left_join(

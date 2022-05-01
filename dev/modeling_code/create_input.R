@@ -64,9 +64,10 @@ readRDS("dev/counts.rds") %>%
   nest(data = -c(level, cell_type, .feature)) %>%
   nest(data = -c(level, cell_type)) %>% 
   
-  mutate(data = map(
-    data, 
-    ~ mutate(.x, partition = sample(1:100, size = n(), replace = T))
+  mutate(number_of_partitions = if_else(cell_type=="immune_cell", 50, 20)) %>%
+  mutate(data = map2(
+    data, number_of_partitions,
+    ~ mutate(.x, partition = sample(1:.y, size = n(), replace = T))
   )) %>%
   unnest(data) %>% 
   unnest(data) %>% 
@@ -82,7 +83,11 @@ readRDS("dev/counts.rds") %>%
           cell_type = ..3,
           partition= ..4
         ) %>% 
+      droplevels() %>% 
       saveRDS(glue("{local_dir}/dev/modeling_results/level_{..2}_cell_type_{..3}_partition_{..4}_input.rds") )
       TRUE
     }
   ))
+
+
+source("dev/modeling_code/create_makefile.R")

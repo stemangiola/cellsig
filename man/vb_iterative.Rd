@@ -6,7 +6,7 @@
 \usage{
 vb_iterative(
   model,
-  output_samples,
+  output_samples = 1000,
   iter,
   tol_rel_obj,
   algorithm = "fullrank",
