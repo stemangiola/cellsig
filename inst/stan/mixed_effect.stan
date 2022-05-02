@@ -14,7 +14,7 @@ functions {
       
       //exposure
       exposure_rate[grouping_gene_idx_N[start:end,3]],
-      1.0 ./ exp(shape[grouping_gene_idx_N[start:end,1]]) 
+      1.0 ./ exp(shape[grouping_gene_idx_N[start:end,2]]) 
     );
                                
   }
@@ -58,7 +58,7 @@ data {
 
 parameters {
   vector<offset=gene_mean_offset>[G] gene_mean;  // temporary gene_mean for centered predictors
-  vector[D] shape;  // shape parameter
+  vector[G] shape;  // shape parameter
   vector<lower=0>[G] gene_sd;  // group-level standard deviations
   vector[D] z_group_level_effect;  // standardized group-level effects
   
@@ -96,7 +96,7 @@ model {
   target += std_normal_lpdf(z_group_level_effect);
   
   // prior association
-  shape ~ normal(  mu * assoc_slope + assoc_intercept,  assoc_sd_shape);
+  shape ~ normal(  gene_mean * assoc_slope + assoc_intercept, assoc_sd_shape);
 
   // Hyperprior
   assoc_intercept ~ normal(assoc_intercept_mean, fabs(assoc_intercept_mean)/5);
