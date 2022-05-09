@@ -265,10 +265,16 @@ Also, file names of `cellsig` signature files should contain "hierarchial" or "n
 `.frac` indicates the fractions of genes to be kept within a list of signatures. `1-.frac` fraction of genes will be excluded from each list.
 
 ```{r}
-create_perturbed_signature_for_evaluation <- function(input_directory, .frac){
+create_perturbed_signature_for_evaluation <- function(input_directory, .frac, .iteration = 1){
+  
+  foreach(i = 1:.iteration) %do% {
+  
+  .m = {i}
  
   # input_directory is the source folder for the signature files. have to be provided using quoted.
   # .frac takes values from 0 to 1. This fraction will define how many genes to randomly select for each method.
+  # .iteration denotes how many different signature list should be created.
+
 
 dir(input_directory, pattern = "*.rds") %>%
   `names<-`(dir(input_directory, pattern = "*.rds")) %>% 
@@ -307,15 +313,21 @@ dir(input_directory, pattern = "*.rds") %>%
   )
   ) %>% select(-data) %>% unnest(perturbed) %>% unnest(data) %>%
   nest(-c(stream, is_hierarchy)) %>%
-  mutate(signature = map(data, ~ .x$signature %>% unlist() %>% unique())) %>% select(-data)
+  mutate(signature = map(data, ~ .x$signature %>% unlist() %>% unique())) %>% select(-data) %>%
+  saveRDS(paste0("sig_collection_", .m, ".rds"), compress = "xz")
   
 }
+  invisible(capture.output())
+}
+
 
 ```
 
 To perturb 10% genes within the different signature lists within a directory-
 
 ```{r, message=FALSE, warning=FALSE, results='hide'}
+
 x <- create_perturbed_signature_for_evaluation(input_directory = "./data/",
                                               .frac = 0.90)
+
 ```
