@@ -1,0 +1,324 @@
+---
+title: "evaluation_functions"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{evaluation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+
+library(cellsig)
+library(yaml)
+library(tidytext)
+library(data.tree)
+library(tidytree)
+library(ape)
+library(glue)
+library(rlang)
+library(factoextra)
+library(stringr)
+library(scales)
+library(KernSmooth)
+library(splus2R)
+library(data.tree)
+library(cluster)
+library(tidyverse)
+library(tidybulk)
+library(cellsig)
+library(patchwork)
+library(tidySummarizedExperiment)
+library(foreach)
+library(furrr)
+
+```
+
+
+# Cross validation approach
+
+
+Here, the main aim is to generate in-silico mixtures to be used in deconvolution-based evaluation and signatures independent of each others input files. Therefore, the count information used in generating the mixtures should not be included in the signature generation pipelines.
+
+
+## Function to create the random mixture preparation and signature prepartaion input files
+
+
+ # `.x` is the input count database. It can be of only user interested cell types or a huge database of many cell types. For the second scenario, user can filter out the unnecessary cell types using a tree of cell types
+  
+ # `.n` takes numbers. It randomly selects that number of database per each cell types for the signature input. Default is 1. Must have value <lowest number of database for any cell type.
+ 
+ #`.sig_frac`/`.mix_frac` takes fraction values in between 0 to 1. 
+ 
+ It defines the fractions of samples per cell type to be included in the mixture. Default is NULL, so it'll include all samples within the database which are not included in signature input. But if the file has databases with <2 samples, this parameter should be ignored.
+ 
+ If the count file contains databases with only 1 sample, then it's a must that the .frac value must be > 0.5.
+ 
+ #`.tree` is to filter out user interested cell_types from a big count database, can be ignored if already filtered database is used
+ 
+ #`.suffix` is for naming output files. Should be given in quote "" 
+ 
+ #`.database` is the column name of the source database/dataset of samples for a given cell type
+ 
+ #`.cell_type` is the column name for the cell types
+ 
+ #`.sample` is the column of the sample names
+
+ #`.round` takes the number of iterations we want to run the function.
+ 
+ #`.suffix` for file naming purpose, must be within ""
+
+```{r}
+
+create_random_mix_signature_input <- function(.x, .sample, .cell_type, .database,
+                                              .tree = NULL,
+                                              .sig_frac = NULL,
+                                              .mix_frac = NULL,
+                                              .n = 1,
+                                              .iteration = 1,
+                                              .suffix = NULL){
+  
+  foreach(i = 1:.iteration) %do% {
+    
+    .sample = enquo(.sample)
+    .cell_type = enquo(.cell_type)
+    .database = enquo(.database)
+    .n = {i}
+    
+    
+    message(glue("Input files for iteration {i} are being prepared."))
+    
+    #Filter out only user interested cell types defined within a tree file
+    
+    filtered <- .x %>% 
+      
+      mutate(!!.cell_type :=  as.character(!!.cell_type)) %>% 
+      
+      
+      # filter for leaf cell types in the tree
+      {
+        if (is.null(.tree)){
+          (.)
+        } else {
+          (.) %>% 
+            filter(!!.cell_type %in% as.phylo(.tree)$tip.label)
+        }
+        
+      }
+    
+    # Generation of an input count file for signature generation containing user defined number of databases per cell type.
+    
+    sig <- filtered %>%
+      nest(data = -c(!!.cell_type, !!.database)) %>% 
+      nest(sea = -!!.cell_type) %>%
+      mutate(mix = map(
+        sea,
+        ~ .x %>%
+          sample_n(.n)
+      )
+      ) %>%
+      select(-sea) %>%
+      unnest(mix) %>% unnest(data) %>% 
+      dplyr::rename(sample = !!.sample)
+    
+    sig_frac <- sig %>% {
+      
+      if (is.null(.sig_frac)){
+        
+        (.)
+        
+      } else {
+        
+        (.) %>% 
+          
+          ## to make even more variations while generating multiple inputs simultaneously.
+          
+          nest(data = -c(!!.cell_type, !!.sample)) %>% 
+          nest(sea = -!!.cell_type) %>%
+          mutate(mix = map(
+            sea,
+            ~ .x %>%
+              sample_frac(.sig_frac)
+          )
+          ) %>%
+          select(-sea) %>%
+          unnest(mix) %>% unnest(data)
+        
+      }
+    }
+    
+    saveRDS(sig_frac, paste0("sig_input_round_", .n, .suffix, ".rds"), compress = "xz")
+    
+    # Generation of an input for mixture generation pipeline. Includes only those samples, which are not included in the mixture generation file
+    
+    mix <- filtered %>%
+      filter(!(!!.sample) %in% sig$sample) %>%
+      
+      {
+        if (is.null(.mix_frac)){
+          (.)
+        } else {
+          (.) %>% 
+            
+            ## to make even more variations while generating multiple inputs simultaneously.
+            
+            nest(data = -c(!!.cell_type, !!.sample)) %>% 
+            nest(sea = -!!.cell_type) %>%
+            mutate(mix = map(
+              sea,
+              ~ .x %>%
+                sample_frac(.mix_frac)
+            )
+            ) %>%
+            select(-sea) %>%
+            unnest(mix) %>% unnest(data)
+        }
+      }
+    
+    saveRDS(mix, paste0("mix_input_round_", .n, .suffix, ".rds"), compress = "xz")
+    
+  }
+  invisible(capture.output())
+}
+
+
+```
+
+
+Next, the count database file which must contain columns of sample IDs, cell type IDs, and Source database IDs. Importantly, this count database file must contain at least 2 database per cell type for the function to work.
+
+```{r}
+
+count = readRDS("count_database_eval.rds")
+
+```
+
+Also, load the tree file for filtering the target cell types from the count database. 
+
+```{r}
+
+tree = yaml.load_file("tree.yaml") %>% 
+  as.Node
+
+```
+
+
+Now, running the code, giving the following conditions,
+
+   # Include 1 database per cell types within the signature input file, indicated by `.n = 1`.
+      
+   # Include rest of the databases per cell within the mixture generation input file.
+      
+   # Only cell types indicated in the tip of the given tree will be included.
+      
+   # Only one set of mixture and signature inputs will be generated.
+      
+      
+```{r, message=FALSE, warning=FALSE, results='hide'}
+
+count %>% create_random_mix_signature_input(.sample = sample, .cell_type = cell_type, .database = database,
+                                        .tree = tree)
+
+```
+
+
+Now, running the code based on the following conditions,
+
+  # Include 1 database per cell types within the signature input file, indicated by `.n = 1`. Then, 75% of samples per cell types will be randomly selected, denoted in `.mix_frac = 0.75`.
+      
+  # Include rest of the databases per cell within the mixture generation input file. Then, 75% of samples per cell types will be randomly selected, denoted in `.sig_frac = 0.75`.
+      
+  # Only cell types indicated in the tip of the given tree will be included.
+      
+  # Three sets of mixture and signature inputs will be generated, indicated by `.iteration =3`.
+      
+```{r, message=FALSE, warning=FALSE, results='hide'}
+
+count %>% create_random_mix_signature_input(.sample = sample, .cell_type = cell_type, .database = database,
+                                                    .tree = tree,
+                                                    .n = 1,
+                                                    .mix_frac = 0.75,
+                                                    .sig_frac = 0.75,
+                                                    .iteration = 3)
+```
+
+
+# Signature perturbation approach
+
+In this approach, the main aim is to perturb the generated signatures from different methods to randomly exclude a percentage of signature genes from a method for obtaining the impact of this perturbation on the strength of the signature matrices.
+
+
+## Function to perturb the signature genes from different methods
+
+
+This function takes two input flags,
+
+`input_directory` should be pointed towards the directory where the outputs from different signature generation approaches are located. signatures from `cellsig` should be saved as .rds format and the folder should not contain other .rds files in it. `Cibersortx` output should be in `.txt` format.
+
+Also, file names of `cellsig` signature files should contain "hierarchial" or "non" part based on the signature geneation approach whether it followed a hierarchical or non-hierarchical approach.
+
+`.frac` indicates the fractions of genes to be kept within a list of signatures. `1-.frac` fraction of genes will be excluded from each list.
+
+```{r}
+create_perturbed_signature_for_evaluation <- function(input_directory, .frac){
+ 
+  # input_directory is the source folder for the signature files. have to be provided using quoted.
+  # .frac takes values from 0 to 1. This fraction will define how many genes to randomly select for each method.
+
+dir(input_directory, pattern = "*.rds") %>%
+  `names<-`(dir(input_directory, pattern = "*.rds")) %>% 
+  
+  map_dfr(~ readRDS(glue("{input_directory}{.x}")), .id = "stream") %>% 
+  mutate(stream = str_remove(stream, ".rds")) %>% 
+  nest(signature = - stream) %>% 
+  mutate(signature = map(signature, ~ .x$signature %>% unlist() %>% unique())) %>% 
+  
+  # bind cibersortx
+  bind_rows(
+    read_delim(paste0(input_directory, "/sig_cibersortx.txt"), 
+               "\t", escape_double = FALSE, trim_ws = TRUE) %>%
+      pull(NAME) %>% 
+      list() %>% 
+      tibble(stream = "cibersortx", signature = .)
+  ) %>%
+  
+  # for differentiating hierarchical and non_hierarchical methods
+  mutate(is_hierarchy = case_when(
+    str_detect(stream, "^hierarchical") ~ "hierarchical",
+    str_detect(stream, "non") ~ "non_hierarchical",
+    TRUE ~ "cibersortx"
+  ), .before = signature) %>% 
+  
+  rowwise %>% do(expand.grid(., stringsAsFactors=FALSE)) %>%
+  nest(-c(signature, stream)) %>%
+  nest(-stream) %>%
+  mutate(perturbed = map(
+    data,
+    ~ .x %>%
+      
+  # To keep random 1-.frac fraction genes from each signature list
+      
+      sample_frac(.frac)
+  )
+  ) %>% select(-data) %>% unnest(perturbed) %>% unnest(data) %>%
+  nest(-c(stream, is_hierarchy)) %>%
+  mutate(signature = map(data, ~ .x$signature %>% unlist() %>% unique())) %>% select(-data)
+  
+}
+
+```
+
+To perturb 10% genes within the different signature lists within a directory-
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+x <- create_perturbed_signature_for_evaluation(input_directory = "./data/",
+                                              .frac = 0.90)
+
+```
+
+
