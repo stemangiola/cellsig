@@ -316,6 +316,8 @@ dir(input_directory, pattern = "*.rds") %>%
 To perturb 10% genes within the different signature lists within a directory-
 
 ```{r, message=FALSE, warning=FALSE, results='hide'}
+
 x <- create_perturbed_signature_for_evaluation(input_directory = "./data/",
                                               .frac = 0.90)
+
 ```
