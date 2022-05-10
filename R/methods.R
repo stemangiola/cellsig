@@ -157,7 +157,8 @@ cellsig_multilevel_varing_intercept.data.frame = function(
     mutate(feature_cell_type = factor(feature_cell_type)) %>% 
     mutate(database_for_cell_type_feature = fct_relevel(database_for_cell_type_feature, unique(as.character(database_for_cell_type_feature)))) %>% 
     mutate(!!.sample := as.factor(!!.sample)) %>% 
-    
+    mutate(!!.multilevel_grouping := as.factor(!!.multilevel_grouping)) %>%
+    droplevels() %>%
     
     # Count scaled
     mutate(count_scaled = !!.abundance * !!.scaling_multiplier) %>% 
@@ -179,13 +180,14 @@ cellsig_multilevel_varing_intercept.data.frame = function(
       .data %>%
       select(database_for_cell_type_feature, feature_cell_type,!!.sample),
     
-    G = .data %>% pull(!!.feature) %>% unique() %>%  length(),
+    G = .data %>% pull(feature_cell_type) %>% unique() %>%  length(),
     D = length(unique(.data$database_for_cell_type_feature)),
     S = length(unique(.data %>% pull(!!.sample))),
+    M = length(unique(.data %>% pull(!!.multilevel_grouping))),
     
     grouping_gene_idx_D =
       .data %>%
-      select(database_for_cell_type_feature, feature_cell_type) %>% 
+      select(database_for_cell_type_feature, feature_cell_type, !!.multilevel_grouping) %>% 
       distinct(),
     
     grainsize = 1
@@ -275,6 +277,13 @@ cellsig_multilevel_varing_intercept.data.frame = function(
     ) %>% 
     
     # Add attributes
+    add_attr(
+      .data %>%
+        mutate(feature_cell_type_idx = as.integer(feature_cell_type), database_for_cell_type_feature_idx = as.integer(database_for_cell_type_feature))%>% 
+        select(!!.feature, !!.cell_group, !!.multilevel_grouping, feature_cell_type_idx, database_for_cell_type_feature_idx) %>% 
+        distinct() ,
+      "indeces"
+    ) %>% 
     when(
       pass_fit ~ add_attr(., fit, "fit") %>% add_attr(rng, "rng"),
       ~ (.)
