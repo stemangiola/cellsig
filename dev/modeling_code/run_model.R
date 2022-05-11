@@ -12,7 +12,7 @@ file_in = args[1]
 file_out = args[2]
 cores = as.integer(args[3])
 
-
+# file_in = "/stornext/Bioinf/data/bioinf-data/Papenfuss_lab/projects/mangiola.s/PostDoc/cellsig/dev/modeling_results/level_2_cell_type_mono_derived_partition_18_input.rds"
 readRDS(file_in) %>%
   
   cellsig_multilevel_varing_intercept(
