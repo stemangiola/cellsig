@@ -1,0 +1,130 @@
+---
+title: "evaluation_functions"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{evaluation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+
+library(cellsig)
+library(yaml)
+library(tidytext)
+library(data.tree)
+library(tidytree)
+library(ape)
+library(glue)
+library(rlang)
+library(factoextra)
+library(stringr)
+library(scales)
+library(KernSmooth)
+library(splus2R)
+library(data.tree)
+library(cluster)
+library(tidyverse)
+library(tidybulk)
+library(cellsig)
+library(patchwork)
+library(tidySummarizedExperiment)
+library(foreach)
+library(furrr)
+
+```
+
+
+# Signature perturbation approach
+
+In this approach, the main aim is to perturb the generated signatures from different methods to randomly exclude a percentage of signature genes from a method for obtaining the impact of this perturbation on the strength of the signature matrices.
+
+
+## Function to perturb the signature genes from different methods
+
+
+This function takes the following input flags,
+
+`.pattern` indicates the file name pattern of cellsig output `.rds` files (should be given without .rds part), whereas `.cibersortx` is the file name without the .txt part. 
+
+Also, file names of `cellsig` signature files should contain "hierarchial" or "non" part based on the signature geneation approach whether it followed a hierarchical or non-hierarchical approach.
+
+`.frac` indicates the fractions of genes to be kept within a list of signatures. `1-.frac` fraction of genes will be excluded from each list.
+
+```{r}
+
+create_perturbed_signature_for_evaluation <- function(.frac, .iteration = 1, .pattern = NULL, .cibersortx = NULL){
+  
+  
+    
+    #  no need to give input directory, rather provide pattern files to combine. should be given en-quoted.
+    # .frac takes values from 0 to 1. This fraction will define how many genes to randomly select for each method.
+    # .iteration denotes how many different signature list should be created.
+    # .cibersortx file name. should be given en-quoted. the file should be in .txt format
+    
+    x <- dir(pattern = paste0(.pattern, ".rds")) %>%
+      `names<-`(dir(pattern = paste0(.pattern, ".rds"))) %>% 
+      
+      map_dfr(~ readRDS(glue("{.x}")), .id = "stream") %>% 
+      mutate(stream = str_remove(stream, ".rds")) %>% 
+      nest(signature = - stream) %>% 
+      mutate(signature = map(signature, ~ .x$signature %>% unlist() %>% unique())) %>% 
+
+      # bind cibersortx
+      bind_rows(
+        read_delim(paste0(.cibersortx, ".txt"),  
+                   "\t", escape_double = FALSE, trim_ws = TRUE) %>%
+          pull(NAME) %>% 
+          list() %>% 
+          tibble(stream = "cibersortx", signature = .)
+      ) %>% 
+      
+      mutate(is_hierarchy = case_when(
+        str_detect(stream, "^hierarchical") ~ "hierarchical",
+        str_detect(stream, "non") ~ "non_hierarchical",
+        TRUE ~ "cibersortx"
+      ), .before = signature) 
+      
+    foreach(i = 1:.iteration) %do% {
+      
+      .m = {i}
+      
+      # for differentiating hierarchical and non_hierarchical methods
+      x %>% 
+      
+      rowwise %>% do(expand.grid(., stringsAsFactors=FALSE)) %>%
+      nest(sea = -c(signature, stream)) %>%
+      nest(data = -stream) %>%
+      mutate(perturbed = map(
+        data,
+        ~ .x %>%
+          
+          # To keep random 1-.frac fraction genes from each signature list
+          
+          sample_frac(.frac)
+      )
+      ) %>% select(-data) %>% unnest(perturbed) %>% unnest(sea) %>%
+      nest(data = -c(stream, is_hierarchy)) %>%
+      mutate(signature = map(data, ~ .x$signature %>% unlist() %>% unique())) %>% select(-data) %>%
+      saveRDS(paste0("sig_collection_", .m, ".rds"), compress = "xz")
+  }
+    invisible(capture.output())
+}
+
+```
+
+To perturb 10% genes within the different signature lists within a directory-
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+
+x <- data %>% create_perturbed_signature_for_evaluation(.frac = 0.90,
+                                              .iteration = 3,
+                                              .pattern = "dims2",
+                                              .cibersortx = "sig_cibersortx")
+
+```
