@@ -1,6 +1,10 @@
+<<<<<<< HEAD
 # srun --job-name "InteractiveJob" --cpus-per-task 8 --mem-per-cpu 55000 --time 48:00:00 --pty bash
 # Rscript dev/modeling_code/create_input.R dev/benchmark_database_crossvalidation/training_data_1_parsed.rds dev/benchmark_database_crossvalidation
 # ~/third_party_sofware/cctools-7.2.0-x86_64-centos7/bin/makeflow -T slurm -J 200  dev/benchmark_database_crossvalidation/run_model.makeflow
+=======
+# Rscript dev/modeling_code/create_input.R dev/benchmark_database_crossvalidation/training_data_1_parsed.rds dev/benchmark_database_crossvalidation/
+>>>>>>> update pipeline for benchmarking
 
 library(tidyverse)
 library(magrittr)
@@ -32,29 +36,36 @@ library(glue)
 #     nest(data = -partition)
 # }
 
+# Read arguments
+args = commandArgs(trailingOnly=TRUE)
+file_in = args[1]
+directory_out = args[2]
+
 local_dir = "~/PostDoc/cellsig"
 
-# Save files
-create_partition_files = function(.data, .level, .partitions = 30){
-  .data %>%
-    nest(data = -c(.feature)) %>%
-    
-    # For testing
-    #sample_frac(0.01) %>%
-    mutate(partition = sample(1:.partitions, size = n(), replace = T)) %>%
-    unnest(data) %>%
-    nest(data = -partition) %>%
-    mutate(saved = map2_lgl(
-      data, partition,
-      ~ {
-        .x %>% saveRDS(sprintf("%s/dev/modeling_results/level_%s_patition_%s_input.rds", local_dir, .level, .y))
-        TRUE
-      }
-    ))
-}
+dir.create(file.path(local_dir, directory_out), showWarnings = FALSE)
+
+# # Save files
+# create_partition_files = function(.data, .level, .partitions = 30){
+#   .data %>%
+#     nest(data = -c(.feature)) %>%
+#     
+#     # For testing
+#     #sample_frac(0.01) %>%
+#     mutate(partition = sample(1:.partitions, size = n(), replace = T)) %>%
+#     unnest(data) %>%
+#     nest(data = -partition) %>%
+#     mutate(saved = map2_lgl(
+#       data, partition,
+#       ~ {
+#         .x %>% saveRDS(glue("{local_dir}/{directory_out}/level_%s_patition_%s_input.rds", local_dir, .level, .y))
+#         TRUE
+#       }
+#     ))
+# }
 
 # Read counts
-readRDS("dev/counts.rds") %>%
+readRDS(file_in) %>%
   select(-cell_type) %>%
   pivot_longer(
     contains("level_"), names_prefix="level_", 
@@ -88,10 +99,33 @@ readRDS("dev/counts.rds") %>%
           partition= ..4
         ) %>% 
       droplevels() %>% 
-      saveRDS(glue("{local_dir}/dev/modeling_results/level_{..2}_cell_type_{..3}_partition_{..4}_input.rds") )
+      saveRDS(glue("{local_dir}/{directory_out}/level_{..2}_cell_type_{..3}_partition_{..4}_input.rds") )
       TRUE
     }
   ))
 
+cores = 15
+
+# Create input
+sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s", cores) %>%
+  
+  c(
+    dir(glue("{local_dir}/{directory_out}/"), pattern = "input.rds") %>%
+      
+      enframe(value = "file") %>%
+      mutate(cores = !!cores) %>%
+      mutate(command = map2_chr(
+        file, cores,
+        ~{
+          my_basename = basename(.x) %>%  sub("^([^.]*).*", "\\1", .)
+          my_basename = glue("{my_basename}_result.rds")
+          glue("{directory_out}/{my_basename}: {directory_out}/{.x}\r\tRscript dev/modeling_code/run_model.R {directory_out}/{.x} {directory_out}/{my_basename} {.y}" )
+          }
+        )
+      ) %>%
+      pull(command) %>%
+      unlist()
+  ) %>%
+  write_lines(glue("{local_dir}/{directory_out}/run_model.makeflow")) 
 
 source("dev/modeling_code/create_makefile.R")
