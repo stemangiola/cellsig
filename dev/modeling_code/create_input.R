@@ -1,3 +1,7 @@
+# srun --job-name "InteractiveJob" --cpus-per-task 8 --mem-per-cpu 55000 --time 48:00:00 --pty bash
+# Rscript dev/modeling_code/create_input.R dev/benchmark_database_crossvalidation/training_data_1_parsed.rds dev/benchmark_database_crossvalidation
+# ~/third_party_sofware/cctools-7.2.0-x86_64-centos7/bin/makeflow -T slurm -J 200  dev/benchmark_database_crossvalidation/run_model.makeflow
+
 library(tidyverse)
 library(magrittr)
 library(tidybulk)
