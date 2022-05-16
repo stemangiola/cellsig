@@ -1,0 +1,48 @@
+---
+title: "signature_from_counts_and_tree"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{evaluation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+
+library(cellsig)
+library(yaml)
+library(tidytext)
+library(data.tree)
+library(tidytree)
+library(ape)
+library(glue)
+library(rlang)
+library(factoextra)
+library(stringr)
+library(scales)
+library(KernSmooth)
+library(splus2R)
+library(data.tree)
+library(cluster)
+library(tidyverse)
+library(tidybulk)
+library(cellsig)
+library(patchwork)
+library(tidySummarizedExperiment)
+library(foreach)
+library(furrr)
+
+```
+
+## Produce signature using Bayesian selection
+
+(we don't need to use the whole database. this is just as example for users)
+
+## Produce signature using edgeR selection
+
+(we don't need to use the whole database. this is just as example for users)
