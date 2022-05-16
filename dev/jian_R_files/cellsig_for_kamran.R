@@ -768,7 +768,7 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
           str_remove_all("(?<=\\/).*|\\W")
         
         (.x) %>%
-          # calculate the mean 75% quantile of each gene over all background cell types
+          # calculate the mean 90% quantile of each gene over all background cell types
           filter(!!.cell_type %in% background) %>%
           group_by(!!.symbol) %>%
           summarise(!!.symbol, mean_upper_quantile = mean(`90%`)) %>%
