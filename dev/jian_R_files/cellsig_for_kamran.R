@@ -736,9 +736,9 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
   .bayes %>%
     
     # force the column names of bayes data to be consistent with input expression data
-    dplyr::rename(!!.symbol := .feature, !!.sample := .sample) %>%
+    dplyr::rename(!!.symbol := .feature, !!.sample := sample, !!.cell_type := cell_type) %>%
     do_hierarchy(.is_hierarchy = all(.hierarchical_counts$level != "root"), .tree = .tree,
-                 .sample=!!.sample, .symbol=!!.symbol, .cell_type= NULL) %>%
+                 .sample=!!.sample, .symbol=!!.symbol, .cell_type= !!.cell_type) %>%
     
     unnest(tt) %>%
     
