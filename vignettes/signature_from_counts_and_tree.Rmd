@@ -9,6 +9,7 @@ vignette: >
 
 ```{r include = FALSE}
 library(knitr)
+
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
@@ -21,29 +22,23 @@ knitr::opts_chunk$set(
 In this test run, we are using data for only 2 cell types, which are - 2 NK cell subtypes- CD56bright NK and CD56dim NK cells.
 
 ```{r message=FALSE, warning=FALSE, results='hide'}
+library(here)
 
 # Load the functions
-
-source("dev/jian_R_files/cellsig_for_kamran.R", local = knitr::knit_global())
-
+source(here("dev/jian_R_files/cellsig_for_kamran.R"), local = knitr::knit_global())
 
 # Load the count data and tree file
+count = readRDS(here("dev/jian_R_files/test_count_data.rds"))
 
-count = readRDS("dev/jian_R_files/test_count_data.rds")
-
-
-tree = yaml.load_file("dev/jian_R_files/test_tree.yaml") %>% 
+# Load tree
+tree = yaml.load_file(here("dev/jian_R_files/test_tree.yaml")) %>% 
   as.Node
 
-
 # Load the bayes count file
-
-
-bayes = readRDS("dev/jian_R_files/test_count_bayes.rds")  %>%
+bayes = readRDS(here("dev/jian_R_files/test_count_bayes.rds"))  %>%
 
   # add sample column to bayes file
-
-  inner_join(readRDS("dev/jian_R_files/bayes_add_sample.rds"))
+  inner_join(readRDS(here("dev/jian_R_files/bayes_add_sample.rds")))
 
 ```
 
