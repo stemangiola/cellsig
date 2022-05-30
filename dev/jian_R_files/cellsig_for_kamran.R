@@ -301,7 +301,10 @@ do_scaling <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
     # select(-one_of("exposure_rate")) %>%
     
     # Calculate exposure for Bayes model
-    mutate(exposure_rate = -log(multiplier))
+    mutate(exposure_rate = -log(multiplier)) %>% 
+    
+    # Convert back to tibble
+    as_tibble()
 }
 
 # imputation
