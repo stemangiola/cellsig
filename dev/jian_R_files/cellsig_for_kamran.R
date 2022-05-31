@@ -723,8 +723,10 @@ rank_by_stat <-  function(.markers, .rank_stat){
   
 }
 
-rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type, 
-                       .contrast_method, .bayes, .tree, 
+rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
+                       .contrast_method, .bayes, .tree,
+                       #.lower_quantile = "10%",
+                       #.upper_quantile = "90%",
                        .rank_stat=NULL){
   
   # Args:
@@ -739,7 +741,7 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
   .bayes %>%
     
     # force the column names of bayes data to be consistent with input expression data
-    dplyr::rename(!!.symbol := .feature, !!.sample := sample, !!.cell_type := cell_type) %>%
+    #dplyr::rename(!!.symbol := .feature, !!.sample := sample, !!.cell_type := cell_type) %>%
     do_hierarchy(.is_hierarchy = all(.hierarchical_counts$level != "root"), .tree = .tree,
                  .sample=!!.sample, .symbol=!!.symbol, .cell_type= !!.cell_type) %>%
     
@@ -757,7 +759,7 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
         filter(!!.cell_type == str_extract(.y, ".*(?=\\s\\-)")) %>%
         # filter out genes with imputation ratio greater than 0.2 (only used for user pipeline not benchmark)
         filter(ratio_imputed_samples < 0.2) %>%
-        select(!!.symbol, lower_quantile='10%')
+        select(!!.symbol, lower_quantile)
     )) %>%
     
     mutate(mean_upper_quantile = map2(
@@ -774,7 +776,7 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
           # calculate the mean 90% quantile of each gene over all background cell types
           filter(!!.cell_type %in% background) %>%
           group_by(!!.symbol) %>%
-          summarise(!!.symbol, mean_upper_quantile = mean(`90%`)) %>%
+          summarise(!!.symbol, mean_upper_quantile = mean(upper_quantile)) %>%
           distinct() %>%
           ungroup()
       }
