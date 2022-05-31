@@ -725,8 +725,6 @@ rank_by_stat <-  function(.markers, .rank_stat){
 
 rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
                        .contrast_method, .bayes, .tree,
-                       #.lower_quantile = "10%",
-                       #.upper_quantile = "90%",
                        .rank_stat=NULL){
   
   # Args:
