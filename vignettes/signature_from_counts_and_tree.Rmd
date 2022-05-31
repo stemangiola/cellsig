@@ -15,7 +15,6 @@ knitr::opts_chunk$set(
   comment = "#>"
 )
 
-
 get_markers_from_transcription_abundance_quantiles <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
                                                                .lower_quantile, 
                                                                .upper_quantile, 
@@ -85,7 +84,6 @@ bayes = readRDS(here("dev/jian_R_files/test_count_bayes.rds"))  %>%
   # adding sample column
   mutate(id = "sample", sample = cell_type) %>%
   unite(sample_bayes, id, sample, sep = "_")
-  
 
 ```
 
@@ -116,6 +114,7 @@ marker_genes =
     .optimisation_method = "penalty",
     .is_complete = TRUE
   )
+
 
 ```
 
