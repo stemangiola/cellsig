@@ -18,8 +18,8 @@ knitr::opts_chunk$set(
 markers_from_transcription_abundance_quantiles <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
                                                                
                                                                quantile_dataset,
-                                                               .lower_quantile, 
-                                                               .upper_quantile, 
+                                                               lower_quantile, 
+                                                               upper_quantile, 
                                                               
                                                                tree,
                                                                is_hierarchy = TRUE,
@@ -42,8 +42,8 @@ markers_from_transcription_abundance_quantiles <- function(.input, .sample, .sym
     main(.sample = !!.sample, .symbol = !!.symbol, .count = !!.count, .cell_type = !!.cell_type,
        .is_hierarchy = is_hierarchy, 
        .tree = tree,
-       .lower_quantile = .lower_quantile,
-       .upper_quantile = .upper_quantile,
+       .lower_quantile = lower_quantile,
+       .upper_quantile = upper_quantile,
        .contrast_method = contrast_method, .ranking_method = rank_bayes, .bayes= quantile_dataset,
        .selection_method = selection_method, .reduction_method = reduction_method, 
        .dims= dims, .discard_number = discard_number,
@@ -106,8 +106,8 @@ marker_genes =
     
     
     quantile_dataset = bayes_quantiles,
-    .lower_quantile = "10%",
-    .upper_quantile = "90%",
+    lower_quantile = "10%",
+    upper_quantile = "90%",
     
     
     tree = tree,
