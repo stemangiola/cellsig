@@ -1,5 +1,6 @@
 source("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/jian_R_files/function_jian.R")
 
+
 rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type, 
                        .contrast_method, .bayes, .tree, 
                        .rank_stat=NULL){
@@ -80,6 +81,7 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
   
 }
 
+
 main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
                  .is_hierarchy=TRUE, .level=NULL, 
                  .tree, .node=NULL,
@@ -103,12 +105,19 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
       # 
       # tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
       #                                .symbol=!!.symbol, .count=!!.count) %>%
+      
+      # # Remove redundant samples
+      # remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+      # droplevels() %>%
       # 
-      # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
-      #   
-      # do_imputation(.sample = !!.sample, .symbol=!!.symbol, .cell_type=!!.cell_type) %>% 
-      
-      
+      # # Eliminate suspicious samples
+    # filter(!grepl("GSM3722278|GSM3722276|GSM3722277", !!.sample)) %>%
+    
+    # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
+    #   
+    # do_imputation(.sample = !!.sample, .symbol=feature, .count= !!.count, .cell_type=!!.cell_type) %>% 
+    
+    
     do_hierarchy(.sample=!!.sample,
                  .symbol=!!.symbol,
                  .cell_type = !!.cell_type,
@@ -148,12 +157,19 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
       # 
       # tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type, 
       #                                .symbol=!!.symbol, .count=!!.count) %>% 
+      
+      # # Remove redundant samples
+      # remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+      # droplevels() %>% 
       # 
-      # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
-      #   
-      # do_imputation(.sample = !!.sample, .symbol=!!.symbol, .cell_type=!!.cell_type) %>% 
-      
-      
+      # # Eliminate suspicious samples
+    # filter(!grepl("GSM3722278|GSM3722276|GSM3722277", !!.sample)) %>% 
+    
+    # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
+    #   
+    # do_imputation(.sample = !!.sample, .symbol=feature, .count= !!.count, .cell_type=!!.cell_type) %>% 
+    
+    
     do_hierarchy(.sample=!!.sample,
                  .symbol=!!.symbol,
                  .cell_type = !!.cell_type,
@@ -163,6 +179,7 @@ main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
     
     do_ranking(.sample=!!.sample, 
                .symbol=!!.symbol,
+               .cell_type = !!.cell_type,
                .ranking_method=.ranking_method, 
                .contrast_method=.contrast_method, 
                .rank_stat=.rank_stat, 
@@ -205,8 +222,9 @@ ranking_method = args[3]
 ranking_stat = args[4]
 bayes = args[5] %>% as.integer()
 selection = args[6] 
-optimisation = args[7] 
-output_file = args[8]
+optimisation = args[7]
+dim = args[8] %>% as.integer()
+output_file = args[9]
 
 .is_hierarchy = is_hierarchy %>% when(
   (.)=="hierarchical" ~ TRUE,
@@ -237,15 +255,15 @@ readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/benchmar
   dplyr::rename(symbol = feature) %>% 
   main(.sample = sample, 
        .symbol = symbol,
+       .cell_type = cell_type,
        .count = NULL,
        .tree = NULL,
-       .cell_type = cell_type,
        .is_hierarchy=.is_hierarchy,
        .contrast_method=.contrast_method, 
        .ranking_method=.ranking_method, 
        .rank_stat=.rank_stat, 
        .bayes=.bayes, 
-       .selection_method=selection, .kmax=60, .discard_number=2000, .reduction_method = "PCA", .dims=2,
+       .selection_method=selection, .kmax=60, .discard_number=2000, .reduction_method = "PCA", .dims=dim,
        .optimisation_method=optimisation, .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
        .is_complete = TRUE) %>% 
   saveRDS(file = output_file, compress = "xz")
