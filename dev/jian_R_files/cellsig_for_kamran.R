@@ -108,7 +108,9 @@ produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .s
 main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
                  .is_hierarchy=TRUE, .level=NULL, 
                  .tree, .node=NULL,
-                 .contrast_method, .ranking_method, .rank_stat=NULL, .bayes=NULL, 
+                 .contrast_method, .ranking_method, .rank_stat=NULL, .bayes=NULL,
+                 .lower_quantile = "10%",
+                 .upper_quantile = "90%",
                  .selection_method, .kmax=60, .discard_number=1000, .reduction_method = "PCA", .dims=2,
                  .optimisation_method, .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
                  .is_complete = TRUE) {
@@ -724,6 +726,8 @@ rank_by_stat <-  function(.markers, .rank_stat){
 }
 
 rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
+                       .lower_quantile = "10%",
+                       .upper_quantile = "90%",
                        .contrast_method, .bayes, .tree,
                        .rank_stat=NULL){
   
@@ -740,6 +744,7 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
     
     # force the column names of bayes data to be consistent with input expression data
     #dplyr::rename(!!.symbol := .feature, !!.sample := sample, !!.cell_type := cell_type) %>%
+    dplyr::rename(lower_quantile = as.name(.lower_quantile), upper_quantile = as.name(.upper_quantile)) %>%
     do_hierarchy(.is_hierarchy = all(.hierarchical_counts$level != "root"), .tree = .tree,
                  .sample=!!.sample, .symbol=!!.symbol, .cell_type= !!.cell_type) %>%
     
