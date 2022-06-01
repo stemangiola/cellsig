@@ -37,16 +37,14 @@ markers_from_transcription_abundance_quantiles <- function(.input, .sample, .sym
   .count = enquo(.count)
   .cell_type = enquo(.cell_type)
   
-  bayes_quantile = quantile_dataset %>%
-    dplyr::rename(lower_quantile = as.name(.lower_quantile), upper_quantile = as.name(.upper_quantile))
-  
-
   .input %>%
     
     main(.sample = !!.sample, .symbol = !!.symbol, .count = !!.count, .cell_type = !!.cell_type,
        .is_hierarchy = is_hierarchy, 
        .tree = tree,
-       .contrast_method = contrast_method, .ranking_method = rank_bayes, .bayes= bayes_quantile,
+       .lower_quantile = .lower_quantile,
+       .upper_quantile = .upper_quantile,
+       .contrast_method = contrast_method, .ranking_method = rank_bayes, .bayes= quantile_dataset,
        .selection_method = selection_method, .reduction_method = reduction_method, 
        .dims= dims, .discard_number = discard_number,
        .optimisation_method = optimisation_method,
