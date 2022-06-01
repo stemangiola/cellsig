@@ -1444,7 +1444,8 @@ new_data <- bind_rows(GSE135390, GSE138603, GSE138604, GSE122941, GSE113891, GSE
                       GSE118829, GSE123812, GSE153104, GSE133527, GSE131792, GSE115736, GSE70106) %>% 
   mutate(cell_type=as.factor(cell_type))
 
-save(new_data, file = "database_2.RData")
+
+new_data %>% saveRDS("dev/counts_second_db_raw.rds")
 
 
 # saveRDS() << correct way
@@ -1461,7 +1462,7 @@ save(new_data, file = "database_2.RData")
 # 
 # The quotes are to be reformatted
 
-View(new_data)
+# View(new_data)
 
 # GSE135390, GSE113891, GSE107981, GSE75011, GSE118974, GSE136200, GSE118829 don't have ensembl ID
 # GSE89404 has NCBI ID instead of ensembl but has symbol. (Solved)
