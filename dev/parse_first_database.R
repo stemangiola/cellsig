@@ -2,9 +2,10 @@ library(tidyverse)
 library(magrittr)
 library(glue)
 source("https://gist.githubusercontent.com/stemangiola/90a528038b8c52b21f9cfa6bb186d583/raw/cdf04a5988ab44c10d8a05fa46f1e175d526b2de/tidyTranscriptionTools.R")
-library(ttBulk)
+library(tidybulk)
 library(data.tree)
-library(biomaRt)
+library(future)
+plan(multisession, workers=15)
 forget_FANTOM5 = function(){
   
   onto = ontologyIndex::get_ontology(
@@ -195,7 +196,7 @@ get_ENCODE = function(){
     
     unnest(data) %>% 
     {
-      mart <- useEnsembl("ensembl","hsapiens_gene_ensembl", mirror = "useast")
+      mart <- biomaRt::useEnsembl("ensembl","hsapiens_gene_ensembl", mirror = "useast")
       
       samples_with_symbol = c("ENCFF060YNO", "ENCFF677SZA", "ENCFF708ZUJ", "ENCFF255ULI", "ENCFF717WSQ", "ENCFF118GPH", "ENCFF083PYO" ,"ENCFF712VOY" ,"ENCFF094ADI",
                               "ENCFF841AKS", "ENCFF331CDB", "ENCFF263OIE", "ENCFF798GKH" ,"ENCFF491YKJ" ,"ENCFF867RFN", "ENCFF461BKM", "ENCFF929RZY", "ENCFF440CJU",
@@ -228,7 +229,7 @@ get_ENCODE = function(){
         mutate(hgnc_id = glue("HGNC:{gene_id}")) %>% 
         
         left_join(
-          getBM(c("hgnc_symbol", "hgnc_id"), "hgnc_id", pull(., hgnc_id), mart, uniqueRows = FALSE),
+          biomaRt::getBM(c("hgnc_symbol", "hgnc_id"), "hgnc_id", pull(., hgnc_id), mart, uniqueRows = FALSE),
           by = "hgnc_id"
         ) %>% 
         rename(symbol = hgnc_symbol) %>% 
@@ -251,7 +252,7 @@ get_ENCODE = function(){
 }
 
 get_N52_TME = function(){
-  load("~/PhD/TME_prostate_N52/N52_plus_12_run/fastq/run_all/code_repository/input_parallel_TABI.RData")
+  load("dev/database/N52/input_parallel_TABI.RData")
   ex %>% gather(sample, `count`, -symbol) %>%
     rename(count = `count`) %>%
     left_join(
@@ -292,8 +293,13 @@ get_immune_singapoor = function(){
     
     # Add symbol
     separate(gene_id, sep="\\.", c("ensembl_gene_id", "isoform"), remove=F) %>%
-    ttBulk::annotate_symbol(ensembl_gene_id) %>%
-    rename(symbol = transcript) %>%
+    mutate(symbol = AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db,
+                                          keys = ensembl_gene_id,
+                                          keytype = "ENSEMBL",
+                                          column = "SYMBOL",
+                                          multiVals = "first"
+    )) %>% 
+
     distinct() %>%
     
     # Add data base label
@@ -400,7 +406,7 @@ get_macro = function(){
   # for i in $(ls *_val_*fq.gz | rev | cut -c 15- | rev | uniq); do qsub -l nodes=1:ppn=24,mem=41gb,walltime=120:00:00 STAR_HPC.sh -F "$i"; done
   
   
-  read_csv("dev/database/macrophages_db/macro_PRJNA339309.csv") %>%
+  read_csv("dev/database/macro_PRJNA339309/macrophages_DB_PRJNA339309.csv") %>%
     select(-contains("Unassigned")) %>%
     rename(symbol = transcript) %>%
     mutate(`Data base` = "PRJNA339309_macrophages")
@@ -520,7 +526,7 @@ get_monocytes_brain = function(){
     filter(grepl("RNA_Control", sample))
   
   GSE88888 %>%
-    ttBulk(sample, transcript, count) %>%
+    tidybulk(sample, transcript, count) %>%
     aggregate_duplicates() %>%
     scale_abundance() %>%
     reduce_dimensions(method="MDS") %>%
@@ -533,57 +539,57 @@ get_monocytes_brain = function(){
 
 # Produce data sets
 
-ENCODE = get_ENCODE()
+ENCODE %<-% {  get_ENCODE() }
 #save(ENCODE, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/ENCODE.RData", compress = "gzip")
 
-BLUEPRINT = get_BLUEPRINT()
+BLUEPRINT %<-% { get_BLUEPRINT() }
 #save(BLUEPRINT, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/BLUEPRINT.RData", compress = "gzip")
 
 # FANTOM5 = get_FANTOM5()
 # save(FANTOM5, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/FANTOM5.RData", compress = "gzip")
 
-bloodRNA = get_bloodRNA()
+bloodRNA %<-% { get_bloodRNA() }
 #save(bloodRNA, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/bloodRNA.RData", compress = "gzip")
 
-immune_singapoor = get_immune_singapoor()
+immune_singapoor %<-% { get_immune_singapoor() }
 #save(immune_singapoor, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/immune_singapoor.RData", compress = "gzip")
 
-N52_TME = get_N52_TME()
+N52_TME %<-% { get_N52_TME() }
 #save(N52_TME, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/N52_TME.RData", compress = "gzip")
 
 # dendritic = get_dendritic()
 # save(dendritic, file="big_data/tibble_cellType_files/dendritic.RData")
 
-influenza_immune = get_influenza_immune()
+influenza_immune %<-% { get_influenza_immune() }
 #save(influenza_immune, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/influenza_immune.RData", compress = "gzip")
 
-immune_skin = get_immune_skin()
+immune_skin %<-% { get_immune_skin() }
 #save(immune_skin, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/immune_skin.RData", compress = "gzip")
 
-nk_yuhan = get_NK_curated_yuhan()
+nk_yuhan %<-% { get_NK_curated_yuhan() }
 #save(nk_yuhan, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/nk_yuhan.RData", compress = "gzip")
 
-macro = get_macro()
+macro %<-% { get_macro() }
 #save(macro, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/macro.RData", compress = "gzip")
 
-mast = get_mast_cell()
+mast %<-% { get_mast_cell() }
 #save(mast, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/mast.RData", compress = "gzip")
 
-melanocyte = get_melanocytes()
+melanocyte %<-% { get_melanocytes() }
 #save(melanocyte, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/melanocyte.RData", compress = "gzip")
 
 
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/ENCODE.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/BLUEPRINT.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/bloodRNA.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/immune_singapoor.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/N52_TME.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/influenza_immune.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/immune_skin.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/nk_yuhan.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/macro.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/mast.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/melanocyte.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/ENCODE.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/BLUEPRINT.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/bloodRNA.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/immune_singapoor.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/N52_TME.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/influenza_immune.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/immune_skin.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/nk_yuhan.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/macro.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/mast.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/melanocyte.RData")
 
 all =
   ENCODE %>%
@@ -598,11 +604,11 @@ all =
   bind_rows(mast) %>%
   bind_rows(melanocyte) %>%
   
-  #print statistics
-  {
-    (.) %>% distinct(`Cell type formatted`, `Data base`, sample) %>% count(`Cell type formatted`, `Data base`)%>% drop_na %>% arrange(n %>% desc) %>% spread(`Data base`, n) %>% print(n=99)
-    (.)
-  } %>%
+  # #print statistics
+  # {
+  #   (.) %>% distinct(`Cell type formatted`, `Data base`, sample) %>% count(`Cell type formatted`, `Data base`)%>% drop_na %>% arrange(n %>% desc) %>% spread(`Data base`, n) %>% print(n=99)
+  #   (.)
+  # } %>%
   
   filter(symbol %>% is.na %>% `!`) %>%
   filter(`Cell type formatted` %>% is.na %>% `!`) %>%
@@ -655,6 +661,6 @@ counts_first_db_raw =
       (cell_type == "dendritic_myeloid" & database == "bloodRNA")
   ))
 
-counts_first_db_raw %>% saveRDS("dev/counts_first_db_raw.rds", compress = "gzip")
+counts_first_db_raw %>% saveRDS("dev/counts_first_db_raw.rds")
 
 
