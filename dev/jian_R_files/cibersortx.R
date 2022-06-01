@@ -20,7 +20,7 @@ new_tree <- read_yaml("dev/jian_R_files/new_tree.yaml") %>% as.Node
 # Functions ======================================================
 
 produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .sample, .cell_type, .count, 
-                                                 .tree, .dir, .suffix=NULL){
+                                                 .dir, .tree=NULL, .suffix=NULL){
   
   # Args: 
   # .expression_df is a tibble with shape: transcript | sample | cell_type | count
@@ -28,7 +28,8 @@ produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .s
   # .sample: tell the function which column in the data represents sample
   # .cell_type: tell the function which column in the data represents cell_type
   # .count: tell the function which column in the data represents count
-  # .tree: the cell type tree so that only leaf cell types are used for cibersortx
+  # .tree: optional argument. if .tree = NULL, cell types will be sourced from those present in the .expression_df column
+  #       if provided, the cell types used for cibersortx will be the leaves of the tree
   # .dir: the path to the directory where the two output files should be saved
   # .suffix: optional argument which adds suffix to the output filename: reference.txt and phenoclass.txt
   
@@ -37,11 +38,19 @@ produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .s
   .cell_type = enquo(.cell_type)
   .count = enquo(.count)
   
-  .dir <- if(grepl("\\/$", .dir)){.}else{paste0(.dir, "/")}
+  .dir <- ifelse(grepl("\\/$", .dir), .dir, paste0(.dir, "/"))
   
   ## ref_names is produced to create header for reference file
   ref_names <- .expression_df %>% 
-    filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
+    {
+      if (is.null(.tree)){
+        (.)
+      } else {
+        (.) %>% 
+          filter(!!.cell_type %in% as.phylo(.tree)$tip.label)
+      }
+      
+    } %>% 
     mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
     unite(cell_sample, c(!!.cell_type, !!.sample), sep = ".") %>% 
     pull(cell_sample) %>% 
@@ -52,7 +61,15 @@ produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .s
   .expression_df %>% 
     
     # filter for leaf cell types in the tree
-    filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
+    {
+      if (is.null(.tree)){
+        (.)
+      } else {
+        (.) %>% 
+          filter(!!.cell_type %in% as.phylo(.tree)$tip.label)
+      }
+      
+    } %>% 
     select(!!.sample, !!.cell_type, !!.count, !!.transcript) %>% 
     mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
     pivot_wider(names_from = c(!!.cell_type, !!.sample), values_from = !!.count, names_sep=".") %>% 
@@ -64,7 +81,20 @@ produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .s
     write_tsv(glue("{.dir}reference{.suffix}.txt"))
   
   # create phenoclass file
-  tibble(cell_type = as.phylo(.tree)$tip.label) %>% 
+  tibble(cell_type = 
+           {
+             if (is.null(.tree)){
+               .expression_df %>% 
+                 distinct(!!.cell_type) %>% 
+                 pull %>% 
+                 as.character
+             } else {
+               as.phylo(.tree)$tip.label
+             }
+             
+           }
+         
+  ) %>% 
     bind_cols(
       tibble(ref_names, value=1L) %>% 
         pivot_wider(names_from = ref_names, values_from = value)
@@ -82,7 +112,6 @@ produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .s
     write_tsv(glue("{.dir}phenoclass{.suffix}.txt"), col_names = FALSE)
   
 }
-
 
 # No hierarchy CIBERSORTx files creation=============================
 

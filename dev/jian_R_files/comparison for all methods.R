@@ -651,11 +651,11 @@ full_data_NH %>%
   )
 
 # Hierarchical and non-hierarchical in the same plot =================
-naive_methods <- list.files("naive methods silhouette score data/")
-new_methods <- list.files("intermediate_data/", pattern = "^[pm].*(NH|L\\d)\\.rds$")
+naive_methods <- list.files("dev/topInf_scaleFALSE/unoptimised/", pattern = ".*naive\\..*")
+new_methods <- list.files("dev/topInf_scaleFALSE/unoptimised/", pattern = ".*silhouette\\..*")
 
-new <- map_dfr(new_methods, ~ readRDS(paste("intermediate_data", .x, sep = "/")))
-naive <- map_dfr(naive_methods, ~ readRDS(paste("naive methods silhouette score data", .x, sep = "/")))
+new <- map_dfr(new_methods, ~ readRDS(paste0("dev/topInf_scaleFALSE/unoptimised/", .x)))
+naive <- map_dfr(naive_methods, ~ readRDS(paste0("dev/topInf_scaleFALSE/unoptimised/", .x)))
 
 naive <- naive %>% 
   mutate(method = rep(
@@ -665,7 +665,7 @@ naive <- naive %>%
       "pairwise.naive.non_hierarchy"
     ), times=c(14, 1, 14, 1))
   ) %>% 
-  mutate(plot_data = map(plot_data, ~.x %>% select(real_size, silhouette=sil))) %>% 
+  mutate(plot_data = map(plot_data, ~.x %>% select(real_size, silhouette))) %>% 
   unnest(plot_data)
 
 new <- new %>% 
@@ -679,11 +679,13 @@ new <- new %>%
   rename(silhouette = winning_silhouette) %>% 
   select(ancestor, real_size, silhouette, method)
 
-full_data <- rbind(new, naive)
+full_df <- rbind(new, naive)
 
-full_data %>% 
+full_df %>% 
+  filter(str_detect(method, "silhouette")) %>% # change for naive or silhouette methods
+  unnest(data) %>% 
   ggplot(aes(real_size, silhouette, color = method))+
-  geom_point(size=0.1)+
+  geom_point(alpha= 0.5)+
   geom_line()+
   xlim(0, 100)+
   facet_wrap(~ ancestor) +
@@ -691,9 +693,12 @@ full_data %>%
     title.position = "left",
     nrow = 2,
     byrow = TRUE))+
-  theme(legend.position = "bottom",
-        legend.title = element_text(size=10),
-        legend.title.align = 0.5
+  labs(title = "silhouette selection", y = "mean silhouette score", x="signature size") +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "bottom",
+    legend.text = element_text(size=12),
+    legend.title.align = 0.5
   )
 
 # 20/05/2021
