@@ -2,62 +2,133 @@
 # load all necessary functions YOU DO NOT WANT TO CHANGE DEFAULT parameter values for your own run ================
 source("dev/jian_R_files/function_jian.R")
 
-do_hierarchy <- function(.imputed_counts, .sample, .symbol, .cell_type, .tree, .is_hierarchy = TRUE, .level = NULL){
+produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .sample, .cell_type, .count, 
+                                                 .dir, .tree=NULL, .suffix=NULL){
+  
+  # Args: 
+  # .expression_df is a tibble with shape: transcript | sample | cell_type | count
+  # .transcript: tell the function which column in the data represents gene symbol
+  # .sample: tell the function which column in the data represents sample
+  # .cell_type: tell the function which column in the data represents cell_type
+  # .count: tell the function which column in the data represents count
+  # .tree: optional argument. if .tree = NULL, cell types will be sourced from those present in the .expression_df column
+  #       if provided, the cell types used for cibersortx will be the leaves of the tree
+  # .dir: the path to the directory where the two output files should be saved e.g. cellsig/dev/
+  # .suffix: optional argument which adds suffix to the output filename: reference.txt and phenoclass.txt
+  
+  .transcript = enquo(.transcript)
+  .sample = enquo(.sample)
+  .cell_type = enquo(.cell_type)
+  .count = enquo(.count)
+  
+  .dir <- ifelse(grepl("\\/$", .dir), .dir, paste0(.dir, "/"))
+  
+  ## ref_names is produced to create header for reference file
+  ref_names <- .expression_df %>% 
+    {
+      if (is.null(.tree)){
+        (.)
+      } else {
+        (.) %>% 
+          filter(!!.cell_type %in% as.phylo(.tree)$tip.label)
+      }
+      
+    } %>% 
+    mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
+    unite(cell_sample, c(!!.cell_type, !!.sample), sep = ".") %>% 
+    pull(cell_sample) %>% 
+    unique()
+  
+  
+  # create reference file
+  .expression_df %>% 
+    
+    # filter for leaf cell types in the tree
+    {
+      if (is.null(.tree)){
+        (.)
+      } else {
+        (.) %>% 
+          filter(!!.cell_type %in% as.phylo(.tree)$tip.label)
+      }
+      
+    } %>% 
+    select(!!.sample, !!.cell_type, !!.count, !!.transcript) %>% 
+    mutate(!!.sample := str_replace_all(!!.sample, "\\.", "_")) %>%
+    pivot_wider(names_from = c(!!.cell_type, !!.sample), values_from = !!.count, names_sep=".") %>% 
+    `names<-`(ref_names %>% 
+                str_extract(".*(?=\\.)") %>% 
+                prepend(quo_name(.transcript))
+    ) %>% 
+    # save files as txt files (tab separated files)
+    write_tsv(glue("{.dir}reference{.suffix}.txt"))
+  
+  # create phenoclass file
+  tibble(cell_type = 
+           {
+             if (is.null(.tree)){
+               .expression_df %>% 
+                 distinct(!!.cell_type) %>% 
+                 pull %>% 
+                 as.character
+             } else {
+               as.phylo(.tree)$tip.label
+             }
+             
+           }
+         
+  ) %>% 
+    bind_cols(
+      tibble(ref_names, value=1L) %>% 
+        pivot_wider(names_from = ref_names, values_from = value)
+    ) %>% 
+    pivot_longer(-cell_type, names_to="ref_names", values_to="membership") %>% 
+    
+    # assign membership according to cibersortx tutorial 6: 
+    # "1" indicates membership of the reference sample to the class as defined in that row,
+    # "2" indicates the class that the sample will be compared against
+    mutate(membership = if_else(str_detect(ref_names, cell_type), 1L, 2L)) %>% 
+    
+    pivot_wider(names_from = ref_names, values_from = membership) %>% 
+    
+    # set col_names to FALSE following cibersortx format for phenoclass
+    write_tsv(glue("{.dir}phenoclass{.suffix}.txt"), col_names = FALSE)
+  
+}
+
+
+do_imputation <- function(.scaled_counts, .sample, .symbol, .count, .cell_type){
   
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
+  .count = enquo(.count)
   .cell_type = enquo(.cell_type)
   
-  if (.is_hierarchy) { # scaling under each ancestor node at each level
+  .scaled_counts %>% 
+    # Convert to SE
+    # as_SummarizedExperiment(.sample, .feature, count) %>%
+    as_SummarizedExperiment(!!.sample, !!.symbol, .abundance = c(!!.count, count_scaled)) %>%
     
-    if (is.null(.level)) { # scale counts for all levels present
-      
-      tibble(level = names(.imputed_counts) %>% str_subset("level")) %>%
-        
-        mutate(tt = map(level, ~ .imputed_counts %>%
-                          
-                          mutate(level_0 = "root") %>%
-                          
-                          create_hierarchy(.level=.x, .sample=!!.sample, .symbol=!!.symbol))) %>%
-        
-        mutate(tt = map2(tt, level, ~ .x %>% dplyr::rename(ancestor = pre(.y))))
-      
-    } else { # scale counts for the level specified by .level
-      
-      tibble(level = .level) %>%
-        
-        mutate(tt = map(level, ~ .imputed_counts %>%
-                          
-                          mutate(level_0 = "root") %>%
-                          
-                          create_hierarchy(.level=.x, .sample=!!.sample, .symbol=!!.symbol))) %>%
-        
-        mutate(tt = map2(tt, level, ~ .x %>% dplyr::rename(ancestor = pre(.y))))
-    }
+    # Hierarchical imputation. Suffix = "" equated to overwrite counts
+    impute_missing_abundance(.formula = as.formula(sprintf("~ %s", quo_name(.cell_type))),
+                             .abundance = c(!!.count, count_scaled)) %>%
     
-  } else { # non-hierarchical: scaling all cell types under the root node
+    # AUTOMATE THIS!
+    # impute_missing_abundance(~ level_5, .abundance = c(!!.count, count_scaled)) %>%
+    impute_missing_abundance(~ level_4, .abundance = c(!!.count, count_scaled)) %>%
+    impute_missing_abundance(~ level_3, .abundance = c(!!.count, count_scaled)) %>%
+    impute_missing_abundance(~ level_2, .abundance = c(!!.count, count_scaled)) %>%
+    impute_missing_abundance(~ level_1, .abundance = c(!!.count, count_scaled)) %>% 
     
-    .level <- "root"
+    # Convert back to tibble
+    as_tibble() %>%
     
-    tibble(level = .level) %>%
-      
-      mutate(tt = map(level, ~ .imputed_counts %>%
-                        
-                        # non-hierarchical methods should only compare leaf cell types
-                        filter(!!.cell_type %in% as.phylo(.tree)$tip.label) %>% 
-                        
-                        # create a root column for pre(.level)
-                        mutate(!!as.symbol(.level) := !!.cell_type) %>%
-                        mutate(!!as.symbol(pre(.level)) := .level) %>%
-                        
-                        create_hierarchy(.level=.x, .sample=!!.sample, .symbol=!!.symbol))) %>%
-      
-      mutate(tt = map2(tt, level, ~ .x %>% dplyr::rename(ancestor = pre(.y))))
+    mutate(.imputed = if_any(contains("imputed"), ~ .x != 0)) %>% 
     
-  }
+    select(-matches("imputed\\.\\d"))
 }
 
-create_hierarchy <- function(.imputed_counts, .level, .sample, .symbol) {
+create_hierarchy_and_calculate_imputation_ratio <- function(.imputed_counts, .level, .sample, .symbol) {
   # this preproces function ranged data in hierarchy(or non_hierarchy) and
   # calculates the imputation ratio for genes in each hierarchy
   .sample = enquo(.sample)
@@ -66,10 +137,7 @@ create_hierarchy <- function(.imputed_counts, .level, .sample, .symbol) {
   
   # load data
   .imputed_counts %>%
-    
-    # tidybulk(sample, symbol, count_scaled) %>% for imputed counts data
-    # tidybulk(.sample = !!.sample, .transcript = !!.symbol, .abundance = !!.count) %>%
-    
+
     # filter for cells at the level of interest. .level == level_1
     filter(!is.na(!!as.symbol(.level))) %>%
     
@@ -77,6 +145,7 @@ create_hierarchy <- function(.imputed_counts, .level, .sample, .symbol) {
     nest(data = - !!as.symbol(pre(.level)))
   
 }
+
 
 counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_type,
                                        .is_hierarchy=TRUE, .level=NULL, 
@@ -97,16 +166,29 @@ counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_t
     
     .input %>%
       
-      adapt_tree(.tree = .tree, .node = .node) %>%
+      # adapt_tree(.tree = .tree, .node = .node) %>%
+      # 
+      # tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
+      #                                 .symbol=!!.symbol, .count=!!.count) %>%
+      # 
+      # 
+      # 
+      # # comment out these six lines when using your single cell data, keep when using bulk data
+      # # Remove redundant samples
+      # remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+      # droplevels() %>%
+      # 
+      # # Eliminate suspicious samples
+      # filter(!grepl("GSM3722278|GSM3722276|GSM3722277", !!.sample)) %>%
+      # 
+      # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
+      # 
+      # do_imputation(.sample = !!.sample, .symbol=feature, .count = !!.count, .cell_type=!!.cell_type) %>%
+      # 
+      # rename(symbol = feature) %>% 
+      # ##
       
-      tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
-                                      .symbol=!!.symbol, .count=!!.count) %>%
-      
-      # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
-      #   
-      # do_imputation(.sample = !!.sample, .symbol=!!.symbol, .cell_type=!!.cell_type) %>% 
-      
-      
+
       do_hierarchy(.sample=!!.sample,
                    .symbol=!!.symbol,
                    .cell_type = !!.cell_type,
@@ -122,73 +204,87 @@ counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_t
                  .contrast_method=.contrast_method, 
                  .rank_stat=.rank_stat, 
                  .bayes=.bayes,
-                 .tree = .tree) %>%  
+                 .tree = .tree) 
       
       # Input: data.frame columns_1 <int> | ...
-      # Output: 
-      do_selection(.sample=!!.sample, 
+      # Output:
+      do_selection(.sample=!!.sample,
                    .symbol=!!.symbol,
-                   .selection_method=.selection_method, 
-                   .reduction_method=.reduction_method, 
-                   .discard_number=.discard_number, 
+                   .selection_method=.selection_method,
+                   .reduction_method=.reduction_method,
+                   .discard_number=.discard_number,
                    .kmax=.kmax,
-                   .dims=.dims) %>% 
-      
-      do_optimisation(.optimisation_method=.optimisation_method, .symbol=!!.symbol) %>% 
-      
+                   .dims=.dims) %>%
+
+      do_optimisation(.optimisation_method=.optimisation_method, .symbol=!!.symbol) %>%
+
       format_output(.is_complete = .is_complete)
     
   } else {
     
     .input %>%
       
-      adapt_tree(.tree = .tree, .node = .node) %>%
+      # adapt_tree(.tree = .tree, .node = .node) %>%
+      # 
+      # tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
+      #                                 .symbol=!!.symbol, .count=!!.count) %>%
+      # 
+      # 
+      # 
+      # # comment out these six lines when using your single cell data, keep when using bulk data
+      # # Remove redundant samples
+      # remove_redundancy(.element=!!.sample, .feature=!!.symbol, .abundance=!!.count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+      # droplevels() %>%
+      # 
+      # # Eliminate suspicious samples
+      # filter(!grepl("GSM3722278|GSM3722276|GSM3722277", !!.sample)) %>%
+      # 
+      # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>%
+      # 
+      # do_imputation(.sample = !!.sample, .symbol=feature, .count = !!.count, .cell_type=!!.cell_type) %>%
+      # 
+      # rename(symbol = feature) %>% 
+      # ##
       
-      tree_and_signatures_to_database(tree=subtree, ., .sample=!!.sample, .cell_type=!!.cell_type,
-                                      .symbol=!!.symbol, .count=!!.count) %>%
       
-      # do_scaling(.sample = !!.sample, .symbol= !!.symbol , .count= !!.count, .cell_type=!!.cell_type) %>% 
-      #   
-      # do_imputation(.sample = !!.sample, .symbol=!!.symbol, .cell_type=!!.cell_type) %>% 
-      
-      
-      do_hierarchy(.sample=!!.sample,
-                   .symbol=!!.symbol,
-                   .cell_type = !!.cell_type,
-                   .tree = .tree,
-                   .is_hierarchy=.is_hierarchy,
-                   .level=.level) %>%
-      
-      do_ranking(.sample=!!.sample, 
-                 .symbol=!!.symbol,
-                 .ranking_method=.ranking_method, 
-                 .contrast_method=.contrast_method, 
-                 .rank_stat=.rank_stat, 
-                 .bayes=.bayes,
-                 .tree = .tree) %>% 
-      
-      mutate(level.copy = level) %>% 
-      nest(data = -level.copy) %>% 
+      # do_hierarchy(.sample=!!.sample,
+      #              .symbol=!!.symbol,
+      #              .cell_type = !!.cell_type,
+      #              .tree = .tree,
+      #              .is_hierarchy=.is_hierarchy,
+      #              .level=.level) %>%
+      # 
+      # do_ranking(.sample=!!.sample,
+      #            .symbol=!!.symbol,
+      #            .cell_type = !!.cell_type,
+      #            .ranking_method=.ranking_method,
+      #            .contrast_method=.contrast_method,
+      #            .rank_stat=.rank_stat,
+      #            .bayes=.bayes,
+      #            .tree = .tree) %>%
+      # 
+      # mutate(level.copy = level) %>%
+      # nest(data = -level.copy)
       
       mutate(data = map(
         data,
-        ~ .x %>% 
-          
-          do_selection(.sample=!!.sample, 
-                       .symbol=!!.symbol,
-                       .selection_method=.selection_method, 
-                       .reduction_method=.reduction_method, 
-                       .discard_number=.discard_number, 
-                       .kmax=.kmax,
-                       .dims=.dims) %>%
-          
+        ~ .x %>%
+
+          # do_selection(.sample=!!.sample,
+          #              .symbol=!!.symbol,
+          #              .selection_method=.selection_method,
+          #              .reduction_method=.reduction_method,
+          #              .discard_number=.discard_number,
+          #              .kmax=.kmax,
+          #              .dims=.dims) %>% 
+
           do_optimisation(.optimisation_method = .optimisation_method, .symbol=!!.symbol) %>%
-          
+
           format_output(.is_complete = .is_complete)
-        
+
       )) %>% 
-      
-      unnest(data) %>% 
+
+      unnest(data) %>%
       select(-level.copy)
     
   }
@@ -198,12 +294,13 @@ counts_tree_to_gene_markers = function(.input, .sample, .symbol, .count, .cell_t
 # load input data =============================================================================
 
 # MODIFY THIS: load your own tree
-tree = read_yaml("dev/tree.yaml") %>% as.Node
+zijie_tree = read_yaml("dev/intermediate_data/tree_zijie.yaml") %>% as.Node
+tree_zijie_level5 = read_yaml("dev/intermediate_data/tree_zijie_level5.yaml") %>% as.Node
 
 # MODIFY THIS: load your own input data
 zijie_input_expression_data
 
-
+# FOR SINGLE CELL DATA:
 # To select markers for your own data, run the code below:
 zijie_input_expression_data %>% 
   
@@ -225,13 +322,99 @@ zijie_input_expression_data %>%
 
     .ranking_method = rank_edgR_quasi_likelihood, .rank_stat = "PValue",
     
-    .selection_method = "naive",
+    .selection_method = "silhouette", .dims = 4,
     
     .optimisation_method = "penalty") %>% 
   
   # save the output signature of the function
   # PLEASE MODIFY THIS LINE OF CODE
   saveRDS("your_directory/name_of_the_output_file.rds", compress = "xz")
+
+# FOR BULK-RNA-seq DATA:
+# preprocess data
+counts_imputed_zijie <- counts %>%
+  
+  adapt_tree(.tree = tree_zijie_level5) %>%
+  
+  tree_and_signatures_to_database(tree=tree_zijie_level5, ., .sample=sample, .cell_type=cell_type,
+                                  .symbol=symbol, .count=count) %>% 
+  
+  # comment out these six lines when using your single cell data, keep when using bulk data
+  # Remove redundant samples
+  remove_redundancy(.element=sample, .feature=symbol, .abundance=count, 
+                    correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+  droplevels() %>%
+  
+  # Eliminate suspicious samples
+  filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>% 
+  
+  do_scaling(.sample = sample, .symbol= symbol , .count= count, .cell_type=cell_type)
+
+counts_imputed_zijie <- counts_imputed_zijie %>% 
+  
+  do_imputation(.sample = sample, .symbol=feature, .count = count, .cell_type= cell_type) %>%
+  
+  rename(symbol = feature) %>% 
+  
+  saveRDS("dev/intermediate_data/counts_imputed_zijie.rds", compress = "xz")
+
+# signature selection
+# counts_imputed_zijie %>% 
+counts_imputed_zijie %>%  
+  
+  counts_tree_to_gene_markers(
+    
+    .sample = sample, .symbol = symbol, .cell_type = cell_type, .count = NULL,
+    
+    .is_hierarchy=TRUE,
+    
+    .tree = tree_zijie_level5, # change to your tree!!!
+    
+    .contrast_method = pairwise_contrast, 
+    
+    .ranking_method = rank_edgR_quasi_likelihood, .rank_stat = "PValue",
+    
+    .selection_method = "silhouette", .dims=4,
+    
+    .optimisation_method = "penalty") %>% 
+  
+  # save the output signature of the function
+  # PLEASE MODIFY THIS LINE OF CODE
+  saveRDS("dev/intermediate_data/zijie_bulk_signature_before_selection.rds", compress = "xz")
+
+zijie_bulk_signature_final <- zijie_bulk_signature %>% 
+  
+  counts_tree_to_gene_markers(
+    
+    .sample = sample, .symbol = symbol, .cell_type = cell_type, .count = NULL,
+    
+    .is_hierarchy=TRUE,
+    
+    .tree = tree_zijie_level5, # change to your tree!!!
+    
+    .contrast_method = pairwise_contrast, 
+    
+    .ranking_method = rank_edgR_quasi_likelihood, .rank_stat = "PValue",
+    
+    .selection_method = "silhouette", .dims=4,
+    
+    .optimisation_method = "penalty") %>% 
+  
+  # save the output signature of the function
+  # PLEASE MODIFY THIS LINE OF CODE
+  saveRDS(zijie_bulk_signature_final, "dev/intermediate_data/zijie_bulk_signature.rds", compress = "xz")
+
+# x3 <- 
+# zijie_bulk_signature_levels %>% 
+#   pluck("data", 3) %>% 
+x3 %>% 
+  do_silhouette_selection(
+    .sample = sample,
+    .symbol = symbol,
+    .reduction_method = "PCA",
+    .discard_number = 10,
+    .dims = 4
+  )
 
 
 # Jian's example ====================================================================

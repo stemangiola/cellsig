@@ -164,542 +164,6 @@ single_marker_pw_select <-
              nest(sig_df = - ancestor))
   }
 
-
-# # Shiny APP
-# # Inside main panel
-# fluidRow(
-#   h4("Level 2"),
-#   column(6,
-#          plotlyOutput("plot_immune")  
-#   ),
-#   column(6, 
-#          DT::dataTableOutput("markers_immune")
-#   ),
-# ),
-# 
-# fluidRow(
-#   h4("Level 2"),
-#   column(6,
-#          plotlyOutput("plot_immune")
-#   ),
-#   textOutput("sig_immune")),
-# 
-# fluidRow(
-#   h4("Level 3"),
-#   fluidRow(
-#     column(6, 
-#            plotlyOutput("plot_mono_derived"),
-#            textOutput("sig_mono_derived")
-#     ),
-#     column(6, 
-#            plotlyOutput("plot_t_cell"),
-#            textOutput("sig_t_cell"))
-#   ),
-#   
-#   fluidRow(
-#     column(6, 
-#            plotlyOutput("plot_granulocyte"),
-#            textOutput("sig_granulocyte")
-#     ),
-#     column(6,
-#            plotlyOutput("plot_b_cell"),
-#            textOutput("sig_b_cell")
-#     )
-#   ),
-#   
-#   fluidRow(
-#     column(6, 
-#            plotlyOutput("plot_NK"),
-#            textOutput("sig_NK")
-#     )
-#   )
-# ),
-# 
-# fluidRow(
-#   h4("Level 4"),
-#   fluidRow(
-#     column(6,
-#            plotlyOutput("plot_t_CD4"),
-#            textOutput("sig_t_CD4")
-#     ),
-#     column(6,
-#            plotlyOutput("plot_macrophage"),
-#            textOutput("sig_macrophage")
-#     )
-#   ),
-#   
-#   fluidRow(
-#     column(6,
-#            plotlyOutput("plot_t_CD8"),
-#            textOutput("sig_t_CD8")
-#     ),
-#     column(6,
-#            plotlyOutput("plot_DC_myeloid"),
-#            textOutput("sig_DC_myeloid")
-#     )
-#   ),
-#   
-#   fluidRow(
-#     column(6,
-#            plotlyOutput("plot_NK_primed"),
-#            textOutput("sig_NK_primed")
-#     )
-#   )
-# ),
-# 
-# fluidRow(
-#   h4("Level 5"),
-#   fluidRow(
-#     column(6,
-#            plotlyOutput("plot_t_CD4_memory"),
-#            textOutput("sig_t_CD4_memory")
-#     ),
-#     column(6,
-#            plotlyOutput("plot_t_CD8_memory"),
-#            textOutput("sig_t_CD8_memory")
-#     )
-#   ),
-#   
-#   fluidRow(
-#     column(6,
-#            plotlyOutput("plot_t_helper"),
-#            textOutput("sig_t_helper")
-#     )
-#   )
-# 
-# # Inside server function
-# plotImmune <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_immune <- sig_data() %>% 
-#       pluck("sil", 2) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_2, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw() 
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_immune <- sig_data() %>% 
-#       pluck("sil", 2) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_2, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_immune))
-# })
-# 
-# output$plot_immune <- renderPlotly({ plotImmune() })
-# 
-# output$sig_immune <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 2) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotMono <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_mono <- sig_data() %>% 
-#       pluck("sil", 3) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_mono <- sig_data() %>% 
-#       pluck("sil", 3) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_mono))
-# })
-# 
-# output$plot_mono_derived <- renderPlotly({ plotMono() })
-# 
-# output$sig_mono_derived <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 3) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotT <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_t <- sig_data() %>% 
-#       pluck("sil", 4) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_t <- sig_data() %>% 
-#       pluck("sil", 4) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_t))
-# })
-# 
-# output$plot_t_cell <- renderPlotly({plotT() })
-# 
-# output$sig_t_cell <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 4) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotGranulo <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_granulo <- sig_data() %>% 
-#       pluck("sil", 5) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_granulo <- sig_data() %>% 
-#       pluck("sil", 5) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_granulo))
-# })
-# 
-# output$plot_granulocyte <- renderPlotly({ plotGranulo() })
-# 
-# output$sig_granulocyte <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 5) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotB <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_b <- sig_data() %>% 
-#       pluck("sil", 6) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_b <- sig_data() %>% 
-#       pluck("sil", 6) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_b))
-# })
-# 
-# output$plot_b_cell <- renderPlotly({ plotB() })
-# 
-# output$sig_b_cell <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 6) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotNK <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_nk <- sig_data() %>% 
-#       pluck("sil", 6) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_nk <- sig_data() %>% 
-#       pluck("sil", 6) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_3, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_nk))
-# })
-# 
-# output$plot_NK <- renderPlotly({ plotNK() })
-# 
-# output$sig_NK <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 7) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotCD4 <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_cd4 <- sig_data() %>% 
-#       pluck("sil", 8) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_cd4 <- sig_data() %>% 
-#       pluck("sil", 8) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_cd4))
-# })
-# 
-# output$plot_t_CD4 <- renderPlotly({ plotCD4() })
-# 
-# output$sig_t_CD4 <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 8) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotMacro <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_macro <- sig_data() %>% 
-#       pluck("sil", 9) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_macro <- sig_data() %>% 
-#       pluck("sil", 9) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_macro))
-# })
-# 
-# output$plot_macrophage <- renderPlotly({ plotMacro() })
-# 
-# output$sig_macrophage <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 9) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotCD8 <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_cd8 <- sig_data() %>% 
-#       pluck("sil", 10) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_cd8 <- sig_data() %>% 
-#       pluck("sil", 10) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_cd8))
-# })
-# 
-# output$plot_t_CD8 <- renderPlotly({ plotCD8() })
-# 
-# output$sig_t_CD8 <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 10) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotDC <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_dc <- sig_data() %>% 
-#       pluck("sil", 11) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_dc <- sig_data() %>% 
-#       pluck("sil", 11) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_dc))
-# })
-# 
-# output$plot_DC_myeloid <- renderPlotly({ plotDC() })
-# 
-# output$sig_DC_myeloid <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 11) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotNKP <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_nkp <- sig_data() %>% 
-#       pluck("sil", 12) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_nkp <- sig_data() %>% 
-#       pluck("sil", 12) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_4, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_nkp))
-# })
-# 
-# output$plot_NK_primed <- renderPlotly({ plotNKP() })
-# 
-# output$sig_NK_primed <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 12) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotCD4memo <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_cd4memo <- sig_data() %>% 
-#       pluck("sil", 13) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_5, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_cd4memo <- sig_data() %>% 
-#       pluck("sil", 13) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_5, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_cd4memo))
-# })
-# 
-# output$plot_t_CD4_memory <- renderPlotly({ plotCD4memo() })
-# 
-# output$sig_t_CD4_memory <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 13) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotCD8memo <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_cd8memo <- sig_data() %>% 
-#       pluck("sil", 14) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_5, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_cd8memo <- sig_data() %>% 
-#       pluck("sil", 14) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_5, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_cd8memo))
-# })
-# 
-# output$plot_t_CD8_memory <- renderPlotly({ plotCD8memo() })
-# 
-# output$sig_t_CD8_memory <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 14) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# 
-# plotTH <- eventReactive(input$run, {
-#   if(isolate({rdim_method()}) =="PCA") {
-#     p_th <- sig_data() %>% 
-#       pluck("sil", 15) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = PC1, y = PC2, colour = level_5, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   } else if (isolate({rdim_method()}) =="tSNE") {
-#     p_th <- sig_data() %>% 
-#       pluck("sil", 15) %>% 
-#       pluck("rdim", 1) %>% 
-#       ggplot(aes(x = tSNE1, y = tSNE2, colour = level_5, label = sample)) + 
-#       geom_point() +
-#       stat_ellipse(type = 't')+
-#       theme_bw()
-#   }
-#   return(ggplotly(p_th))
-# })
-# 
-# output$plot_t_helper <- renderPlotly({ plotTH() })
-# 
-# output$sig_t_helper <- renderText({
-#   sig_data() %>% 
-#     pluck("sig", 15) %>% 
-#     str_pad(10, "both")
-# })
-# 
-# # old shiny server variable
-# sig_data <- eventReactive(input$run, {
-#   markers_collect %>% 
-#     mutate(sil_df = 
-#              pmap(list(!!as.symbol(format_name(sig_select_method())), level, rdim_method()),
-#                   ~ sil_func(..1, ..2, ..3))) %>% 
-#     mutate(sig =
-#              map(!!as.symbol(format_name(sig_select_method())), 
-#                  ~.x %>% 
-#                    pull(symbol) %>% 
-#                    unique()))
-# })
-
 dat <- structure(list(x = c(1.158362492, 1.1430148, 1.11058971, 1.120573931, 
                             1.149219113, 1.123851641, 1.096910013), 
                       y = c(1.322219295, 1.267171728, 1.252853031, 1.260071388, 
@@ -719,6 +183,8 @@ x <- list(
   list(-1, x = 1, y = c(2), z = "a"),
   list(-2, x = 4, y = c(5, 6), z = "b"),
   list(-3, x = 8, y = c(9, 10, 11))
+  
+
 )
 x
 product(c(1, 2))
@@ -3604,6 +3070,7 @@ z <- y %>%
 
 
 do_scaling <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
+  
   .sample = enquo(.sample)
   .symbol = enquo(.symbol)
   .count = enquo(.count)
@@ -3622,7 +3089,7 @@ do_scaling <- function(.data_tree, .sample, .symbol, .count, .cell_type) {
     
     # Scale with first degree imputation. 
     # This because there are no common genes to all samples
-    impute_missing_abundance(~ !!.cell_type, suffix="") %>%
+    impute_missing_abundance(~ !!.cell_type, .sample=sample, .transcript = symbol, .abundance = count) %>%
     identify_abundant() %>%
     scale_abundance() %>%
     filter(!.imputed) %>% 
@@ -3690,11 +3157,74 @@ counts_scaled_old_tree <- counts %>%
 
 counts_scaled_old_tree <- counts_scaled_old_tree %>% 
   
+  nest(data = -c(level_1, symbol)) %>%
+  add_count(symbol) %>%
+  filter(n==n_distinct(.$level_1)) %>%
+  select(-n) %>%
+  unnest(data)
+
+counts_scaled_old_tree %>% 
+  
+  # impute_missing_abundance(~ cell_type, .sample=sample, .transcript = symbol, .abundance = count)
+  
+  # Convert to SE
+  # as_SummarizedExperiment(sample, symbol, count) %>% 
+  
   do_scaling(.sample = sample, .symbol=symbol, .count = count, .cell_type = cell_type)
 
 counts_imputed_old_tree <- counts_scaled_old_tree %>% 
   
   do_imputation(.sample = sample, .symbol=symbol, .cell_type = cell_type)
+
+x <- counts_scaled_cellsig_tree %>% 
+  
+  # Convert to SE
+  as_SummarizedExperiment(sample, feature, c(count, count_scaled))
+
+y0 <- x %>% 
+  
+  # Hierarchical imputation. Suffix = "" equated to overwrite counts
+  impute_missing_abundance(~ cell_type, .abundance = c(count, count_scaled))
+y1 <- y0 %>% 
+  impute_missing_abundance(~ level_5, .abundance = c(count, count_scaled)) %>%
+  impute_missing_abundance(~ level_4, .abundance = c(count, count_scaled)) %>%
+  impute_missing_abundance(~ level_3, .abundance = c(count, count_scaled)) %>%
+  impute_missing_abundance(~ level_2, .abundance = c(count, count_scaled)) %>%
+  impute_missing_abundance(~ level_1, .abundance = c(count, count_scaled)) %>% 
+  
+levelwise_imputation <- function(.scaled_data, level){
+  if (level == "level_6") {
+    return(.scaled_data %>% 
+             impute_missing_abundance(.formula = as.formula(sprintf("~ %s", pre(level))),
+                                      .abundance = c(count, count_scaled))
+    )
+  }else{
+    
+    level <- level %>% 
+      str_split("_") %>%
+      {as.numeric(.[[1]][2]) + 1} %>%
+      paste("level", ., sep = "_")
+      
+    return(
+        levelwise_imputation(.scaled_data, level)
+      )
+    }
+}
+  
+  
+  # Convert back to tibble
+  as_tibble() %>%
+  
+  mutate(.imputed = if_any(contains("imputed"), ~ .x != 0)) %>% 
+  
+  select(-matches("imputed\\.\\d")) %>% 
+  
+  # Merge the imputed column
+  mutate(.imputed = .imputed | .imputed.1 | .imputed.2 | .imputed.3 |.imputed.4 |.imputed.5  ) %>%
+  select(-c( .imputed.1 , .imputed.2 , .imputed.3 ,.imputed.4 ,.imputed.5  )) %>%
+  
+  # Save
+  saveRDS("dev/intermediate_data/counts_imputed.rds", compress = "xz")
 
 ## create reference file
 
@@ -3704,7 +3234,7 @@ debugonce(produce_cibersortx_bulk_rnaseq_input)
 counts_imputed %>% 
   rename(symbol = feature) %>% 
   produce_cibersortx_bulk_rnaseq_input(.transcript=symbol, .sample=sample, .cell_type=cell_type, .count=count_scaled, 
-                                         .dir="dev/jian_R_files/cibersortx", .suffix="_new_tree")
+                                         .dir="dev/jian_R_files/cibersortx", .suffix="_zijie")
 
 
 toy_data <- counts_imputed %>%  
@@ -3722,4 +3252,824 @@ toy_data <- counts_imputed %>%
             by = c("cell_type", "sample"))
 
 saveRDS(toy_data, "dev/intermediate_data/toy_data.rds", compress = "xz")
+
+tree <- read_yaml("dev/tree.yaml") %>% as.Node
+Prune(tree$epithelial, function(node) node$name == "epithelial")
+
+Prune(tree, function(node) node$level <= 3)
+treeClone = Clone(tree, pruneFun = function(node) node$level <= 3)
+LEVEL <- "level_1"
+L = LEVEL %>% str_split("_") %>% {as.numeric(.[[1]][2])+1}  
+
+treeClone = Clone(tree, pruneFun = function(node) node$level <= L)
+
+get_leaf_nodes_at_a_level <- function(.tree, .level){
   
+  L  = .level %>% str_split("_") %>% {as.numeric(.[[1]][2])+1}
+  
+  Clone(.tree, pruneFun = function(node) node$level <= L) %>% 
+    as.phylo %>% 
+    .$tip.label
+  
+}
+
+tree %>% 
+  get_leaf_nodes_at_a_level("level_5")
+
+
+# deconvolve cellularity problem debug
+x <- deconvolve_cellularity(
+  .data = mix100 %>% pluck("mix", 1),
+  .sample = replicate,
+  .transcript = symbol, # the column in the mixture is called symbol not provided by the pipeline
+  .abundance = count_mix,
+  reference = reference,
+  method = "llsr",
+  prefix = "llsr_",
+  action = "get",
+  intercept=FALSE)
+
+plot_data = 
+tibble(levels = if(TRUE){"root"}else{sprintf("level_%s", 1:5)}
+       
+       ) %>%
+  mutate(data = map(levels, ~ non_hierarchical_pairwise_contrast_bayes___naive_penalty_10 %>%
+                      nest(data = -level) %>% 
+                      mutate(markers = map(data, ~ .x$signature %>% unlist %>% unique)) %>% 
+                      mutate(level = as.ordered(level)) %>% 
+                      filter(level <= .x)
+  )) %>% 
+  mutate(markers = map(data, ~ .x$markers %>% unlist %>% unique)) %>% 
+  mutate(leaf_nodes = map(levels, ~ get_leaf_nodes_at_a_level(new_tree, .x))) %>% 
+  mutate(reduced_dimensions = map2(
+    markers, leaf_nodes, 
+    ~ expression %>% 
+      filter(cell_type2 %in% .y) %>% 
+      filter(symbol %in% .x) %>% 
+      pivot_wider(names_from = "level", values_from = "cell_type2") %>% 
+      reduce_dimensions(.element = sample,
+                        .feature = symbol,
+                        .abundance = count_scaled,
+                        action = "get",
+                        method = "tSNE",
+                        .dims = 2,
+                        log_transform = TRUE,
+                        top = Inf,
+                        scale = FALSE,
+                        check_duplicates = FALSE) %>% 
+      unite(cell_type2, contains("level"), na.rm = TRUE) %>% 
+      # because action is "get" no symbols all samples should be distinct
+      select(sample, cell_type2, contains(str_sub("tSNE", end = -2L)))
+  )) %>% 
+  mutate(marker_text = map(data, ~ .x %>% get_target_cell_markers())) %>% 
+  mutate(reduced_dimensions = map2(
+    reduced_dimensions, marker_text,
+    ~ left_join(.x, .y, by = c("cell_type2" = "target"))
+  )) %>% 
+  mutate(data = map2(
+    data, leaf_nodes,
+    ~ .x %>% 
+      unnest(data) %>% 
+      unnest(children) %>% 
+      mutate(contrast = str_extract(contrast, ".*(?=\\s\\-)")) %>% 
+      rename(target = contrast) %>% 
+      select(target, enriched) %>% 
+      filter(target %in% .y) %>% 
+      unnest(enriched) %>% 
+      distinct(target, symbol, rank) %>% 
+      group_by(target) %>% 
+      arrange(rank, .by_group = TRUE) %>% 
+      ungroup
+  )) %>% 
+  select(levels, data, leaf_nodes, reduced_dimensions)
+
+
+
+c("\tRscript dev/jian_R_files/for_zijie.R dev/intermediate_data/zijie_bulk_signature.rds") %>% 
+  
+  purrr::prepend("CATEGORY=yes_no_hierarchy\nMEMORY=30000\nCORES=2\nWALL_TIME=86400") %>%
+  
+  write_lines("dev/benchmark_code/zijie_bulk_signaure.makeflow")
+
+counts %>% 
+  
+  adapt_tree(.tree = new_tree) %>%
+
+  tree_and_signatures_to_database(tree=new_tree, ., .sample=sample, .cell_type=cell_type,
+                                 .symbol=symbol, .count=count) %>%
+
+  # Remove redundant samples
+  remove_redundancy(.element=sample, .feature=symbol, .abundance=count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+  droplevels() %>%
+  
+  # Eliminate suspicious samples
+  filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>%
+
+  do_scaling(.sample = sample, .symbol= symbol , .count= count, .cell_type= cell_type) %>%
+  
+  saveRDS("dev/intermediate_data/counts_scaled.rds", compress = "xz")
+
+counts_imputed_hierarchy %>% 
+  
+  main(.sample=sample, .symbol=symbol, .count = NULL, .cell_type = cell_type,
+       .is_hierarchy=TRUE, 
+       .contrast_method=pairwise_contrast, 
+       .ranking_method=rank_bayes, 
+       .rank_stat=NULL, 
+       .bayes=counts_bayes_imputed_hierarchy, 
+       .tree = NULL,
+       .selection_method="silhouette", .kmax=60, .discard_number=2000, .reduction_method = "tSNE",
+       .dims=2,
+       .optimisation_method = "penalty", .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
+       .is_complete = TRUE)
+
+
+do_silhouette_selection <-
+  function(.ranked, .sample, .symbol, .discard_number, .reduction_method, .dims=2) {
+    
+    .sample = enquo(.sample)
+    .symbol = enquo(.symbol)
+    
+    # initialize variables
+    
+    # ranked_copy is created as a pool of markers for selection,
+    # which continuously decrease with each iterative selection,
+    # input .rank is used for calculating silhouette score for the selected markers
+    ranked_copy <- .ranked
+    
+    # initialise a signature tibble to store signature markers for each cell type in each iteration
+    signature <- .ranked %>%
+      select(level, ancestor) %>%
+      mutate(signature = map(ancestor, ~ vector())) %>%
+      mutate(last_silhouette = 0)
+    
+    # initialise an output tibble containing all results of interest
+    summary_tb <- tibble(
+      level = character(),
+      ancestor = character(),
+      new_challengers = list(),
+      winner = list(),
+      children = list(),
+      signature = list(),
+      # reduced_dimensions = list(),
+      silhouette = double()
+    )
+    
+    # set the base markers
+    contrast_pair_tb0 <-
+      
+      # contrast_copy contains all the statistics of all cell_type contrasts for each gene
+      .ranked %>%
+      
+      # calculate the minimum number of genes need to be selected for feasible dimension reduction
+      mutate(k0 = map_int(markers, ~ min_markers_per_contrast(.x, .dims=.dims, .symbol = !!.symbol))) %>% 
+      
+      # nest by k0 because naive selection takes the whole ranked data frame
+      nest(data = -k0) %>% 
+      
+      # select the minimum number of base markers for each ancestor node
+      mutate(data = map2(data, k0, ~ naive_selection(.ranked=.x, .k=.y, .symbol=!!.symbol))) %>% 
+      
+      unnest(data) %>% 
+      
+      # clean up data
+      select(-k0) %>% 
+      
+      dplyr::rename(new_challengers = signature) %>%
+      
+      mutate(winner = map(new_challengers, ~ unique(.x))) %>%
+      
+      mutate(signature = winner) %>%
+      
+      silhouette_function(.sample=!!.sample, .symbol=!!.symbol, .reduction_method=.reduction_method, .dims=.dims) %>%
+      
+      select(-c(reduced_dimensions, real_size))
+    
+    
+    signature <- signature %>%
+      
+      # append cumulative markers
+      mutate(signature = map2(
+        signature, ancestor,
+        ~ .x %>%
+          append(with(contrast_pair_tb0, signature[ancestor==.y][[1]]))
+      )) %>%
+      
+      # append silhouette scores for these markers
+      mutate(last_silhouette = map_dbl(
+        ancestor,
+        ~ with(contrast_pair_tb0, silhouette[ancestor==.x])
+      ))
+    
+    summary_tb <- summary_tb %>%
+      bind_rows(contrast_pair_tb0)
+    
+    # remove base markers from contrast_copy input before further selection
+    ranked_copy <- ranked_copy %>%
+      mutate(markers = map2(
+        markers, ancestor,
+        ~ .x %>%
+          unnest(stat_df) %>%
+          filter(!(!!.symbol %in% with(signature, signature[ancestor==.y][[1]]))) %>%
+          nest(stat_df = - contrast)
+      ))
+    
+    # counter for number of genes discarded
+    j <- map_int(signature$signature, ~ length(.x))
+    
+    # count the number of iterations
+    i <- 0L
+    while (any(j < .discard_number) &
+           # markers contains genes including many that do not satisfy logFC > 2 & FDR < 0.05 & logCPM > mean(logCPM)
+           all(map_int(ranked_copy$markers,
+                       # hence the boundary should be the number of satisfactory genes selected
+                       ~ .x %>% unnest(stat_df) %>% nrow()) > 0)) {
+      
+      cat("step_a: ", ranked_copy$level, "\n")
+      
+      contrast_pair_tb <-
+        
+        # contrast_PW_L1 contains all the statistics of all cell_type contrasts for each gene
+        ranked_copy %>%
+        
+        # select top 1 markers from each contrast, ignore the signature output
+        naive_selection(.k=1, .symbol=!!.symbol) %>%
+        
+        # pick the one new challenger from each contrast
+        select(-c(markers, signature, real_size)) %>%
+        unnest(children) %>%
+        unnest(enriched) %>%
+        dplyr::rename(new_challenger = !!.symbol) %>%
+        
+        # append the new challenger from each contrast to the base markers for that ancestor node
+        mutate(challengers_for_silhouette = map2(
+          new_challenger, ancestor,
+          ~ with(signature, signature[ancestor==.y][[1]]) %>%
+            append(.x)
+        )) %>%
+        
+        # calculate silhouette score for the challengers from each contrast
+        mutate(silhouette = map2_dbl(
+          challengers_for_silhouette, ancestor,
+          ~ silhouette_for_markers(.ranked=.ranked, .sample=!!.sample, .symbol=!!.symbol,
+                                   .signature=.x, .ancestor=.y, 
+                                   .reduction_method=.reduction_method, .dims=.dims) %>%
+            pull(silhouette)
+        )) %>%
+        
+        # arrange silhouette score in a descending manner within each ancestor node
+        group_by(ancestor) %>%
+        arrange(desc(silhouette), .by_group = TRUE) %>%
+        ungroup() %>%
+        
+        # check if the silhouette score for the challengers is greater than previous silhouette score
+        mutate(is_greater = map2_lgl(
+          silhouette, ancestor,
+          ~ if(.x > with(signature, last_silhouette[ancestor==.y])){TRUE}else{FALSE}
+        )) %>%
+        
+        # nest under ancestor node to select markers that is TRUE for is_greater
+        nest(data = - c(level, ancestor)) %>%
+        
+        # record new_challengers
+        mutate(new_challengers = map(data, ~ .x %>% pull(new_challenger))) %>%
+        
+        # check if the biggest silhouette score is greater than previous score, if true we have a winner, else no winner
+        mutate(winner = map(data, ~ if(.x[1, ]$is_greater){
+          .x[1, ]$new_challenger
+        } else {NA}
+        )) %>%
+        
+        # record which contrast the winner comes from
+        mutate(children = map(data, ~ if(.x[1, ]$is_greater){
+          .x[1, ] %>%
+            select(contrast, !!.symbol := new_challenger, rank) %>%
+            nest(enriched = -contrast)
+        } else {NA}
+        )) %>%
+        
+        
+        # cummulative signature: winner + previously selected
+        mutate(signature = pmap(
+          list(data, winner, ancestor),
+          ~ if(!is.na(..2)) {
+            with(..1[1, ], challengers_for_silhouette[[1]])
+          } else {
+            with(signature, signature[ancestor==..3][[1]])
+          }
+        )) %>%
+        
+        # silhouette score
+        mutate(silhouette = map_dbl(data, ~ .x[[1, "silhouette"]]))
+      
+      cat("step_b: ", ranked_copy$level, "\n")
+      
+      
+      # append the base + 1 markers that result in highest silhouette score
+      signature <- signature %>%
+        
+        mutate(signature = map(
+          ancestor,
+          ~ with(contrast_pair_tb, signature[ancestor==.x][[1]])
+        )) %>%
+        
+        mutate(last_silhouette = map2_dbl(
+          ancestor, last_silhouette,
+          ~ if(!is.na(with(contrast_pair_tb, winner[ancestor==.x]))) {
+            with(contrast_pair_tb, silhouette[ancestor==.x])
+          } else {.y}
+        ))
+      
+      cat("step_c: ", ranked_copy$level, "\n")
+      
+      # append the winning signatures into the output summary table
+      summary_tb <- summary_tb %>%
+        bind_rows(
+          contrast_pair_tb %>%
+            filter(!is.na(winner)) %>%
+            # mutate(reduced_dimensions = map(data, ~ .x$reduced_dimensions[[1]])) %>%
+            select(-data)
+        )
+      
+      cat("step_d: ", ranked_copy$level, "\n")
+      
+      # remove the signatures and unsuccessful genes from the selection list(ranked_copy)
+      ranked_copy <- ranked_copy %>%
+        mutate(markers = map2(
+          markers, ancestor,
+          ~ if(is.na(with(contrast_pair_tb, winner[ancestor==.y]))){
+            .x %>%
+              unnest(stat_df) %>%
+              filter(!(!!.symbol %in% with(contrast_pair_tb, new_challengers[ancestor==.y][[1]]))) %>%
+              nest(stat_df = -contrast)
+          } else {
+            .x %>%
+              unnest(stat_df) %>%
+              filter(!!.symbol != with(contrast_pair_tb, winner[ancestor==.y][[1]])) %>%
+              nest(stat_df = -contrast)
+          }
+        ))
+      
+      cat("step_e: ", ranked_copy$level, "\n")
+      
+      # number of genes discarded for each node
+      j <- j +
+        
+        # unsuccessful candidates
+        map_int(contrast_pair_tb$new_challengers, ~length(.x)) *
+        is.na(contrast_pair_tb$winner) +
+        
+        # winning candidates
+        map_int(contrast_pair_tb$winner, ~length(.x)) *
+        !is.na(contrast_pair_tb$winner)
+      
+      cat("genes discarded for each node: ", j, "\n")
+      cat("genes selected for each node: ", map_int(signature$signature, ~ length(.x)),  "\n")
+      
+      cat("step_f: ", ranked_copy$level, "\n")
+      
+      i <- i + 1L
+      cat("iteration: ", i, "\n")
+      
+      cat("step_g: ", ranked_copy$level, "\n")
+      
+    }
+    
+    # format output for optimisation
+    # output <- summary_tb %>%
+    #   mutate(real_size = map_int(signature, ~ length(.x))) %>%
+    #   nest(data = - c(level, ancestor))
+    
+    return(ranked_copy)
+  }
+
+packages <- c("library(yaml)", "library(tidytext)",
+"library(data.tree)",
+"library(tidytree)",
+"library(ape)",
+"library(glue)",
+"library(rlang)",
+"library(factoextra)",
+"library(stringr)",
+"library(scales)",
+"library(KernSmooth)",
+"library(splus2R)",
+"library(data.tree)",
+"library(cluster)",
+"library(tidyverse)",
+"library(tidybulk)",
+"library(cellsig)",
+"library(patchwork)",
+"library(tidySummarizedExperiment)",
+"library(networkD3)",
+"library(htmlwidgets)",
+"library(webshot)",
+"library(kableExtra)",
+"library(shiny)",
+"library(shinyjs)",
+"library(DT)",
+"library(plotly)")
+
+packages %>% 
+  str_extract("(?<=\\().*(?=\\))") %>% 
+  unique() %>% 
+  str_sort()
+
+org <- data.frame(
+  Manager = c(
+    NA, "Ana", "Ana", "Bill", "Bill", "Bill", "Claudette", "Claudette", "Danny",
+    "Fred", "Fred", "Grace", "Larry", "Larry", "Nicholas", "Nicholas"
+  ),
+  Employee = c(
+    "Ana", "Bill", "Larry", "Claudette", "Danny", "Erika", "Fred", "Grace",
+    "Henri", "Ida", "Joaquin", "Kate", "Mindy", "Nicholas", "Odette", "Peter"
+  ),
+  Title = c(
+    "President", "VP Operations", "VP Finance", "Director", "Director", "Scientist",
+    "Manager", "Manager", "Jr Scientist", "Operator", "Operator", "Associate",
+    "Analyst", "Director", "Accountant", "Accountant"
+  )
+)
+
+cellsig::tree
+
+
+new_tree <- read_yaml("dev/jian_R_files/new_tree.yaml") %>% as.Node
+
+tally <- expression %>% 
+  mutate(across(where(is.factor), as.character)) %>% 
+  group_by(level, cell_type2) %>% 
+  summarise(n_sample = n_distinct(sample), n_study = n_distinct(database), .groups = "drop") %>% 
+  drop_na() %>% 
+  distinct()
+
+new_tree %>% 
+  ToDataFrameNetwork() %>%
+  left_join(tally, by = c("to" = "cell_type2")) %>%
+  # create the root node
+  rbind(c(from=NA, to="Tissue", level="level_0", n_sample=1053L, n_study=41L), .) %>%
+  # rename level because it's a reserved name for collapseTreeNetwork
+  rename(levels = level) %>% 
+  mutate(across(starts_with("n_"), as.integer)) %>% 
+  mutate(color = colorspace::rainbow_hcl(41)) %>% 
+  mutate(tooltip = paste0(to, "<br>",
+                          levels,
+                          "<br>n_sample: ", n_sample,
+                          "<br>n_study: ", n_study)
+         ) %>% 
+  collapsibleTreeNetwork(attribute = "n_sample", 
+                         aggFun = identity,
+                         nodeSize = "n_sample",
+                         fill = "color",
+                         tooltipHtml = "tooltip",
+                         collapsed=TRUE)
+
+
+job::job({saveRDS(pca_df, "dev/intermediate_data/pca_df.rds", compress = "xz")})
+
+# check object size
+object.size(pca_with_counts )
+
+object.size(pca_with_counts ) %>% `/` (1e6)
+
+object.size(pca_with_counts_se)
+
+object.size(pca_with_counts_se) %>% `/` (1e6)
+
+expression <-
+  # counts_imputed %>%
+  readRDS("/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/intermediate_data/counts_imputed.rds") %>%
+  rename(symbol = feature) %>%
+  pivot_longer(contains("level"), names_to = "level", values_to="cell_type2")
+
+x = expression %>%
+  select(symbol, sample, count_scaled, cell_type, level, cell_type2) %>%
+  mutate(count_scaled = as.integer(count_scaled)) %>%
+  # tidybulk(sample, symbol, count_scaled) %>%
+  tidybulk::as_SummarizedExperiment(sample, symbol, count_scaled)
+
+expression %>% 
+  assay()
+
+input_address = "/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig"
+
+sprintf("%s/output.txt:\n\tRscript %s/test.R %s/output.R", input_address, input_address, input_address) %>% cat()
+  prepend("CATEGORY=yes_no_hierarchy\nMEMORY=80000\nCORES=2\nWALL_TIME=172800") %>% 
+  write_lines(glue("{input_address}makeflow.makeflow"))
+  
+  
+path = "/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/jian_R_files/error_files/"
+sprintf("%s:\n\tRscript %screate_input.R %s", path, path, path) %>% 
+  prepend("CATEGORY=yes_no_hierarchy\nMEMORY=1000\nCORES=1\nWALL_TIME=200") %>% 
+  write_lines(glue("{path}test.makeflow"))
+
+raw_counts_kam %>%
+  
+  adapt_tree(.tree = kamran_tree, .node = NULL) %>%
+  
+  tree_and_signatures_to_database(tree=kamran_tree, ., .sample=sample, .cell_type=cell_type,
+                                  .symbol=symbol, .count=count) %>% 
+  
+  # Remove redundant samples
+  remove_redundancy(.element=sample, .feature=symbol, .abundance=count, 
+                    correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+  droplevels() %>% 
+  
+  # Eliminate suspicious samples
+  filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>%
+  
+  do_scaling(.sample = sample, .symbol= symbol , .count= count, .cell_type=cell_type) %>% 
+  
+  saveRDS("dev/intermediate_data/counts_scaled_kamran.rds", compress = "xz")
+
+counts_imputed_kamran <- counts_scaled_kamran %>% 
+  
+  do_imputation(.sample = .sample, .symbol = .feature, .count = count, .cell_type = cell_type) %>% 
+  
+  saveRDS("dev/intermediate_data/counts_imputed_kamran.rds", compress = "xz")
+
+counts_hierarchy_kamran <- counts_imputed_kamran %>% 
+  dplyr::rename(symbol = .feature, sample = .sample) %>% 
+  do_hierarchy(.sample=sample,
+               .symbol=symbol,
+               .cell_type = cell_type,
+               .tree = kamran_tree,
+               .is_hierarchy=TRUE)
+
+counts_ranked_kamran <- counts_hierarchy_kamran %>% 
+  do_ranking(.sample=sample, 
+             .symbol=symbol,
+             .cell_type = cell_type,
+             .ranking_method=rank_edgR_quasi_likelihood, 
+             .contrast_method=pairwise_contrast, 
+             .rank_stat="PValue", 
+             .tree = kamran_tree)
+
+
+de_kamran <- counts_hierarchy_kamran %>%
+  unnest(tt) %>%
+  
+  # Differential transcription: generate contrast
+  mutate(markers = map2(
+    data, level,
+    ~ .x %>%
+      test_differential_abundance(
+        .formula = as.formula(sprintf("~ 0 + %s", .y)),
+        .sample = sample,
+        .transcript = symbol,
+        .abundance = count_scaled,
+        .contrasts = pairwise_contrast(.x, .y),
+        method = "edger_robust_likelihood_ratio",
+        test_above_log2_fold_change = 1,
+        action="only")
+  ))
+ 
+
+de_kamran %>% 
+  slice_tail(n=2) %>% 
+  saveRDS("dev/intermediate_data/kamran_memory_de.rds", compress = "xz")
+
+x <- kamran_memory_de %>% 
+  mutate(markers = map(
+    markers,
+    ~ rank_by_stat(.x, "PValue")
+  ))
+  
+de_jian %>% 
+  mutate(markers = map(
+    markers,
+    ~ rank_by_stat(.x, "PValue")
+  ))
+  
+counts_imputed_kamran %>% 
+  as_tibble() %>% 
+  group_by(cell_type) %>% 
+  summarise(n_sample = n_distinct(.sample), 
+            n_gene = n_distinct(.feature),
+            .groups = "drop") %>% 
+  saveRDS("dev/intermediate_data/n_sample_after_imputation_kamran.rds", compress = "xz")
+
+counts_imputed %>% 
+  group_by(cell_type) %>% 
+  summarise(n_sample = n_distinct(sample), 
+            n_gene = n_distinct(feature),
+            .groups = "drop") %>% 
+  saveRDS("dev/intermediate_data/n_sample_after_imputation_jian.rds", compress = "xz")
+
+n_sample_after_imputation_kamran$cell_type %>% 
+  .[!n_sample_after_imputation_kamran$cell_type %in% n_sample_after_imputation_jian$cell_type]
+
+n_sample_after_imputation_jian %>% 
+  left_join(n_sample_after_imputation_kamran, by = "cell_type", suffix = c(".jian", ".kamran")) %>% 
+  drop_na() %>% 
+  print(n=37)
+
+
+de_jian <- counts_imputed_hierarchy %>%
+  unnest(tt) %>%
+  slice(13, 15) %>% 
+  # Differential transcription: generate contrast
+  mutate(markers = map2(
+    data, level,
+    ~ .x %>%
+      test_differential_abundance(
+        .formula = as.formula(sprintf("~ 0 + %s", .y)),
+        .sample = sample,
+        .transcript = symbol,
+        .abundance = count_scaled,
+        .contrasts = pairwise_contrast(.x, .y),
+        method = "edger_robust_likelihood_ratio",
+        test_above_log2_fold_change = 1,
+        action="only")
+  ))
+
+
+de_jian %>% 
+  pluck("markers", 1) %>% 
+  pivot_longer(contains("___"), 
+               names_to = c("stats", "contrast"), 
+               values_to = ".value", 
+               names_sep = "___") %>% 
+  nest(stat_df = - contrast) %>% 
+  mutate(stat_df = map(stat_df, ~.x %>%
+                         pivot_wider(names_from = stats, values_from = ".value" )
+                       ))
+
+de_jian %>% 
+  pluck("markers", 2) %>% 
+  pivot_longer(contains("___"), 
+               names_to = c("stats", "contrast"), 
+               values_to = ".value", 
+               names_sep = "___") %>% 
+  nest(stat_df = - contrast) %>% 
+  mutate(stat_df = map(stat_df, ~.x %>%
+                         pivot_wider(names_from = stats, values_from = ".value" )
+  )) %>% 
+  pluck("stat_df", 1) %>% 
+  arrange(FDR)
+
+
+x = kamran_memory_de %>% 
+  # pluck("markers", 1) %>% 
+  mutate(markers = map(
+    markers,
+    ~ .x %>% 
+      pivot_longer(
+        cols = contains("___"),
+        names_to = c("stats", "contrast"),
+        values_to = ".value",
+        names_sep="___"
+      ) %>%
+      # Markers selection within each pair of contrast
+      nest(stat_df = -contrast) %>%
+      # Reshape inside each contrast
+      mutate(stat_df = map(stat_df, ~.x %>% pivot_wider(names_from = stats, values_from = .value)))
+  ))
+
+
+x %>% 
+  pluck("markers", 2) %>% 
+  pluck("stat_df", 1) %>% 
+  filter(FDR < 0.05 & logFC > 2) %>%
+  filter(logCPM > mean(logCPM))
+
+
+x <- counts_scaled_kamran %>% 
+  
+  do_imputation()
+  
+  # Convert to SE
+  # as_SummarizedExperiment(.sample, .feature, count) %>%
+  as_SummarizedExperiment(.sample, .feature, .abundance = c(count, count_scaled)) %>%
+  
+  # Hierarchical imputation. Suffix = "" equated to overwrite counts
+  impute_missing_abundance(.formula = ~ cell_type,
+                           .abundance = c(count, count_scaled))
+
+max_level <- x@colData %>% colnames() %>% str_subset("level\\_\\d") %>% str_sub(-1L) %>% max()
+
+impute_abundance_by_level <- function(.scaled_counts, .max_level){
+  
+  if (.max_level == "level_1") {
+    return(
+      .scaled_counts %>% 
+        impute_missing_abundance(.formula = ~ level_1,
+                                 .abundance = c(count, count_scaled))
+    )
+  }else{
+    .scaled_counts %>% 
+      impute_missing_abundance(.formula = as.formula(sprintf("~ %s", .max_level)),
+                               .abundance = c(count, count_scaled)) %>% 
+      impute_abundance_by_level(
+        .max_level = .max_level %>% str_sub(-1L) %>% as.integer %>% {(.)-1} %>% paste("level", ., sep = "_")
+      )
+  }
+  
+}
+
+
+  
+  # AUTOMATE THIS!
+  impute_missing_abundance(~ level_5, .abundance = c(!!.count, count_scaled)) %>%
+  impute_missing_abundance(~ level_4, .abundance = c(!!.count, count_scaled)) %>%
+  impute_missing_abundance(~ level_3, .abundance = c(!!.count, count_scaled)) %>%
+  impute_missing_abundance(~ level_2, .abundance = c(!!.count, count_scaled)) %>%
+  impute_missing_abundance(~ level_1, .abundance = c(!!.count, count_scaled)) %>% 
+  
+  # {
+  #   for (level in (.)@colData %>% colnames() %>% str_subset("level\\_\\d") %>% sort(decreasing = TRUE)) {
+  #     (.) <- (.) %>% 
+  #       impute_missing_abundance(~ !!as.symbol(level), .abundance = c(!!.count, count_scaled))
+  #   }
+  #   
+  # } %>% 
+  
+  # Convert back to tibble
+  as_tibble() %>%
+  
+  mutate(.imputed = if_any(contains("imputed"), ~ .x != 0)) %>% 
+  
+  select(-matches("imputed\\.\\d"))
+  
+
+# talk to Stefano about this new calculation of imputation ratio
+create_hierarchy_and_calculate_imputation_ratio <- function(.imputed_counts, .level, .sample, .symbol) {
+    # this preproces function ranged data in hierarchy(or non_hierarchy) and
+    # calculates the imputation ratio for genes in each hierarchy
+    .sample = enquo(.sample)
+    .symbol = enquo(.symbol)
+    
+    
+    # load data
+    .imputed_counts %>%
+      
+      # tidybulk(sample, symbol, count_scaled) %>% for imputed counts data
+      # tidybulk(.sample = !!.sample, .transcript = !!.symbol, .abundance = !!.count) %>%
+      
+      # filter for cells at the level of interest. .level == level_1
+      filter(!is.na(!!as.symbol(.level))) %>%
+      
+      # calculate the ratio of imputation for genes in a cell type
+      nest(data = -c(!!.symbol, !!as.symbol(.level))) %>%
+      
+      # for a cell type some samples may miss genes in other samples: so for the same cell type genes may have different number of samples
+      mutate(n_imputed_samples_per_gene = map_int(
+        data,
+        ~ with(.x, !!.sample[.imputed]) %>% 
+          n_distinct
+        )) %>%
+      
+      unnest(data) %>%
+      nest(data = -!!as.symbol(.level)) %>%
+      
+      mutate(n_samples= map_int(
+        data,
+        ~ .x$!!.sample %>%
+          n_distinct
+      )) %>%
+      
+      unnest(data) %>%
+      
+      mutate(ratio_imputed_samples = n_imputed_samples_per_gene / n_samples) %>%
+      
+      # nest by ancestor
+      nest(data = - !!as.symbol(pre(.level)))
+    
+  }
+  
+
+source("dev/jian_R_files//function_jian.R")
+new_tree <- read_yaml("dev/jian_R_files/new_tree.yaml") %>% as.Node
+readRDS("dev/raw_data/counts.rds") %>% 
+  main(.sample = sample, .symbol = symbol, .count = count, .cell_type = cell_type,
+       .is_hierarchy=TRUE,
+       .tree = new_tree,
+       .contrast_method = pairwise_contrast, .ranking_method = rank_edgR_quasi_likelihood, .rank_stat="PValue",
+       .selection_method = "silhouette", .reduction_method = "PCA", .dims=4, .discard_number = 1000,
+       .optimisation_method = "penalty",
+       .is_complete = TRUE) %>% 
+  
+  saveRDS("dev/intermediate_data/cellsignature_jian_test.rds", compress = "xz")
+
+path <- "/stornext/Home/data/allstaff/w/wu.j/Master_Project/cellsig/dev/error_files/"
+tibble(
+  command = "Rscript",
+  filename = paste0(path, "pipeline_check.R")
+  ) %>% 
+  mutate(header = "pipeline_check:") %>% 
+  unite(full_command, c(-header), sep = " ", remove=FALSE) %>% 
+  # mutate(full_command = sprintf("%s\n\t%s", header, full_command)) %>% 
+  pull(full_command) %>% 
+  prepend(c("CATEGORY=yes_no_hierarchy\nMEMORY=10000\nCORES=2\nWALL_TIME=86400")) %>% 
+  write("dev/error_files/jian_test.makeflow")
+  
+
+counts_hierarchy %>%
+  # .bayes = .cellsig_theoretical_transcript_abundace_distribution
+  rank_bayes(.sample=sample,
+             .symbol=symbol,
+             .cell_type =cell_type,
+             .contrast_method=mean_contrast,
+             .rank_stat=NULL,
+             .bayes=counts_bayes_imputed_hierarchy,
+             .tree =kamran_tree)
