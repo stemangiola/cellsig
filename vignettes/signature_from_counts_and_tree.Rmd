@@ -15,18 +15,21 @@ knitr::opts_chunk$set(
   comment = "#>"
 )
 
-get_markers_from_transcription_abundance_quantiles <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
+markers_from_transcription_abundance_quantiles <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
+                                                               
+                                                               quantile_dataset,
                                                                .lower_quantile, 
                                                                .upper_quantile, 
-                                                               .tree,
-                                                               .is_hierarchy = TRUE,
-                                                               .contrast_method = pairwise_contrast, 
-                                                               .selection_method = "silhouette", 
-                                                               .reduction_method = "PCA", 
-                                                               .dims= 4, 
-                                                               .discard_number = 1000,
-                                                               .optimisation_method = "penalty",
-                                                               .is_complete = TRUE) {
+                                                              
+                                                               tree,
+                                                               is_hierarchy = TRUE,
+                                                               contrast_method = pairwise_contrast, 
+                                                               selection_method = "silhouette", 
+                                                               reduction_method = "PCA", 
+                                                               dims= 4, 
+                                                               discard_number = 1000,
+                                                               optimisation_method = "penalty",
+                                                               is_complete = TRUE) {
   
   
   .sample = enquo(.sample)
@@ -34,23 +37,20 @@ get_markers_from_transcription_abundance_quantiles <- function(.input, .sample, 
   .count = enquo(.count)
   .cell_type = enquo(.cell_type)
   
-  bayes_quantile = .input %>%
-    select(colnames(bayes)) %>% distinct() %>%
-    dplyr::rename(sample = sample_bayes, lower_quantile = as.name(.lower_quantile), upper_quantile = as.name(.upper_quantile))
+  bayes_quantile = quantile_dataset %>%
+    dplyr::rename(lower_quantile = as.name(.lower_quantile), upper_quantile = as.name(.upper_quantile))
   
 
-  .input %>% 
-    
-    select(sample, count, cell_type, symbol) %>% drop_na() %>%
+  .input %>%
     
     main(.sample = !!.sample, .symbol = !!.symbol, .count = !!.count, .cell_type = !!.cell_type,
-       .is_hierarchy = FALSE, 
-       .tree = .tree,
-       .contrast_method = .contrast_method, .ranking_method = rank_bayes, .bayes= bayes_quantile,
-       .selection_method = .selection_method, .reduction_method = .reduction_method, 
-       .dims= !!.dims, .discard_number = .discard_number,
-       .optimisation_method = .optimisation_method,
-       .is_complete = .is_complete)
+       .is_hierarchy = is_hierarchy, 
+       .tree = tree,
+       .contrast_method = contrast_method, .ranking_method = rank_bayes, .bayes= bayes_quantile,
+       .selection_method = selection_method, .reduction_method = reduction_method, 
+       .dims= dims, .discard_number = discard_number,
+       .optimisation_method = optimisation_method,
+       .is_complete = is_complete)
   
 }
 
@@ -76,14 +76,14 @@ tree = yaml.load_file(here("dev/jian_R_files/test_tree.yaml")) %>%
   as.Node
 
 # Load the bayes count file
-bayes = readRDS(here("dev/jian_R_files/test_count_bayes.rds"))  %>%
+bayes_quantiles = readRDS(here("dev/jian_R_files/test_count_bayes.rds"))  %>%
 
   # renaming column to standard naming
   dplyr::rename(symbol = .feature) %>%
   
   # adding sample column
   mutate(id = "sample", sample = cell_type) %>%
-  unite(sample_bayes, id, sample, sep = "_")
+  unite(sample, id, sample, sep = "_")
 
 ```
 
@@ -97,22 +97,30 @@ bayes = readRDS(here("dev/jian_R_files/test_count_bayes.rds"))  %>%
 marker_genes = 
   
   count %>%
-  full_join(bayes, by = c("cell_type", "symbol")) %>%
   
-  get_markers_from_transcription_abundance_quantiles(
-    .sample = sample, .symbol = symbol, .count= count,
+  markers_from_transcription_abundance_quantiles(
+    
+    
+    .sample = sample, 
+    .symbol = symbol, 
+    .count= count,
     .cell_type = cell_type,
+    
+    
+    quantile_dataset = bayes_quantiles,
     .lower_quantile = "10%",
     .upper_quantile = "90%",
-    .tree = tree,
-    .is_hierarchy = FALSE,
-    .contrast_method = pairwise_contrast,
-    .selection_method = "silhouette", 
-    .reduction_method = "PCA", 
-    .dims=2, 
-    .discard_number = 10,
-    .optimisation_method = "penalty",
-    .is_complete = TRUE
+    
+    
+    tree = tree,
+    is_hierarchy = FALSE,
+    contrast_method = pairwise_contrast,
+    selection_method = "silhouette", 
+    reduction_method = "PCA", 
+    dims=2, 
+    discard_number = 10,
+    optimisation_method = "penalty",
+    is_complete = TRUE
   )
 
 
