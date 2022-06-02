@@ -48,7 +48,7 @@ GSE115103_Th22 <- GSE115103_raw_counts_txt %>%
   pivot_longer(cols=-c(ensembl, symbol), names_to="sample", values_to="count") %>% 
   nest(data=-sample) %>% 
   unnest(data) %>% 
-  mutate(dataset="GSE115103", cell_type="t_helpe", level=4,
+  mutate(dataset="GSE115103", cell_type="t_helper", level=4,
          note="CD4+ Th22 cells sorted from PBMC")
 
 GSE115103_new <- bind_rows(GSE115103_Th1_17, GSE115103_Th22)
