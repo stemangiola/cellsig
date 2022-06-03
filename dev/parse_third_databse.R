@@ -114,21 +114,21 @@ GSE164643_moDC_immature <- GSE164643_Raw_counts_moDC_all_samples_txt %>%
   mutate(dataset = "GSE164643", cell_type = "dendritic_myeloid_immature", level=4,
          note="monocyte-derived DCs derived from blood CD14+ monocytes cultured for 6d with GM-CSF IL-4")
 
-GSE164643_moDC_mature <- GSE164643_Raw_counts_moDC_all_samples_txt %>% 
-  select(symbol = GENE_ID, GSM5016233 = B1, GSM5016234=D1stA, GSM5016235=D2stA, GSM5016236=D3stA,
-         GSM5016237=D6stA, GSM5016238=E2, GSM5016239=C1, GSM5016240=D1stB, GSM5016241=D2stB,
-         GSM5016242=D3stB, GSM5016243=D6stB, GSM5016244=F2, GSM5016245=D1, GSM5016246=D1stD,
-         GSM5016247=D2stD, GSM5016248=D3stD, GSM5016249=D6stD, GSM5016250=G2, GSM5016251=D1stF,
-         GSM5016252=D2stF, GSM5016253=D3stF, GSM5016254=D6stF, GSM5016255=E1, GSM5016256=H2,
-         GSM5016257=B3, GSM5016258=D1stG, GSM5016259=D2stG, GSM5016260=D3stG, GSM5016261=D6stG,
-         GSM5016262=F1, GSM5016263=C3, GSM5016264=D1stH, GSM5016265=D2stH, GSM5016266=D3stH,
-         GSM5016267=D6stH, GSM5016268=G1, GSM5016269=D1stJ, GSM5016270=D2stJ, GSM5016271=D3,
-         GSM5016272=D3stJ, GSM5016273=D6stJ, GSM5016274=H1, GSM5016275=A2, GSM5016276=A3, 
-         GSM5016277=D1stK, GSM5016278=D2stK, GSM5016279=D3stK, GSM5016280=D6stK, GSM5016281=B2,
-         GSM5016282=D1stL, GSM5016283=D2stL, GSM5016284=D3stL, GSM5016285=D4stL, GSM5016286=D6stL) %>% 
-  pivot_longer(-symbol, names_to = "sample", values_to = "count") %>% 
-  mutate(dataset = "GSE164643", cell_type = "dendritic_myeloid_mature", level=4,
-         note="monocyte-derived DCs activated by various strains of B.pertussis for 3hrs")
+#GSE164643_moDC_mature <- GSE164643_Raw_counts_moDC_all_samples_txt %>% 
+#  select(symbol = GENE_ID, GSM5016233 = B1, GSM5016234=D1stA, GSM5016235=D2stA, GSM5016236=D3stA,
+#         GSM5016237=D6stA, GSM5016238=E2, GSM5016239=C1, GSM5016240=D1stB, GSM5016241=D2stB,
+#         GSM5016242=D3stB, GSM5016243=D6stB, GSM5016244=F2, GSM5016245=D1, GSM5016246=D1stD,
+#         GSM5016247=D2stD, GSM5016248=D3stD, GSM5016249=D6stD, GSM5016250=G2, GSM5016251=D1stF,
+#         GSM5016252=D2stF, GSM5016253=D3stF, GSM5016254=D6stF, GSM5016255=E1, GSM5016256=H2,
+#         GSM5016257=B3, GSM5016258=D1stG, GSM5016259=D2stG, GSM5016260=D3stG, GSM5016261=D6stG,
+#         GSM5016262=F1, GSM5016263=C3, GSM5016264=D1stH, GSM5016265=D2stH, GSM5016266=D3stH,
+#         GSM5016267=D6stH, GSM5016268=G1, GSM5016269=D1stJ, GSM5016270=D2stJ, GSM5016271=D3,
+#         GSM5016272=D3stJ, GSM5016273=D6stJ, GSM5016274=H1, GSM5016275=A2, GSM5016276=A3, 
+#         GSM5016277=D1stK, GSM5016278=D2stK, GSM5016279=D3stK, GSM5016280=D6stK, GSM5016281=B2,
+#         GSM5016282=D1stL, GSM5016283=D2stL, GSM5016284=D3stL, GSM5016285=D4stL, GSM5016286=D6stL) %>% 
+#  pivot_longer(-symbol, names_to = "sample", values_to = "count") %>% 
+#  mutate(dataset = "GSE164643", cell_type = "dendritic_myeloid_mature", level=4,
+#         note="monocyte-derived DCs activated by various strains of B.pertussis for 3hrs")
 
 GSE164643 <- bind_rows(GSE164643_moDC_immature, GSE164643_moDC_mature)
 
