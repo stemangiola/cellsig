@@ -207,6 +207,8 @@ library(tidybulk)
 # 
 # GSE107011_CD8_naive <- GSE107011_data %>% 
 #   select(ensembl, symbol, GSM2859411=RHH5201, GSM2859439=RHH5229, GSM2859468=RHH5258, GSM2859497=RHH5287) %>% 
+
+
 #   pivot_longer(cols = -c(ensembl, symbol), names_to="sample", values_to="count") %>% 
 #   mutate(dataset="GSE107011", cell_type="t_CD8", level=3,
 #          note="t_CD8_naive cell from PBMC of healthy individual")
