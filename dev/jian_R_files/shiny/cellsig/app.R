@@ -13,9 +13,9 @@ library(tidyverse)
 library(tidybulk)
 library(ggplot2)
 library(plotly)
-
-load("/stornext/Home/data/allstaff/w/wu.j/Master Project/cellsig/dev/raw_data/counts.rda")
-
+library(here)
+#load("/stornext/Home/data/allstaff/w/wu.j/Master Project/cellsig/dev/raw_data/counts.rda")
+counts = readRDS(here("dev/counts.rds")) %>% rename(symbol = .feature)
 # Functions
 
 format_name <- function(.method) {
