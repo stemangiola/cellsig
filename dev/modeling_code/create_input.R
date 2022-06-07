@@ -42,25 +42,6 @@ local_dir = "~/PostDoc/cellsig"
 
 dir.create(file.path(local_dir, directory_out), showWarnings = FALSE)
 
-# # Save files
-# create_partition_files = function(.data, .level, .partitions = 30){
-#   .data %>%
-#     nest(data = -c(.feature)) %>%
-#     
-#     # For testing
-#     #sample_frac(0.01) %>%
-#     mutate(partition = sample(1:.partitions, size = n(), replace = T)) %>%
-#     unnest(data) %>%
-#     nest(data = -partition) %>%
-#     mutate(saved = map2_lgl(
-#       data, partition,
-#       ~ {
-#         .x %>% saveRDS(glue("{local_dir}/{directory_out}/level_%s_patition_%s_input.rds", local_dir, .level, .y))
-#         TRUE
-#       }
-#     ))
-# }
-
 # Read counts
 readRDS(file_in) %>%
   select(-cell_type) %>%
@@ -103,7 +84,7 @@ readRDS(file_in) %>%
 
 cores = 15
 
-# Create input
+# Create makefile
 sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s", cores) %>%
   
   c(
@@ -125,4 +106,3 @@ sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s", cores) %>%
   ) %>%
   write_lines(glue("{local_dir}/{directory_out}/run_model.makeflow")) 
 
-source("dev/modeling_code/create_makefile.R")
