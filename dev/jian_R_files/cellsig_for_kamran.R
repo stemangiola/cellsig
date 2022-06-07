@@ -22,6 +22,7 @@ library(tidybulk)
 library(cellsig)
 library(patchwork)
 library(tidySummarizedExperiment)
+library(treemap)
 
 # Load functions ====================================================
 

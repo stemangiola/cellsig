@@ -21,8 +21,7 @@ markers_from_transcription_abundance_quantiles <- function(.input, .sample, .sym
                                                                lower_quantile, 
                                                                upper_quantile, 
                                                               
-                                                               tree,
-                                                               is_hierarchy = TRUE,
+                                                               tree = NULL,
                                                                contrast_method = pairwise_contrast, 
                                                                selection_method = "silhouette", 
                                                                reduction_method = "PCA", 
@@ -36,6 +35,26 @@ markers_from_transcription_abundance_quantiles <- function(.input, .sample, .sym
   .symbol = enquo(.symbol)
   .count = enquo(.count)
   .cell_type = enquo(.cell_type)
+  
+  
+  if (is.null(tree))
+  {
+  pseudo_tree_from_count_data = .input %>%
+    select(cell_type) %>%
+    unique()
+  
+  pseudo_tree_from_count_data$pathString = paste("Tissue",
+                                                 pseudo_tree_from_count_data$cell_type,
+                                                 sep = "/")
+  tree = as.Node(pseudo_tree_from_count_data)
+  
+  is_hierarchy = FALSE
+  
+  } else {
+  
+  is_hierarchy = TRUE
+  
+  }
   
   .input %>%
     
@@ -55,6 +74,7 @@ markers_from_transcription_abundance_quantiles <- function(.input, .sample, .sym
 
 ```
 
+# Run without tree
 
 ## Prepare the files
 
@@ -70,18 +90,18 @@ source(here("dev/jian_R_files/cellsig_for_kamran.R"), local = knitr::knit_global
 count = readRDS(here("dev/jian_R_files/test_count_data.rds"))
 
 # Load tree
-tree = yaml.load_file(here("dev/jian_R_files/test_tree.yaml")) %>% 
-  as.Node
+#tree = yaml.load_file(here("dev/jian_R_files/test_tree.yaml")) %>% 
+#  as.Node
 
 # Load the bayes count file
 bayes_quantiles = readRDS(here("dev/jian_R_files/test_count_bayes.rds"))  %>%
 
   # renaming column to standard naming
-  dplyr::rename(symbol = .feature) %>%
+  dplyr::rename(symbol = .feature) #%>%
   
   # adding sample column
-  mutate(id = "sample", sample = cell_type) %>%
-  unite(sample, id, sample, sep = "_")
+  #mutate(id = "sample", sample = cell_type)  %>%
+  #unite(sample, id, sample, sep = "_")
 
 ```
 
@@ -110,8 +130,6 @@ marker_genes =
     upper_quantile = "90%",
     
     
-    tree = tree,
-    is_hierarchy = FALSE,
     contrast_method = pairwise_contrast,
     selection_method = "silhouette", 
     reduction_method = "PCA", 
@@ -132,6 +150,8 @@ marker_genes =
 marker_genes
 
 ```
+
+
 
 ## Produce signature using edgeR selection
 
