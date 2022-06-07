@@ -5,6 +5,7 @@ source("https://gist.githubusercontent.com/stemangiola/90a528038b8c52b21f9cfa6bb
 library(tidybulk)
 library(data.tree)
 library(future)
+library(biomaRt)
 plan(multisession, workers=15)
 forget_FANTOM5 = function(){
   
@@ -86,45 +87,51 @@ forget_FANTOM5 = function(){
 get_BLUEPRINT = function(){
   # Parse BLUEPRINT data base
   
+  # blueprint_counts_no_anno = 
+  # foreach(
+  #   my_file = dir(
+  #     path="dev/database/BLUEPRINT_db/",
+  #     pattern="results",
+  #     full.names=T
+  #   ),
+  #   .combine = bind_rows
+  # ) %dopar% {
+  #   read_delim(
+  #     my_file,
+  #     "\t",
+  #     escape_double = FALSE,
+  #     trim_ws = TRUE
+  #   ) %>%
+  #     mutate(sample = my_file %>% basename())
+  # } %>%
+  #   separate(sample, sep="\\.", sprintf("sample_%s", 1:6), remove=F) %>%
+  #   mutate(sample = sample_1) %>%
+  #   dplyr::select(gene_id, expected_count, sample)
+  # 
+  # blueprint_counts_no_anno %>% saveRDS("dev/database/BLUEPRINT_db/blueprint_counts_no_anno.rds")
+  
   # Select info
   read_csv("dev/database/BLUEPRINT_db/BLUEPRINT__annotation_cell_types.csv") %>%
     
     # Add expression
-    left_join(
-      
-      foreach(
-        my_file = dir(
-          path="dev/database/BLUEPRINT_db/",
-          pattern="results",
-          full.names=T
-        ),
-        .combine = bind_rows
-      ) %dopar% {
-        read_delim(
-          my_file,
-          "\t",
-          escape_double = FALSE,
-          trim_ws = TRUE
-        ) %>%
-          mutate(sample = my_file %>% basename())
-      } %>%
-        separate(sample, sep="\\.", sprintf("sample_%s", 1:6), remove=F) %>%
-        mutate(sample = sample_1) %>%
-        select(gene_id, expected_count, sample)
-      
-    ) %>%
+    left_join( readRDS("dev/database/BLUEPRINT_db/blueprint_counts_no_anno.rds") ) %>%
     
     rename(`count` =  expected_count) %>%
     
     # Attach symbol names
     separate(gene_id, sep="\\.", c("ensembl_gene_id", "isoform"), remove=F) %>%
-    add_symbol_from_ensembl("ensembl_gene_id") %>%
-    rename(symbol = hgnc_symbol) %>%
+    mutate(symbol = AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db,
+                                          keys = ensembl_gene_id,
+                                          keytype = "ENSEMBL",
+                                          column = "SYMBOL",
+                                          multiVals = "first"
+    ) %>% as.character()) %>% 
     distinct %>%
-    mutate(`Data base` = "BLUEPRINT") %>%
-    
-    # NO NK
-    filter(`Cell type formatted` != "natural_killer")
+    mutate(`Data base` = "BLUEPRINT") 
+  # %>%
+  #   
+  #   # NO NK
+  #   filter(`Cell type formatted` != "natural_killer")
   
   
   #AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db, "ENSG00000069712", 'SYMBOL', 'ENSEMBL')
@@ -164,8 +171,12 @@ get_bloodRNA = function(){
     mutate(`Cell type formatted` = `Cell type`) %>%
     
     # Attach symbol names
-    add_symbol_from_ensembl("ensembl_gene_id") %>%
-    rename(symbol = hgnc_symbol) %>%
+    mutate(symbol = AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db,
+                                          keys = ensembl_gene_id,
+                                          keytype = "ENSEMBL",
+                                          column = "SYMBOL",
+                                          multiVals = "first"
+    ) %>% as.character()) %>% 
     distinct %>%
     
     mutate(`Data base` = "bloodRNA")  %>%
@@ -180,8 +191,8 @@ get_ENCODE = function(){
 
   
   read_csv("dev/database/ENCODE/ENCODE__annotation_cell_types.csv") %>%
-    unite("Data base", c(`Cell type`, `Biosample type`), remove = FALSE) %>% 
-    mutate(`Data base` = glue("ENCODE_{`Data base`}")) %>% 
+    # unite("Data base", c(`Cell type`, `Biosample type`), remove = FALSE) %>% 
+    # mutate(`Data base` = glue("ENCODE_{`Data base`}")) %>% 
     
     mutate(data = map(
       sample,
@@ -191,12 +202,12 @@ get_ENCODE = function(){
         escape_double = FALSE,
         trim_ws = TRUE
       ) %>%
-        dplyr:::select(gene_id, expected_count) 
+        dplyr::select(gene_id, expected_count) 
     )) %>% 
     
     unnest(data) %>% 
     {
-      mart <- biomaRt::useEnsembl("ensembl","hsapiens_gene_ensembl", mirror = "useast")
+      mart <- biomaRt::useEnsembl(biomart = "ensembl",dataset =  "hsapiens_gene_ensembl")
       
       samples_with_symbol = c("ENCFF060YNO", "ENCFF677SZA", "ENCFF708ZUJ", "ENCFF255ULI", "ENCFF717WSQ", "ENCFF118GPH", "ENCFF083PYO" ,"ENCFF712VOY" ,"ENCFF094ADI",
                               "ENCFF841AKS", "ENCFF331CDB", "ENCFF263OIE", "ENCFF798GKH" ,"ENCFF491YKJ" ,"ENCFF867RFN", "ENCFF461BKM", "ENCFF929RZY", "ENCFF440CJU",
@@ -218,7 +229,7 @@ get_ENCODE = function(){
                                               keytype = "ENSEMBL",
                                               column = "SYMBOL",
                                               multiVals = "first"
-        )) %>% 
+        ) %>% as.character()) %>% 
         unnest(data)
       
       with_hgnc = 
@@ -233,7 +244,7 @@ get_ENCODE = function(){
           by = "hgnc_id"
         ) %>% 
         rename(symbol = hgnc_symbol) %>% 
-        select(-hgnc_id) %>% 
+        dplyr::select(-hgnc_id) %>% 
         
         unnest(data)
       
@@ -243,7 +254,16 @@ get_ENCODE = function(){
     } %>%
     rename(`count` = expected_count) %>%
     dplyr::select(sample, `Cell type`, `Cell type formatted`, `count`, symbol, ensembl_gene_id) %>%
-    distinct 
+    distinct  %>%
+    
+    # Add database annotation
+    left_join(
+      read_csv("dev/database/ENCODE/encode_sample_experiment_info.csv") %>% 
+        rename(`Data base` = encode_database),
+      by="sample"
+    )
+  
+  
   # %>%
   #   
   #   # NO NK
@@ -298,7 +318,7 @@ get_immune_singapoor = function(){
                                           keytype = "ENSEMBL",
                                           column = "SYMBOL",
                                           multiVals = "first"
-    )) %>% 
+    ) %>% as.character()) %>% 
 
     distinct() %>%
     
@@ -334,13 +354,13 @@ get_influenza_immune = function(){
     rename(count = `read count`) %>%
     separate(sample, c("dummy", "sample"), sep=c("hg38.")) %>%
     separate(sample, c("sample", "dummy"), sep=c("_pass")) %>%
-    select(-dummy) %>%
+    dplyr::select(-dummy) %>%
     inner_join(
       read_csv("dev/database/influenza_immuno_PBMC/annot.csv") %>%
         rename(sample = Run, `Cell type` = `source name`) %>%
         filter(`Cell type` != "PBMC") %>%
         filter(time == "0 d") %>%
-        select(`Cell type`, sample)
+        dplyr::select(`Cell type`, sample)
     ) %>%
     left_join(
       tibble(
@@ -370,7 +390,7 @@ get_immune_skin = function(){
     inner_join(
       read_csv("dev/database/immune_skin/annot.csv") %>%
         rename(sample = Run, `Cell type` = `cell type`) %>%
-        select(`Cell type`, sample)
+        dplyr::select(`Cell type`, sample)
     ) %>%
     left_join(
       tibble(
@@ -407,7 +427,7 @@ get_macro = function(){
   
   
   read_csv("dev/database/macro_PRJNA339309/macrophages_DB_PRJNA339309.csv") %>%
-    select(-contains("Unassigned")) %>%
+    dplyr::select(-contains("Unassigned")) %>%
     rename(symbol = transcript) %>%
     mutate(`Data base` = "PRJNA339309_macrophages")
   
@@ -427,12 +447,12 @@ get_mast_cell = function(){
         read_delim("\t",escape_double = FALSE, col_names = FALSE, trim_ws = TRUE) %>%
         mutate(file = .x)
     ) %>%
-    select(X1, X2, file) %>%
+    dplyr::select(X1, X2, file) %>%
     setNames(c("symbol", "count", "file")) %>%
     filter(!grepl("^N_", symbol)) %>%
     separate(file, c("dummy", "sample"), sep="GSE125887//") %>%
     separate(sample, c("sample", "dummy"), sep="_star_hg19") %>%
-    select(-dummy) %>%
+    dplyr::select(-dummy) %>%
     mutate(methods = !!methods %>% as.factor) %>%
     mutate(`Data base` = "GSE125887") %>%
     mutate(`Cell type formatted` = "mast_cell")
@@ -457,7 +477,7 @@ get_melanocytes = function(){
     filter(!grepl("^N_", symbol)) %>%
     separate(file, c("dummy", "sample"), sep="_cultured/") %>%
     separate(sample, c("sample", "dummy"), sep="_L005") %>%
-    select(-dummy) %>%
+    dplyr::select(-dummy) %>%
     mutate(methods = "cultured from tissue" %>% as.factor) %>%
     mutate(`Data base` = "GSE71747") %>%
     mutate(`Cell type formatted` = "melanocyte") %>%
@@ -465,13 +485,13 @@ get_melanocytes = function(){
     # bind_rows(
     # 	# GSE109245
     # 	read_delim("../melanocyte_GSE109245_RAW//GSM2935823_mcf_quant.sf.txt", "\t", escape_double = FALSE, trim_ws = TRUE) %>%
-    # 		select(Name, NumReads) %>%
+    # 		dplyr::select(Name, NumReads) %>%
     # 		mutate(sample ="GSM2935823") %>%
     # 		annotate_symbol(Name) %>%
     # 		rename(count = NumReads, symbol = transcript) %>%
     # 		ttBulk(sample, symbol, count) %>%
     # 		aggregate_duplicates() %>%
-    # 		select(-`merged transcripts`) %>%
+    # 		dplyr::select(-`merged transcripts`) %>%
   # 		filter(!grepl("^N_", symbol)) %>%
   # 		mutate(methods = "cultured from tissue" %>% as.factor) %>%
   # 		mutate(`Data base` = "GSE109245") %>%
@@ -492,7 +512,7 @@ get_melanocytes = function(){
     
     read_csv("dev/database/melanocyte_GSE138412/melanocyte_GSE138412.csv") %>%
       rename(symbol = transcript) %>%
-      select(entrez ,sample , count , symbol, group) %>%
+      dplyr::select(entrez ,sample , count , symbol, group) %>%
       mutate(methods = "cultured from tissue" %>% as.factor) %>%
       mutate(`Data base` = "GSE138412") %>%
       mutate(`Cell type formatted` = "melanocyte") %>%
@@ -530,7 +550,7 @@ get_monocytes_brain = function(){
     aggregate_duplicates() %>%
     scale_abundance() %>%
     reduce_dimensions(method="MDS") %>%
-    select(contains("Dim"), sample) %>%
+    dplyr::select(contains("Dim"), sample) %>%
     distinct %>%
     ggplot(aes(x = `Dim 1`, y = `Dim 2`)) + geom_point()
   
@@ -617,7 +637,7 @@ all =
 
 
 # Setup table of name conversion
-load("data/tree.rda")
+# load("data/tree.rda")
 
 sample_blacklist = c(
   "666CRI",
@@ -640,7 +660,7 @@ sample_blacklist = c(
 # Get data
 counts_first_db_raw = 
   all %>%
-  select(
+  dplyr::select(
    sample,
    cell_type_original = `Cell type`,
    cell_type = `Cell type formatted`,

@@ -9,19 +9,41 @@ new_tree <- yaml.load_file("dev/jian_R_files/new_tree.yaml") %>%
   as.Node
 
 # Database #1
-counts_first_db_raw = readRDS("dev/raw_data/counts_first_db_raw.rds")
-counts_first_db_raw <- counts_first_db_raw %>% 
-  select(sample, symbol, count, database, cell_type)
+job::job({
+  counts_first_db_raw = 
+    readRDS("dev/counts_first_db_raw.rds") %>% 
+    select(sample, symbol, count, database, cell_type) %>% 
+    filter(count %>% is.na %>% `!`) %>% 
+    aggregate_duplicates(sample, symbol, count)
+})
+
 
 # Database #2
-counts_second_db_raw <- readRDS("dev/raw_data/counts_second_db_raw.rds")
-counts_second_db_raw <- counts_second_db_raw %>% 
-  select(sample, symbol, count, database=dataset, cell_type)
+job::job({
+  counts_second_db_raw <- readRDS("dev/counts_second_db_raw.rds") %>% 
+    select(sample, symbol, count, database=dataset, cell_type) %>% 
+    filter(count %>% is.na %>% `!`) %>% 
+    aggregate_duplicates(sample, symbol, count)
+})
+
 
 # Database #3
-counts_third_db_raw <- readRDS("dev/raw_data/counts_third_db_raw.rds")
-counts_third_db_raw <- counts_third_db_raw %>% 
-  select(sample, symbol, count, database=dataset, cell_type)
+job::job({
+  counts_third_db_raw <- readRDS("dev/counts_third_db_raw.rds") %>% 
+    select(sample, symbol, count, database=dataset, cell_type) %>% 
+    filter(count %>% is.na %>% `!`) %>% 
+    aggregate_duplicates(sample, symbol, count)
+})
+
+
+# Database #4
+job::job({
+  counts_fourth_db_raw <- readRDS("dev/counts_fourth_db_raw.rds") %>% 
+    select(sample, symbol, count, database, cell_type) %>% 
+    filter(count %>% is.na %>% `!`) %>% 
+    aggregate_duplicates(sample, symbol, count)
+})
+
 
 counts =  
   
@@ -29,21 +51,31 @@ counts =
   counts_first_db_raw %>%
   bind_rows(counts_second_db_raw) %>% 
   bind_rows(counts_third_db_raw) %>%
-  select(sample, cell_type, symbol, count, database) 
+  bind_rows(counts_fourth_db_raw) %>%
+  select(sample, cell_type, symbol, count, database) %>% 
+  
+  # Decrease size
+  mutate_if(is.character, as.factor) %>% 
+  mutate_if(is.double, as.integer)
 
-rm(counts_first_db_raw, counts_second_db_raw, counts_third_db_raw)
-saveRDS(counts, "dev/raw_data/counts.rds", compress = "xz")
+rm(counts_first_db_raw, counts_second_db_raw, counts_third_db_raw, counts_fourth_db_raw)
 
-counts %>% 
+job::job({ saveRDS(counts, "dev/counts.rds", compress = "xz") })
+
+# Remove highly redundant samples
+counts_non_redundant = 
+  counts %>% 
+  remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
+  droplevels() 
+
+job::job({ saveRDS(counts_non_redundant, "dev/counts_non_redundant.rds", compress = "xz") })
+
+counts_non_redundant %>% 
   
   adapt_tree(new_tree) %>%
   
   # Parse into hierarchical dataset
   tree_and_signatures_to_database(new_tree, ., sample, cell_type, symbol, count)  %>%
-  
-  # Remove redundant samples
-  remove_redundancy(sample, symbol, count, correlation_threshold = 0.999, top = 500, method = "correlation") %>%
-  droplevels() %>% 
   
   # Eliminate suspicious samples
   filter(!grepl("GSM3722278|GSM3722276|GSM3722277", sample)) %>%
