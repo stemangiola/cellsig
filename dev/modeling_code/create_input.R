@@ -8,8 +8,10 @@ library(magrittr)
 library(tidybulk)
 library(tidySummarizedExperiment)
 library(glue)
+library(cellsig)
+library(yaml)
+library(data.tree)
 
-# library(cellsig)
 # library(future)
 # library("future.batchtools")
 # library(furrr)
@@ -35,15 +37,40 @@ library(glue)
 
 # Read arguments
 args = commandArgs(trailingOnly=TRUE)
-file_in = args[1]
-directory_out = args[2]
+dataset_in = args[1]
+tree_in = args[2]
+directory_out = args[3]
 
 local_dir = "~/PostDoc/cellsig"
 
 dir.create(file.path(local_dir, directory_out), showWarnings = FALSE)
 
-# Read counts
-readRDS(file_in) %>%
+# PARSE
+dataset_in %>%
+  readRDS() %>%
+  
+  # Imputation
+  as_SummarizedExperiment(sample, symbol, count) %>% 
+  impute_missing_abundance(~ cell_type, force_scaling = TRUE) %>% 
+  as_tibble() %>% 
+  filter(count %>% is.na %>% `!`) %>% 
+  
+  # Parsing
+  tree_and_signatures_to_database(
+    read_yaml(tree_in) %>% as.Node,
+    .,
+    .sample,
+    cell_type,
+    .feature,
+    count
+  ) %>%
+  identify_abundant(.sample, .feature, count) %>%
+  scale_abundance(.sample, .feature, count) %>%
+  dplyr::select(-count_scaled) %>%
+  filter(!.imputed) %>% 
+  select(-.imputed) %>% 
+
+  # CREATE INPUTS
   select(-cell_type) %>%
   pivot_longer(
     contains("level_"), names_prefix="level_", 
@@ -77,14 +104,18 @@ readRDS(file_in) %>%
           partition= ..4
         ) %>% 
       droplevels() %>% 
-      saveRDS(glue("{local_dir}/{directory_out}/level_{..2}_cell_type_{..3}_partition_{..4}_input.rds") )
+      saveRDS(glue("{local_dir}/{directory_out}/level_{..2}_cell_type_{..3}_partition_{..4}_input.rds"), compress=FALSE )
       TRUE
     }
   ))
 
-cores = 15
 
-# Create makefile
+
+# CREATE MAKEFILE
+
+cores = 15
+tab = "\t"
+
 sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s", cores) %>%
   
   c(
@@ -97,7 +128,7 @@ sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s", cores) %>%
         ~{
           my_basename = basename(.x) %>%  sub("^([^.]*).*", "\\1", .)
           my_basename = glue("{my_basename}_result.rds")
-          glue("{directory_out}/{my_basename}: {directory_out}/{.x}\r\tRscript dev/modeling_code/run_model.R {directory_out}/{.x} {directory_out}/{my_basename} {.y}" )
+          glue("{directory_out}/{my_basename}: {directory_out}/{.x}\n{tab}Rscript dev/modeling_code/run_model.R {directory_out}/{.x} {directory_out}/{my_basename} {.y}" )
           }
         )
       ) %>%
