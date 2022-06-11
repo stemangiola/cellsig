@@ -34,7 +34,7 @@ In this test run, we are using data for only 2 cell types, which are - 2 NK cell
 
 ```{bash, eval=FALSE}
 
-Rscript dev/modeling_code/create_input.R dev/counts.rds dev/tree_kamran.yaml dev/modeling_results
+Rscript dev/modeling_code/create_input.R dev/counts.rds dev/modeling_results dev/tree_kamran.yaml
 ```
 
 ## Makeflow installation and loading
