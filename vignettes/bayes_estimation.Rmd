@@ -2,7 +2,7 @@
 title: "Bayes estimation"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Signature generation from tree and count}
+  %\VignetteIndexEntry{Bayes estimation}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -21,29 +21,42 @@ knitr::opts_chunk$set(
 
 ```{r}
 library(here)
+library(tibble)
+library(readr)
 
-readRDS(here("dev/counts_non_redundant.rds"))
-
-```
-
-# Parse dataset
-
-```{bash}
-
-Rscript dev/modeling_code/parse_data.R dev/counts_non_redundant.rds dev/tree_kamran.yaml dev/counts_non_redundant_parsed.rds
+readRDS(here("dev/counts.rds"))
 
 ```
+
+## Create input and infer
 
 In this test run, we are using data for only 2 cell types, which are - 2 NK cell subtypes- CD56bright NK and CD56dim NK cells.
 
-```{bash}
+```{bash, eval=FALSE}
 
-srun --job-name "InteractiveJob" --cpus-per-task 8 --mem-per-cpu 55000 --time 48:00:00 --pty bash
+Rscript dev/modeling_code/create_input.R dev/counts.rds dev/tree_kamran.yaml dev/modeling_results
+```
 
-Rscript dev/modeling_code/create_input.R dev/counts_non_redundant_parsed.rds dev/modeling_results
+## Makeflow installation and loading
 
-~/third_party_sofware/cctools-7.2.0-x86_64-centos7/bin/makeflow -T slurm -J 200  dev/modeling_results/run_model.makeflow
+Source https://cctools.readthedocs.io/en/latest/install/
 
+```{bash, eval=FALSE}
+module load miniconda3
+conda create -n cctools-env -y -c conda-forge --strict-channel-priority python ndcctools
+conda activate cctools-env
 
+# When done
+conda deactivate
+
+```
+
+```{bash, eval=FALSE}
+# Run
+conda activate cctools-env
+makeflow -T slurm -J 200  dev/modeling_results/run_model.makeflow
+
+# Monitor
+makeflow_monitor dev/modeling_results/run_model.makeflow.makeflowlog
 ```
 

@@ -600,3 +600,24 @@ tree_and_signatures_to_database = function(tree, signatures, .sample, .cell_type
     select(-one_of("merged_transcripts"))
 }
 
+#' @details This function takes a data frame as input, with a column containing cell type and outputs a one-level tree
+#' @export
+from_dataframe_to_one_level_tree = function(counts, cell_type_column){
+  # load count data
+  
+  cell_type_column = enquo(cell_type_column)
+  
+  pseudo_tree_from_count_data = 
+    counts %>%
+    select(!!cell_type_column) %>%
+    rename(cell_type = !!cell_type_column) %>% 
+    unique() 
+  
+  pseudo_tree_from_count_data$pathString = 
+    paste("Tissue",
+          pseudo_tree_from_count_data$cell_type,
+          sep = "/"
+    )
+  
+  as.Node(pseudo_tree_from_count_data)
+}
