@@ -1,10 +1,12 @@
 library(tidyverse)
 library(magrittr)
-
+library(glue)
 source("https://gist.githubusercontent.com/stemangiola/90a528038b8c52b21f9cfa6bb186d583/raw/cdf04a5988ab44c10d8a05fa46f1e175d526b2de/tidyTranscriptionTools.R")
-library(ttBulk)
+library(tidybulk)
 library(data.tree)
-
+library(future)
+library(biomaRt)
+plan(multisession, workers=15)
 forget_FANTOM5 = function(){
   
   onto = ontologyIndex::get_ontology(
@@ -85,100 +87,48 @@ forget_FANTOM5 = function(){
 get_BLUEPRINT = function(){
   # Parse BLUEPRINT data base
   
-  
-  # read_delim(
-  #   "dev/database/BLUEPRINT_db/blueprint_files.tsv",
-  #   "\t",
-  #   escape_double = FALSE,
-  #   trim_ws = TRUE
-  # ) %>%
-  #   filter(`File type` == "Transcription quantification (Genes)") %>%
-  #   filter(!is.na(`Cell type`)) %>%
-  #
-  #   # Get data from URL
-  #   separate(URL, sep="/|\\.", sprintf("URL_%s", 1:30), remove = F) %>%
-  #   mutate(`Cell type` = gsub("_", " ", URL_15)) %>%
-  #   mutate(sample = URL_18) %>%
-  #
-  #   distinct(Group, `Sub-group`, `Cell type`, Tissue, sample) %>%
-  #   write_csv("big_data/tibble_cellType_files/BLUEPRINT__annotation_cell_types.csv")
-  
-  # # Chenage cell type names
-  # mutate(`Cell type formatted` = NA) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("plasma cell", `Cell type`, ignore.case=T), "plasma_cell", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("plasma cell", `Cell type`, ignore.case=T), "plasma_cell", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("band form neutrophil", `Cell type`, ignore.case=T), "neutrophil", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("mature neutrophil", `Cell type`, ignore.case=T), "neutrophil", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("segmented neutrophil of bone marrow", `Cell type`, ignore.case=T), "neutrophil", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("myeloid cell", `Cell type`, ignore.case=T), "myeloid", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("lymphocyte of B lineage", `Cell type`, ignore.case=T), "b_cell", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("CD14-positive, CD16-negative classical monocyte", `Cell type`, ignore.case=T), "monocyte", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("common lymphoid progenitor", `Cell type`, ignore.case=T), "lymphoid", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("hematopoietic multipotent progenitor cell", `Cell type`, ignore.case=T), "stem_cell", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("hematopoietic stem cell", `Cell type`, ignore.case=T), "stem_cell", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("CD38-negative naive B cell", `Cell type`, ignore.case=T), "b_cell_naive", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("cytotoxic CD56-dim natural killer cell", `Cell type`, ignore.case=T), "natural_killer", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("common myeloid progenitor", `Cell type`, ignore.case=T), "myeloid", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("inflammatory macrophage", `Cell type`, ignore.case=T), "macrophage_M1", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("macrophage", `Cell type`, ignore.case=T), "macrophage", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("endothelial", `Cell type`, ignore.case=T), "endothelial", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("alternatively activated macrophage", `Cell type`, ignore.case=T), "macrophage_M2", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("conventional dendritic cell", `Cell type`, ignore.case=T), "dendritic", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("germinal center B cell", `Cell type`, ignore.case=T), "b_cell_germinal_center", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("naive B cell", `Cell type`, ignore.case=T), "b_cell_naive", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("immature conventional dendritic cell", `Cell type`, ignore.case=T), "dendritic_immature", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("mature conventional dendritic cell", `Cell type`, ignore.case=T), "dendritic", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("osteoclast", `Cell type`, ignore.case=T), "osteoclast", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("class switched memory B cell", `Cell type`, ignore.case=T), "b_cell_memory", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("memory B cell", `Cell type`, ignore.case=T), "b_cell_memory", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("monocyte", `Cell type`, ignore.case=T), "monocyte", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("peripheral blood mononuclear cell", `Cell type`, ignore.case=T), "mono_derived", `Cell type formatted`)) %>%
-  #
-  # mutate(`Cell type formatted` = ifelse(`Cell type`==("CD8-positive alpha-beta T cell"), "t_CD8", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(`Cell type`==("CD4-positive alpha-beta T cell"), "t_CD4", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("central memory CD8-positive", `Cell type`, ignore.case=T), "t_CD8_memory_central", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("effector memory CD8-positive", `Cell type`, ignore.case=T), "t_CD8_memory_effector", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("central memory CD4-positive", `Cell type`, ignore.case=T), "t_memory_central", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("effector memory CD4-positive", `Cell type`, ignore.case=T), "t_memory_effector", `Cell type formatted`)) %>%
-  # mutate(`Cell type formatted` = ifelse(grepl("regulatory T cell", `Cell type`, ignore.case=T), "t_reg", `Cell type formatted`)) %>%
+  # blueprint_counts_no_anno = 
+  # foreach(
+  #   my_file = dir(
+  #     path="dev/database/BLUEPRINT_db/",
+  #     pattern="results",
+  #     full.names=T
+  #   ),
+  #   .combine = bind_rows
+  # ) %dopar% {
+  #   read_delim(
+  #     my_file,
+  #     "\t",
+  #     escape_double = FALSE,
+  #     trim_ws = TRUE
+  #   ) %>%
+  #     mutate(sample = my_file %>% basename())
+  # } %>%
+  #   separate(sample, sep="\\.", sprintf("sample_%s", 1:6), remove=F) %>%
+  #   mutate(sample = sample_1) %>%
+  #   dplyr::select(gene_id, expected_count, sample)
+  # 
+  # blueprint_counts_no_anno %>% saveRDS("dev/database/BLUEPRINT_db/blueprint_counts_no_anno.rds")
   
   # Select info
   read_csv("dev/database/BLUEPRINT_db/BLUEPRINT__annotation_cell_types.csv") %>%
     
     # Add expression
-    left_join(
-      
-      foreach(
-        my_file = dir(
-          path="dev/database/BLUEPRINT_db/",
-          pattern="results",
-          full.names=T
-        ),
-        .combine = bind_rows
-      ) %dopar% {
-        read_delim(
-          my_file,
-          "\t",
-          escape_double = FALSE,
-          trim_ws = TRUE
-        ) %>%
-          mutate(sample = my_file %>% basename())
-      } %>%
-        separate(sample, sep="\\.", sprintf("sample_%s", 1:6), remove=F) %>%
-        mutate(sample = sample_1) %>%
-        select(gene_id, expected_count, sample)
-      
-    ) %>%
+    left_join( readRDS("dev/database/BLUEPRINT_db/blueprint_counts_no_anno.rds") ) %>%
     
     rename(`count` =  expected_count) %>%
     
     # Attach symbol names
     separate(gene_id, sep="\\.", c("ensembl_gene_id", "isoform"), remove=F) %>%
-    add_symbol_from_ensembl("ensembl_gene_id") %>%
-    rename(symbol = hgnc_symbol) %>%
+    mutate(symbol = AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db,
+                                          keys = ensembl_gene_id,
+                                          keytype = "ENSEMBL",
+                                          column = "SYMBOL",
+                                          multiVals = "first"
+    ) %>% as.character()) %>% 
     distinct %>%
-    mutate(`Data base` = "BLUEPRINT") %>%
-    
+    mutate(`Data base` = "BLUEPRINT")  %>%
+
     # NO NK
     filter(`Cell type formatted` != "natural_killer")
   
@@ -220,8 +170,12 @@ get_bloodRNA = function(){
     mutate(`Cell type formatted` = `Cell type`) %>%
     
     # Attach symbol names
-    add_symbol_from_ensembl("ensembl_gene_id") %>%
-    rename(symbol = hgnc_symbol) %>%
+    mutate(symbol = AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db,
+                                          keys = ensembl_gene_id,
+                                          keytype = "ENSEMBL",
+                                          column = "SYMBOL",
+                                          multiVals = "first"
+    ) %>% as.character()) %>% 
     distinct %>%
     
     mutate(`Data base` = "bloodRNA")  %>%
@@ -233,77 +187,88 @@ get_bloodRNA = function(){
 
 get_ENCODE = function(){
   
-  
-  # read_delim("dev/database/ENCODE/metadata.tsv",  "\t", escape_double = FALSE, trim_ws = TRUE) %>%
-  #   filter(`Output type` == "gene quantifications") %>%
-  #   dplyr::mutate(sample = `File accession`) %>%
-  #   mutate(`Cell type` = `Biosample term name`) %>%
-  #   distinct(sample, `Cell type`, `Biosample type`) %>%
-  #   write_csv("big_data/tibble_cellType_files/ENCODE__annotation_cell_types.csv")
-  #
-  #
-  # metadata$`Cell type formatted` = NA
-  # metadata$`Cell type formatted`[grep("epithelial", metadata$`Biosample term name`, ignore.case=T)] = "epithelial"
-  # metadata$`Cell type formatted`[grep("stem cell", metadata$`Biosample term name`, fixed=T) ] = "stem_cell"
-  # metadata$`Cell type formatted`[grep("fibroblast", metadata$`Biosample term name`, fixed=T) ] = "fibroblast"
-  # metadata$`Cell type formatted`[grep("endothelial", metadata$`Biosample term name`, fixed=T) ] = "endothelial"
-  # metadata$`Cell type formatted`[grep("smooth muscle", metadata$`Biosample term name`, fixed=T) ] = "smooth_muscle"
-  # metadata$`Cell type formatted`[grep("neuron", metadata$`Biosample term name`, fixed=T) ] = "neural"
-  # metadata$`Cell type formatted`[grep("keratinocyte", metadata$`Biosample term name`, fixed=T) ] = "keratinocyte"
-  # metadata$`Cell type formatted`[grep("astrocyte", metadata$`Biosample term name`, fixed=T) ] = "astrocyte"
-  # metadata$`Cell type formatted`[grep("dendritic cell", metadata$`Biosample term name`, fixed=T) ] = "dendritic"
-  # metadata$`Cell type formatted`[grep("myocyte", metadata$`Biosample term name`, fixed=T) ] = "myocyte"
-  # metadata$`Cell type formatted`[grep("natural killer", metadata$`Biosample term name`, fixed=T) ] = "natural_killer"
-  # metadata$`Cell type formatted`[grep("CD4-positive helper T cell", metadata$`Biosample term name`, fixed=T) ] = "t_helper"
-  # metadata$`Cell type formatted`[grep("neural", metadata$`Biosample term name`, fixed=T) ] = "neural"
-  # metadata$`Cell type formatted`[grep("CD14-positive monocyte", metadata$`Biosample term name`, fixed=T) ] = "mono_derived"
-  # metadata$`Cell type formatted`[grep("hepatocyte", metadata$`Biosample term name`, fixed=T) ] = "hepatocyte"
-  # metadata$`Cell type formatted`[grep("hematopoietic multipotent progenitor cell", metadata$`Biosample term name`, fixed=T) ] = "stem_cell"
-  # metadata$`Cell type formatted`[grep("chondrocyte", metadata$`Biosample term name`)] = "chondrocyte"
-  # metadata$`Cell type formatted`[grep("CD8-positive, alpha-beta T cell", metadata$`Biosample term name`) ] = "t_CD8"
-  # metadata$`Cell type formatted`[grep("melanocyte", metadata$`Biosample term name`, fixed=T) ] = "melanocyte"
-  # metadata$`Cell type formatted`[grep("B cell", metadata$`Biosample term name`, fixed=T) ] = "b_cell"
-  # metadata$`Cell type formatted`[grep("osteoblast", metadata$`Biosample term name`, fixed=T) ] = "osteoblast"
-  # metadata$`Cell type formatted`[grep("naive B cell", metadata$`Biosample term name`, fixed=T) ] = "b_cell_naive"
-  # metadata$`Cell type formatted`[grep("T-cell", metadata$`Biosample term name`, fixed=T) ] = "t_cell"
-  # metadata = metadata[!is.na(metadata$`Cell type formatted`),]
+
   
   read_csv("dev/database/ENCODE/ENCODE__annotation_cell_types.csv") %>%
-    
+
+    # Add database annotation
     left_join(
-      # Get counts from files
-      foreach(f = .$sample, .combine = bind_rows) %dopar% {
-        read_delim(
-          sprintf("dev/database/ENCODE/%s.tsv", f),
-          "\t",
-          escape_double = FALSE,
-          trim_ws = TRUE
-        ) %>%
-          dplyr:::select(gene_id, expected_count) %>%
-          mutate(sample = f)
-      }
+      read_csv("dev/database/ENCODE/encode_sample_experiment_info.csv") %>% 
+        rename(`Data base` = encode_database),
+      by="sample"
     ) %>%
+    
+    # If sample is not in the DB csv
+    unite("alternative Data base", c(`Cell type`, `Biosample type`), remove = FALSE) %>%
+    mutate(`alternative Data base` = glue("ENCODE_{`alternative Data base`}")) %>%
+    mutate(`Data base` = if_else(is.na(`Data base`), `alternative Data base`, `Data base`)) %>% 
+    dplyr::select(-`alternative Data base`) %>% 
+    
+    
+    mutate(data = map(
+      sample,
+      ~ glue("dev/database/ENCODE/{.x}.tsv") %>% 
+        read_delim(
+        "\t",
+        escape_double = FALSE,
+        trim_ws = TRUE
+      ) %>%
+        dplyr::select(gene_id, expected_count) 
+    )) %>% 
+    
+    unnest(data) %>% 
     {
+      # mart <- useEnsembl(biomart = "ensembl",dataset =  "hsapiens_gene_ensembl", mirror = "useast")
+      # saveRDS(mart, "dev/database/ENCODE/mart.rds")
+      
+      mart <- readRDS("dev/database/ENCODE/mart.rds")
+      
       samples_with_symbol = c("ENCFF060YNO", "ENCFF677SZA", "ENCFF708ZUJ", "ENCFF255ULI", "ENCFF717WSQ", "ENCFF118GPH", "ENCFF083PYO" ,"ENCFF712VOY" ,"ENCFF094ADI",
                               "ENCFF841AKS", "ENCFF331CDB", "ENCFF263OIE", "ENCFF798GKH" ,"ENCFF491YKJ" ,"ENCFF867RFN", "ENCFF461BKM", "ENCFF929RZY", "ENCFF440CJU",
                               "ENCFF246ZOR", "ENCFF680YEW")
-      bind_rows(
-        
+     
+      with_gene_symbol = 
         (.) %>%
-          filter(sample %in% samples_with_symbol) %>%
-          rename(symbol = gene_id),
-        
+        filter(sample %in% samples_with_symbol) %>%
+        rename(symbol = gene_id)
+      
+      with_ensembl = 
         (.) %>% filter(!sample %in% samples_with_symbol) %>%
-          separate(gene_id, sep="\\.", c("ensembl_gene_id", "isoform"), remove=F) %>%
-          add_symbol_from_ensembl("ensembl_gene_id") %>%
-          rename(symbol = hgnc_symbol)
-      )
+        filter(grepl("^ENS", gene_id)) %>%
+        nest(data = -gene_id) %>% 
+        slice(1:10000) %>% 
+        separate(gene_id, sep="\\.", c("ensembl_gene_id", "isoform"), remove=F) %>%
+        mutate(symbol = AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db,
+                                              keys = ensembl_gene_id,
+                                              keytype = "ENSEMBL",
+                                              column = "SYMBOL",
+                                              multiVals = "first"
+        ) %>% as.character()) %>% 
+        unnest(data)
+      
+      with_hgnc = 
+        (.) %>% filter(!sample %in% samples_with_symbol) %>%
+        filter(!grepl("^ENS", gene_id)) %>%
+        nest(data = -gene_id) %>% 
+        
+        mutate(hgnc_id = glue("HGNC:{gene_id}")) %>% 
+        
+        left_join(
+          biomaRt::getBM(c("hgnc_symbol", "hgnc_id"), "hgnc_id", pull(., hgnc_id), mart, uniqueRows = FALSE),
+          by = "hgnc_id"
+        ) %>% 
+        rename(symbol = hgnc_symbol) %>% 
+        dplyr::select(-hgnc_id) %>% 
+        
+        unnest(data)
+      
+       list(with_gene_symbol, with_ensembl, with_hgnc) %>% 
+         purrr::reduce(bind_rows)
+      
     } %>%
     rename(`count` = expected_count) %>%
-    dplyr::select(sample, `Cell type`, `Cell type formatted`, `count`, symbol, ensembl_gene_id) %>%
-    distinct %>%
-    
-    mutate(`Data base` = "ENCODE") %>%
+    dplyr::select(sample, `Cell type`, `Cell type formatted`, `count`, symbol, ensembl_gene_id, `Data base`) %>%
+    distinct  %>%
     
     # NO NK
     filter(`Cell type formatted` != "natural_killer")
@@ -311,7 +276,7 @@ get_ENCODE = function(){
 }
 
 get_N52_TME = function(){
-  load("~/PhD/TME_prostate_N52/N52_plus_12_run/fastq/run_all/code_repository/input_parallel_TABI.RData")
+  load("dev/database/N52/input_parallel_TABI.RData")
   ex %>% gather(sample, `count`, -symbol) %>%
     rename(count = `count`) %>%
     left_join(
@@ -352,13 +317,18 @@ get_immune_singapoor = function(){
     
     # Add symbol
     separate(gene_id, sep="\\.", c("ensembl_gene_id", "isoform"), remove=F) %>%
-    ttBulk::annotate_symbol(ensembl_gene_id) %>%
-    rename(symbol = transcript) %>%
+    mutate(symbol = AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db,
+                                          keys = ensembl_gene_id,
+                                          keytype = "ENSEMBL",
+                                          column = "SYMBOL",
+                                          multiVals = "first"
+    ) %>% as.character()) %>% 
+
     distinct() %>%
     
     # Add data base label
-    mutate(`Data base` = "Immune Singapoor") %>%
-    
+    mutate(`Data base` = "Immune Singapoor")  %>%
+
     # NO NK
     filter(`Cell type formatted` != "natural_killer")
   
@@ -383,17 +353,17 @@ get_influenza_immune = function(){
   # module load cutadapt; module load trimgalore; ls fastq/ | awk '{split($0,a,"_"); print a[1]}' | uniq | parallel --eta -j1 trim_galore --paired {}_pass_1.fastq.gz {}_pass_2.fastq.gz --fastqc > trim_galore.log
   # module load STAR; for i in $(ls *_val_*fq.gz | rev | cut -c 15- | rev | uniq); do mkdir -p alignment_hg38/$i; cd alignment_hg38/$i; STAR --genomeDir ~/third_party_sofware/hg38/karyotypic/ --readFilesIn ../../$i'_1_val_1.fq.gz' ../../$i'_2_val_2.fq.gz' --readFilesCommand zcat --genomeLoad LoadAndKeep --runThreadN 42 --outSAMtype BAM SortedByCoordinate --limitBAMsortRAM 40000000000 --outReadsUnmapped Fastx; cd ../../; done
   
-  read_csv("dev/database/immune_influenza_PBMC/counts_paired_end.csv") %>%
+  read_csv("dev/database/influenza_immuno_PBMC/counts_paired_end.csv") %>%
     rename(count = `read count`) %>%
     separate(sample, c("dummy", "sample"), sep=c("hg38.")) %>%
     separate(sample, c("sample", "dummy"), sep=c("_pass")) %>%
-    select(-dummy) %>%
+    dplyr::select(-dummy) %>%
     inner_join(
-      read_csv("dev/database/immune_influenza_PBMC/annot.csv") %>%
+      read_csv("dev/database/influenza_immuno_PBMC/annot.csv") %>%
         rename(sample = Run, `Cell type` = `source name`) %>%
         filter(`Cell type` != "PBMC") %>%
         filter(time == "0 d") %>%
-        select(`Cell type`, sample)
+        dplyr::select(`Cell type`, sample)
     ) %>%
     left_join(
       tibble(
@@ -423,7 +393,7 @@ get_immune_skin = function(){
     inner_join(
       read_csv("dev/database/immune_skin/annot.csv") %>%
         rename(sample = Run, `Cell type` = `cell type`) %>%
-        select(`Cell type`, sample)
+        dplyr::select(`Cell type`, sample)
     ) %>%
     left_join(
       tibble(
@@ -459,8 +429,8 @@ get_macro = function(){
   # for i in $(ls *_val_*fq.gz | rev | cut -c 15- | rev | uniq); do qsub -l nodes=1:ppn=24,mem=41gb,walltime=120:00:00 STAR_HPC.sh -F "$i"; done
   
   
-  read_csv("dev/database/macrophages_db/macro_PRJNA339309.csv") %>%
-    select(-contains("Unassigned")) %>%
+  read_csv("dev/database/macro_PRJNA339309/macrophages_DB_PRJNA339309.csv") %>%
+    dplyr::select(-contains("Unassigned")) %>%
     rename(symbol = transcript) %>%
     mutate(`Data base` = "PRJNA339309_macrophages")
   
@@ -480,12 +450,12 @@ get_mast_cell = function(){
         read_delim("\t",escape_double = FALSE, col_names = FALSE, trim_ws = TRUE) %>%
         mutate(file = .x)
     ) %>%
-    select(X1, X2, file) %>%
+    dplyr::select(X1, X2, file) %>%
     setNames(c("symbol", "count", "file")) %>%
     filter(!grepl("^N_", symbol)) %>%
     separate(file, c("dummy", "sample"), sep="GSE125887//") %>%
     separate(sample, c("sample", "dummy"), sep="_star_hg19") %>%
-    select(-dummy) %>%
+    dplyr::select(-dummy) %>%
     mutate(methods = !!methods %>% as.factor) %>%
     mutate(`Data base` = "GSE125887") %>%
     mutate(`Cell type formatted` = "mast_cell")
@@ -510,7 +480,7 @@ get_melanocytes = function(){
     filter(!grepl("^N_", symbol)) %>%
     separate(file, c("dummy", "sample"), sep="_cultured/") %>%
     separate(sample, c("sample", "dummy"), sep="_L005") %>%
-    select(-dummy) %>%
+    dplyr::select(-dummy) %>%
     mutate(methods = "cultured from tissue" %>% as.factor) %>%
     mutate(`Data base` = "GSE71747") %>%
     mutate(`Cell type formatted` = "melanocyte") %>%
@@ -518,13 +488,13 @@ get_melanocytes = function(){
     # bind_rows(
     # 	# GSE109245
     # 	read_delim("../melanocyte_GSE109245_RAW//GSM2935823_mcf_quant.sf.txt", "\t", escape_double = FALSE, trim_ws = TRUE) %>%
-    # 		select(Name, NumReads) %>%
+    # 		dplyr::select(Name, NumReads) %>%
     # 		mutate(sample ="GSM2935823") %>%
     # 		annotate_symbol(Name) %>%
     # 		rename(count = NumReads, symbol = transcript) %>%
     # 		ttBulk(sample, symbol, count) %>%
     # 		aggregate_duplicates() %>%
-    # 		select(-`merged transcripts`) %>%
+    # 		dplyr::select(-`merged transcripts`) %>%
   # 		filter(!grepl("^N_", symbol)) %>%
   # 		mutate(methods = "cultured from tissue" %>% as.factor) %>%
   # 		mutate(`Data base` = "GSE109245") %>%
@@ -545,7 +515,7 @@ get_melanocytes = function(){
     
     read_csv("dev/database/melanocyte_GSE138412/melanocyte_GSE138412.csv") %>%
       rename(symbol = transcript) %>%
-      select(entrez ,sample , count , symbol, group) %>%
+      dplyr::select(entrez ,sample , count , symbol, group) %>%
       mutate(methods = "cultured from tissue" %>% as.factor) %>%
       mutate(`Data base` = "GSE138412") %>%
       mutate(`Cell type formatted` = "melanocyte") %>%
@@ -579,11 +549,11 @@ get_monocytes_brain = function(){
     filter(grepl("RNA_Control", sample))
   
   GSE88888 %>%
-    ttBulk(sample, transcript, count) %>%
+    tidybulk(sample, transcript, count) %>%
     aggregate_duplicates() %>%
     scale_abundance() %>%
     reduce_dimensions(method="MDS") %>%
-    select(contains("Dim"), sample) %>%
+    dplyr::select(contains("Dim"), sample) %>%
     distinct %>%
     ggplot(aes(x = `Dim 1`, y = `Dim 2`)) + geom_point()
   
@@ -592,57 +562,57 @@ get_monocytes_brain = function(){
 
 # Produce data sets
 
-ENCODE = get_ENCODE()
+ENCODE %<-% {  get_ENCODE() }
 #save(ENCODE, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/ENCODE.RData", compress = "gzip")
 
-BLUEPRINT = get_BLUEPRINT()
+BLUEPRINT %<-% { get_BLUEPRINT() }
 #save(BLUEPRINT, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/BLUEPRINT.RData", compress = "gzip")
 
 # FANTOM5 = get_FANTOM5()
 # save(FANTOM5, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/FANTOM5.RData", compress = "gzip")
 
-bloodRNA = get_bloodRNA()
+bloodRNA %<-% { get_bloodRNA() }
 #save(bloodRNA, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/bloodRNA.RData", compress = "gzip")
 
-immune_singapoor = get_immune_singapoor()
+immune_singapoor %<-% { get_immune_singapoor() }
 #save(immune_singapoor, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/immune_singapoor.RData", compress = "gzip")
 
-N52_TME = get_N52_TME()
+N52_TME %<-% { get_N52_TME() }
 #save(N52_TME, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/N52_TME.RData", compress = "gzip")
 
 # dendritic = get_dendritic()
 # save(dendritic, file="big_data/tibble_cellType_files/dendritic.RData")
 
-influenza_immune = get_influenza_immune()
+influenza_immune %<-% { get_influenza_immune() }
 #save(influenza_immune, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/influenza_immune.RData", compress = "gzip")
 
-immune_skin = get_immune_skin()
+immune_skin %<-% { get_immune_skin() }
 #save(immune_skin, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/immune_skin.RData", compress = "gzip")
 
-nk_yuhan = get_NK_curated_yuhan()
+nk_yuhan %<-% { get_NK_curated_yuhan() }
 #save(nk_yuhan, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/nk_yuhan.RData", compress = "gzip")
 
-macro = get_macro()
+macro %<-% { get_macro() }
 #save(macro, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/macro.RData", compress = "gzip")
 
-mast = get_mast_cell()
+mast %<-% { get_mast_cell() }
 #save(mast, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/mast.RData", compress = "gzip")
 
-melanocyte = get_melanocytes()
+melanocyte %<-% { get_melanocytes() }
 #save(melanocyte, file="~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/melanocyte.RData", compress = "gzip")
 
 
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/ENCODE.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/BLUEPRINT.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/bloodRNA.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/immune_singapoor.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/N52_TME.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/influenza_immune.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/immune_skin.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/nk_yuhan.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/macro.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/mast.RData")
-load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/melanocyte.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/ENCODE.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/BLUEPRINT.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/bloodRNA.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/immune_singapoor.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/N52_TME.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/influenza_immune.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/immune_skin.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/nk_yuhan.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/macro.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/mast.RData")
+# load("~/PostDoc/RNAseq-noise-model/big_data/tibble_cellType_files/melanocyte.RData")
 
 all =
   ENCODE %>%
@@ -657,11 +627,11 @@ all =
   bind_rows(mast) %>%
   bind_rows(melanocyte) %>%
   
-  #print statistics
-  {
-    (.) %>% distinct(`Cell type formatted`, `Data base`, sample) %>% count(`Cell type formatted`, `Data base`)%>% drop_na %>% arrange(n %>% desc) %>% spread(`Data base`, n) %>% print(n=99)
-    (.)
-  } %>%
+  # #print statistics
+  # {
+  #   (.) %>% distinct(`Cell type formatted`, `Data base`, sample) %>% count(`Cell type formatted`, `Data base`)%>% drop_na %>% arrange(n %>% desc) %>% spread(`Data base`, n) %>% print(n=99)
+  #   (.)
+  # } %>%
   
   filter(symbol %>% is.na %>% `!`) %>%
   filter(`Cell type formatted` %>% is.na %>% `!`) %>%
@@ -670,7 +640,7 @@ all =
 
 
 # Setup table of name conversion
-load("data/tree.rda")
+# load("data/tree.rda")
 
 sample_blacklist = c(
   "666CRI",
@@ -693,7 +663,7 @@ sample_blacklist = c(
 # Get data
 counts_first_db_raw = 
   all %>%
-  select(
+  dplyr::select(
    sample,
    cell_type_original = `Cell type`,
    cell_type = `Cell type formatted`,
@@ -714,6 +684,6 @@ counts_first_db_raw =
       (cell_type == "dendritic_myeloid" & database == "bloodRNA")
   ))
 
-counts_first_db_raw %>% saveRDS("dev/counts_first_db_raw.rds", compress = "gzip")
+counts_first_db_raw %>% saveRDS("dev/counts_first_db_raw.rds")
 
 

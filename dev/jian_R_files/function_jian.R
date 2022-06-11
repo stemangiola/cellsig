@@ -1479,7 +1479,7 @@ library(tidySummarizedExperiment)
 
 # create input files for cibersortx cell signature selection using bulk RNA-seq data
 produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .sample, .cell_type, .count, 
-                                                  .dir, .tree=NULL, .suffix=NULL){
+                                                  .dir, .tree=NULL, .suffix=""){
   
   # Args: 
   # .expression_df is a tibble with shape: transcript | sample | cell_type | count

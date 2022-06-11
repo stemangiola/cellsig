@@ -1,3 +1,8 @@
+counts_imputed.rda
+counts_fit.rds
+counts_first_db.rds
+counts_first_db_raw.rds
+counts_second_db_raw.rda
 raw_data*
 intermediate_data*
 error_files*
@@ -7,7 +12,6 @@ counts.rda
 counts_imputed.rda
 .*rda
 .*rds
-
 makeflow*
 slurm.*
 dev/benchmark_results.*
