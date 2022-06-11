@@ -39,7 +39,7 @@ markers_from_transcription_abundance_quantiles <- function(.input, .sample, .sym
   
   if (is.null(tree))
   {
-  tree = .input %>% Create_one_level_tree_from_count_database ()
+  tree = .input %>% from_dataframe_to_one_level_tree(.cell_type)
   
   is_hierarchy = FALSE
   
