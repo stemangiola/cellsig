@@ -13,7 +13,7 @@ License: `use_mit_license()`, `use_gpl3_license()` or friends to
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.1.1
+RoxygenNote: 7.1.2
 Biarch: true
 Depends: 
     R (>= 3.6.0)
@@ -27,16 +27,21 @@ Imports:
     tidyr,
     purrr,
     stringr,
-    nanny,
     data.tree,
-    tidybayes
+    tidybayes,
+    forcats, 
+    magrittr, 
+    rlang, 
+    tibble
 LinkingTo: 
     BH (>= 1.66.0),
     Rcpp (>= 0.12.0),
     RcppEigen (>= 0.3.3.3.0),
     RcppParallel (>= 5.0.1),
-    rstan (>= 2.18.1),
-    StanHeaders (>= 2.18.0)
+    rstan (>= 2.26.0),
+    StanHeaders (>= 2.26.0)
 SystemRequirements: GNU make
 Suggests: 
     testthat
+Remotes:  
+    stan-dev/rstan@v2.26.9
