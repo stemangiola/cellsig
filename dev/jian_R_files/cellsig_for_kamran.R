@@ -1923,6 +1923,22 @@ vector_to_formatted_text <- function(.vector, .k=6){
   return(text)
 }
 
+##### Create_one_level_tree_from_count_database ######
+
+Create_one_level_tree_from_count_database <- function(.input) {
+  
+  
+  pseudo_tree_from_count_data = .input %>%
+    select(cell_type) %>%
+    unique()
+  
+  
+  pseudo_tree_from_count_data$pathString = paste("Tissue",
+                                                 pseudo_tree_from_count_data$cell_type,
+                                                 sep = "/")
+  
+  as.Node(pseudo_tree_from_count_data)
+}
 
 
 # Runing cell signature algorithm ======================================================
