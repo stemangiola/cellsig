@@ -261,6 +261,7 @@ cellsig_multilevel_varing_intercept.data.frame = function(
       data = model_data
     )
     
+
     rng_summary_y_gen = 
       rng %>% 
       rstan::summary("Y_gen", c(0.1, 0.5, 0.9)) %$%
@@ -276,6 +277,7 @@ cellsig_multilevel_varing_intercept.data.frame = function(
       as_tibble() %>%
       setNames(c("log_mean", "log_sd")) %>% 
       rowid_to_column(var = ".feature_idx")
+
   }
  else {
    
@@ -326,6 +328,7 @@ cellsig_multilevel_varing_intercept.data.frame = function(
      .[,c("mean", "sd")] %>% 
      setNames(c("log_mean", "log_sd")) %>% 
      rowid_to_column(var = ".feature_idx")
+
  }
   
 
@@ -333,6 +336,7 @@ cellsig_multilevel_varing_intercept.data.frame = function(
     #mutate(.feature_idx = as.integer(.feature_cell_type)) %>% 
     mutate(.feature_idx = as.integer(feature_cell_type)) %>% 
     distinct(.feature_idx, !!.feature, !!.cell_group) %>% 
+
     left_join(rng_summary_y_gen,  by = ".feature_idx"  ) %>% 
     left_join( rng_summary_y_gen_log  , by = ".feature_idx" ) %>% 
     
