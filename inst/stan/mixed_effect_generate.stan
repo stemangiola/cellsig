@@ -8,8 +8,21 @@ data {
 parameters {
 
   vector[G] gene_mean;  // temporary gene_mean for centered predictors
-  vector[G] shape;  // shape parameter
-  vector[G] gene_sd;  // group-level standard deviations
+  vector[D] shape;  // shape parameter
+  vector<lower=0>[G] gene_sd;  // group-level standard deviations
+  
+  // UNUSED
+  vector[D] z_group_level_effect;  // standardized group-level effects
+  real<lower=1> gene_sd_alpha;
+  real<lower=1> gene_sd_beta;
+   
+  //   // Priors
+  real assoc_intercept;
+  real assoc_slope;
+  real<lower=0> assoc_sd_shape;
+  real lambda_mu;
+  real lambda_sigma;
+  real lambda_skew;
 
 }
 generated quantities{
