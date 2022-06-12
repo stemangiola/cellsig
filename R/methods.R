@@ -12,6 +12,7 @@
 #' @importFrom rlang quo_is_null
 #' @importFrom SingleCellExperiment colData
 #' @importFrom parallel detectCores
+#' @importFrom cmdstanr cmdstan_model
 #'
 #' @param .data A tibble including a cell_group name column | sample name column | read counts column (optional depending on the input class) | covariate columns.
 #' @param formula_composition A formula. The formula describing the model for differential abundance, for example ~treatment.
@@ -96,7 +97,8 @@ cellsig_multilevel_varing_intercept <- function(.data,
                                                 ),
                                                 iterations_warmup = 250,
                                                 iterations_sampling = 300,
-                                                pass_fit = FALSE) {
+                                                pass_fit = FALSE,
+                                                use_cmdstanr = FALSE) {
   UseMethod("cellsig_multilevel_varing_intercept", .data)
 }
 
@@ -125,7 +127,8 @@ cellsig_multilevel_varing_intercept.data.frame = function(
                             ),
                              iterations_warmup = 250,
                              iterations_sampling = 300,
-                            pass_fit = FALSE) {
+                            pass_fit = FALSE,
+                            use_cmdstanr = FALSE) {
   
   # Use quotation for column names
   .sample = enquo(.sample)
@@ -138,9 +141,6 @@ cellsig_multilevel_varing_intercept.data.frame = function(
   # Chains and cores
   chains = 3
   cores = max(cores, chains)
-  
-  # Set global options
-  rstan_options(threads_per_chain = ceiling(cores / chains))
   
   # Iterations per chain
   iterations_sampling_per_chain = iterations_sampling / chains
@@ -223,53 +223,103 @@ cellsig_multilevel_varing_intercept.data.frame = function(
   
   vb = approximate_posterior_inference
   
-  # Sample
-  if(vb) fit = (
-    vb_iterative(
+  # RSTAN
+  if(!use_cmdstanr) {
+    
+    # Set global options
+    rstan_options(threads_per_chain = ceiling(cores / chains))
+    
+    # Sample
+    if(vb) fit = (
+      vb_iterative(
+        stanmodels$mixed_effect,
+        iter = 10000,
+        tol_rel_obj = 0.01,
+        data = model_data,
+        init = init_fun
+      )
+      
+    )
+    else fit = sampling(
       stanmodels$mixed_effect,
-      iter = 10000,
-      tol_rel_obj = 0.01,
-      data = model_data,
+      data = model_data ,
+      cores = chains,
+      chains = chains,
+      iter = iterations_sampling_per_chain + iterations_warmup,
+      warmup = iterations_warmup,
       init = init_fun
     )
     
-  )
-  else fit = sampling(
-    stanmodels$mixed_effect,
-    data = model_data ,
-    cores = chains,
-    chains = chains,
-    iter = iterations_sampling_per_chain + iterations_warmup,
-    warmup = iterations_warmup,
-    init = init_fun
-  )
-  
-  rng =  rstan::gqs(
-    stanmodels$mixed_effect_generate,
-    draws =  as.matrix(fit),
-    data = model_data
-  )
+    rng =  rstan::gqs(
+      stanmodels$mixed_effect_generate,
+      draws =  as.matrix(fit),
+      data = model_data
+    )
+    
+    rng_summary = 
+      rng %>% 
+      rstan::summary("Y_gen", c(0.1, 0.5, 0.9)) %$%
+      summary %>% 
+      as_tibble() %>% 
+      rowid_to_column(var = ".feature_idx")
+  }
+ else {
+   
+   # Lad model code
+   if(file.exists("mixed_effect_cmdstanr.rds"))
+     mod = readRDS("mixed_effect_cmdstanr.rds")
+   else {
+     write_file(mixed_effect_cmdstanr, "mixed_effect_cmdstanr.stan")
+     mod = cmdstan_model( "mixed_effect_cmdstanr.stan", cpp_options = list(stan_threads = TRUE) )
+     mod  %>% saveRDS("mixed_effect_cmdstanr.rds")
+   }
+   
+   fit = 
+     mod$sample(
+     data = model_data ,
+     chains = chains,
+     parallel_chains = chains,
+     threads_per_chain = ceiling(cores / chains),
+     iter_warmup = iterations_warmup,
+     iter_sampling = iterations_sampling_per_chain,
+     #refresh = ifelse(verbose, 1000, 0),
+     save_warmup = FALSE,
+     init = list(list(gene_sd_alpha = 3, gene_sd_beta = 3), list(gene_sd_alpha = 3, gene_sd_beta = 3), list(gene_sd_alpha = 3, gene_sd_beta = 3)),
+     output_dir = "."
+   ) %>%
+     suppressWarnings()
+   
+   # Lad model code
+   if(file.exists("mixed_effect_generate_cmdstanr.rds"))
+     mod_generate = readRDS("mixed_effect_generate_cmdstanr.rds")
+   else {
+     write_file(mixed_effect_generate_cmdstanr, "mixed_effect_generate_cmdstanr.stan")
+     mod_generate = cmdstan_model( "mixed_effect_generate_cmdstanr.stan" )
+     mod_generate %>% saveRDS("mixed_effect_generate_cmdstanr.rds")
+   }
+   
+   rng = mod_generate$generate_quantities(
+     fit,
+     data = model_data,
+     parallel_chains = chains
+   )
+   
+   rng_summary = 
+     rng$summary("Y_gen", ~quantile(.x, probs = c(0.1, 0.5, 0.9))) %>% 
+     rowid_to_column(var = ".feature_idx")
+   
+ }
   
 
   .data %>% 
     #mutate(.feature_idx = as.integer(.feature_cell_type)) %>% 
     mutate(.feature_idx = as.integer(feature_cell_type)) %>% 
     distinct(.feature_idx, !!.feature, !!.cell_group) %>% 
-    left_join(
-      rng %>% 
-        rstan::summary("Y_gen", c(0.1, 0.5, 0.9)) %$%
-        summary %>% 
-        as_tibble() %>% 
-        rowid_to_column(var = ".feature_idx"),
-      by = ".feature_idx"
-    ) %>% 
+    left_join(rng_summary,  by = ".feature_idx"  ) %>% 
     
     left_join(
-      rng %>% 
-        rstan::summary("Y_gen_log") %$% 
-        summary %>% 
+      rng$summary("Y_gen_log") %>% 
         .[,c("mean", "sd")] %>% 
-        as_tibble() %>%
         setNames(c("log_mean", "log_sd")) %>% 
         rowid_to_column(var = ".feature_idx")  ,
       by = ".feature_idx"
