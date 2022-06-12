@@ -1,0 +1,9 @@
+name: Tissue
+epithelial: []
+immune_cell:
+  granulocyte:
+    eosinophil: []
+    neutrophil: []
+  natural_killer:
+    nk_resting: []
+    nk_primed: []

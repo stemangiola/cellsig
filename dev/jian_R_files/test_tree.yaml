@@ -1,0 +1,4 @@
+name: Tissue
+natural_killer:
+  nk_cd56bright: []
+  nk_cd56dim: []
