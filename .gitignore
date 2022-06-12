@@ -41,3 +41,9 @@ dev/database*
 dev/*rds
 makeflow.failed*
 slurm.status*
+mixed_effect_generate_cmdstanr.stan
+mixed_effect_generate_cmdstanr.rds
+mixed_effect_generate_cmdstanr
+mixed_effect_cmdstanr_threads
+mixed_effect_cmdstanr.stan
+mixed_effect_cmdstanr.rds
