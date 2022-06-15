@@ -330,7 +330,7 @@ cellsig_multilevel_varing_intercept.data.frame = function(
      setNames(c("log_mean", "log_sd")) %>% 
      rowid_to_column(var = ".feature_idx")
 
- }
+ } 
   
 
   .data %>% 
