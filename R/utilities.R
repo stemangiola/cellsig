@@ -307,3 +307,58 @@ summary_to_tibble = function(fit, par, x) {
   
   
 }
+
+#' Get matrix from tibble
+#'
+#'
+#' @import dplyr
+#' @import tidyr
+#' @importFrom magrittr set_rownames
+#' @importFrom rlang quo_is_null
+#'
+#' @param tbl A tibble
+#' @param rownames A character string of the rownames
+#' @param do_check A boolean
+#'
+#' @return A matrix
+#'
+#' @examples
+#'
+#' library(dplyr)
+#'
+#' tidybulk::se_mini |> tidybulk() |> select(feature, count) |> head() |> as_matrix(rownames=feature)
+#'
+as_matrix <- function(tbl,
+                      rownames = NULL,
+                      do_check = TRUE) {
+  rownames = enquo(rownames)
+  tbl %>%
+    
+    # Through warning if data frame is not numerical beside the rownames column (if present)
+    when(
+      do_check &&
+        tbl %>%
+        # If rownames defined eliminate it from the data frame
+        when(!quo_is_null(rownames) ~ (.)[,-1], ~ (.)) %>%
+        dplyr::summarise_all(class) %>%
+        tidyr::gather(variable, class) %>%
+        pull(class) %>%
+        unique() %>%
+        `%in%`(c("numeric", "integer")) %>% not() %>% any() ~ {
+        warning("tidybulk says: there are NON-numerical columns, the matrix will NOT be numerical")
+        (.)
+      },
+      ~ (.)
+    ) %>%
+    as.data.frame() %>%
+    
+    # Deal with rownames column if present
+    when(
+      !quo_is_null(rownames) ~ magrittr::set_rownames(., tbl %>% pull(!!rownames)) %>%
+        select(-1),
+      ~ (.)
+    ) %>%
+    
+    # Convert to matrix
+    as.matrix()
+}
