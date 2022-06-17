@@ -22,6 +22,7 @@ library(tidybulk)
 library(cellsig)
 library(patchwork)
 library(tidySummarizedExperiment)
+library(treemap)
 
 # Load functions ====================================================
 
@@ -108,7 +109,9 @@ produce_cibersortx_bulk_rnaseq_input <- function(.expression_df, .transcript, .s
 main <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
                  .is_hierarchy=TRUE, .level=NULL, 
                  .tree, .node=NULL,
-                 .contrast_method, .ranking_method, .rank_stat=NULL, .bayes=NULL, 
+                 .contrast_method, .ranking_method, .rank_stat=NULL, .bayes=NULL,
+                 .lower_quantile = "10%",
+                 .upper_quantile = "90%",
                  .selection_method, .kmax=60, .discard_number=1000, .reduction_method = "PCA", .dims=2,
                  .optimisation_method, .penalty_rate = 0.2, .kernel = "normal", .bandwidth = 0.05, .gridsize = 100,
                  .is_complete = TRUE) {
@@ -723,8 +726,10 @@ rank_by_stat <-  function(.markers, .rank_stat){
   
 }
 
-rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type, 
-                       .contrast_method, .bayes, .tree, 
+rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
+                       .lower_quantile = "10%",
+                       .upper_quantile = "90%",
+                       .contrast_method, .bayes, .tree,
                        .rank_stat=NULL){
   
   # Args:
@@ -739,7 +744,8 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
   .bayes %>%
     
     # force the column names of bayes data to be consistent with input expression data
-    dplyr::rename(!!.symbol := .feature, !!.sample := sample, !!.cell_type := cell_type) %>%
+    #dplyr::rename(!!.symbol := .feature, !!.sample := sample, !!.cell_type := cell_type) %>%
+    dplyr::rename(lower_quantile = as.name(.lower_quantile), upper_quantile = as.name(.upper_quantile)) %>%
     do_hierarchy(.is_hierarchy = all(.hierarchical_counts$level != "root"), .tree = .tree,
                  .sample=!!.sample, .symbol=!!.symbol, .cell_type= !!.cell_type) %>%
     
@@ -757,7 +763,7 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
         filter(!!.cell_type == str_extract(.y, ".*(?=\\s\\-)")) %>%
         # filter out genes with imputation ratio greater than 0.2 (only used for user pipeline not benchmark)
         filter(ratio_imputed_samples < 0.2) %>%
-        select(!!.symbol, lower_quantile='10%')
+        select(!!.symbol, lower_quantile)
     )) %>%
     
     mutate(mean_upper_quantile = map2(
@@ -774,7 +780,7 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
           # calculate the mean 90% quantile of each gene over all background cell types
           filter(!!.cell_type %in% background) %>%
           group_by(!!.symbol) %>%
-          summarise(!!.symbol, mean_upper_quantile = mean(`90%`)) %>%
+          summarise(!!.symbol, mean_upper_quantile = mean(upper_quantile)) %>%
           distinct() %>%
           ungroup()
       }
@@ -1916,7 +1922,6 @@ vector_to_formatted_text <- function(.vector, .k=6){
   
   return(text)
 }
-
 
 
 # Runing cell signature algorithm ======================================================

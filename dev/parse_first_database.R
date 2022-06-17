@@ -127,11 +127,10 @@ get_BLUEPRINT = function(){
                                           multiVals = "first"
     ) %>% as.character()) %>% 
     distinct %>%
-    mutate(`Data base` = "BLUEPRINT") 
-  # %>%
-  #   
-  #   # NO NK
-  #   filter(`Cell type formatted` != "natural_killer")
+    mutate(`Data base` = "BLUEPRINT")  %>%
+
+    # NO NK
+    filter(`Cell type formatted` != "natural_killer")
   
   
   #AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db, "ENSG00000069712", 'SYMBOL', 'ENSEMBL')
@@ -191,8 +190,20 @@ get_ENCODE = function(){
 
   
   read_csv("dev/database/ENCODE/ENCODE__annotation_cell_types.csv") %>%
-    # unite("Data base", c(`Cell type`, `Biosample type`), remove = FALSE) %>% 
-    # mutate(`Data base` = glue("ENCODE_{`Data base`}")) %>% 
+
+    # Add database annotation
+    left_join(
+      read_csv("dev/database/ENCODE/encode_sample_experiment_info.csv") %>% 
+        rename(`Data base` = encode_database),
+      by="sample"
+    ) %>%
+    
+    # If sample is not in the DB csv
+    unite("alternative Data base", c(`Cell type`, `Biosample type`), remove = FALSE) %>%
+    mutate(`alternative Data base` = glue("ENCODE_{`alternative Data base`}")) %>%
+    mutate(`Data base` = if_else(is.na(`Data base`), `alternative Data base`, `Data base`)) %>% 
+    dplyr::select(-`alternative Data base`) %>% 
+    
     
     mutate(data = map(
       sample,
@@ -207,7 +218,10 @@ get_ENCODE = function(){
     
     unnest(data) %>% 
     {
-      mart <- biomaRt::useEnsembl(biomart = "ensembl",dataset =  "hsapiens_gene_ensembl")
+      # mart <- useEnsembl(biomart = "ensembl",dataset =  "hsapiens_gene_ensembl", mirror = "useast")
+      # saveRDS(mart, "dev/database/ENCODE/mart.rds")
+      
+      mart <- readRDS("dev/database/ENCODE/mart.rds")
       
       samples_with_symbol = c("ENCFF060YNO", "ENCFF677SZA", "ENCFF708ZUJ", "ENCFF255ULI", "ENCFF717WSQ", "ENCFF118GPH", "ENCFF083PYO" ,"ENCFF712VOY" ,"ENCFF094ADI",
                               "ENCFF841AKS", "ENCFF331CDB", "ENCFF263OIE", "ENCFF798GKH" ,"ENCFF491YKJ" ,"ENCFF867RFN", "ENCFF461BKM", "ENCFF929RZY", "ENCFF440CJU",
@@ -253,21 +267,11 @@ get_ENCODE = function(){
       
     } %>%
     rename(`count` = expected_count) %>%
-    dplyr::select(sample, `Cell type`, `Cell type formatted`, `count`, symbol, ensembl_gene_id) %>%
+    dplyr::select(sample, `Cell type`, `Cell type formatted`, `count`, symbol, ensembl_gene_id, `Data base`) %>%
     distinct  %>%
     
-    # Add database annotation
-    left_join(
-      read_csv("dev/database/ENCODE/encode_sample_experiment_info.csv") %>% 
-        rename(`Data base` = encode_database),
-      by="sample"
-    )
-  
-  
-  # %>%
-  #   
-  #   # NO NK
-  #   filter(`Cell type formatted` != "natural_killer")
+    # NO NK
+    filter(`Cell type formatted` != "natural_killer")
   
 }
 
@@ -323,11 +327,10 @@ get_immune_singapoor = function(){
     distinct() %>%
     
     # Add data base label
-    mutate(`Data base` = "Immune Singapoor") 
-  # %>%
-  #   
-  #   # NO NK
-  #   filter(`Cell type formatted` != "natural_killer")
+    mutate(`Data base` = "Immune Singapoor")  %>%
+
+    # NO NK
+    filter(`Cell type formatted` != "natural_killer")
   
 }
 

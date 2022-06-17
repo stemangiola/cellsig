@@ -237,7 +237,7 @@ format_for_MPI_from_linear_dec = function(df, lv) {
 #' @return A Stan fit object
 #'
 vb_iterative = function(model,
-                        output_samples,
+                        output_samples = 1000,
                         iter,
                         tol_rel_obj,
                         algorithm = "fullrank",
