@@ -14,8 +14,60 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
+
+markers_from_transcription_abundance_quantiles <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
+                                                               
+                                                               quantile_dataset,
+                                                               lower_quantile, 
+                                                               upper_quantile, 
+                                                              
+                                                               tree = NULL,
+                                                               contrast_method = pairwise_contrast, 
+                                                               selection_method = "silhouette", 
+                                                               reduction_method = "PCA", 
+                                                               dims= 4, 
+                                                               discard_number = 1000,
+                                                               optimisation_method = "penalty",
+                                                               is_complete = TRUE) {
+  
+  
+  .sample = enquo(.sample)
+  .symbol = enquo(.symbol)
+  .count = enquo(.count)
+  .cell_type = enquo(.cell_type)
+  
+  
+  if (is.null(tree))
+  {
+  tree = .input %>% from_dataframe_to_one_level_tree(.cell_type)
+  
+  is_hierarchy = FALSE
+  
+  } else {
+  
+  is_hierarchy = TRUE
+  
+  }
+  
+  .input %>%
+    
+    main(.sample = !!.sample, .symbol = !!.symbol, .count = !!.count, .cell_type = !!.cell_type,
+       .is_hierarchy = is_hierarchy, 
+       .tree = tree,
+       .lower_quantile = lower_quantile,
+       .upper_quantile = upper_quantile,
+       .contrast_method = contrast_method, .ranking_method = rank_bayes, .bayes= quantile_dataset,
+       .selection_method = selection_method, .reduction_method = reduction_method, 
+       .dims= dims, .discard_number = discard_number,
+       .optimisation_method = optimisation_method,
+       .is_complete = is_complete)
+  
+}
+
+
 ```
 
+# Run without tree
 
 ## Prepare the files
 
@@ -31,14 +83,18 @@ source(here("dev/jian_R_files/cellsig_for_kamran.R"), local = knitr::knit_global
 count = readRDS(here("dev/jian_R_files/test_count_data.rds"))
 
 # Load tree
-tree = yaml.load_file(here("dev/jian_R_files/test_tree.yaml")) %>% 
-  as.Node
+#tree = yaml.load_file(here("dev/jian_R_files/test_tree.yaml")) %>% 
+#  as.Node
 
 # Load the bayes count file
-bayes = readRDS(here("dev/jian_R_files/test_count_bayes.rds"))  %>%
+bayes_quantiles = readRDS(here("dev/jian_R_files/test_count_bayes.rds"))  %>%
 
-  # add sample column to bayes file
-  inner_join(readRDS(here("dev/jian_R_files/bayes_add_sample.rds")))
+  # renaming column to standard naming
+  dplyr::rename(symbol = .feature) #%>%
+  
+  # adding sample column
+  #mutate(id = "sample", sample = cell_type)  %>%
+  #unite(sample, id, sample, sep = "_")
 
 ```
 
@@ -49,14 +105,33 @@ bayes = readRDS(here("dev/jian_R_files/test_count_bayes.rds"))  %>%
 
 # Signature generation function
 
-signature_bayes = count %>%
-  main(.sample = sample, .symbol = symbol, .count = count, .cell_type = cell_type,
-       .is_hierarchy=FALSE,
-       .tree = tree,
-       .contrast_method = pairwise_contrast, .ranking_method = rank_bayes, .bayes= bayes,
-       .selection_method = "silhouette", .reduction_method = "PCA", .dims=2, .discard_number = 10,
-       .optimisation_method = "penalty",
-       .is_complete = TRUE)
+marker_genes = 
+  
+  count %>%
+  
+  markers_from_transcription_abundance_quantiles(
+    
+    
+    .sample = sample, 
+    .symbol = symbol, 
+    .count= count,
+    .cell_type = cell_type,
+    
+    
+    quantile_dataset = bayes_quantiles,
+    lower_quantile = "10%",
+    upper_quantile = "90%",
+    
+    
+    contrast_method = pairwise_contrast,
+    selection_method = "silhouette", 
+    reduction_method = "PCA", 
+    dims=2, 
+    discard_number = 10,
+    optimisation_method = "penalty",
+    is_complete = TRUE
+  )
+
 
 ```
 
@@ -65,9 +140,11 @@ signature_bayes = count %>%
 
 # Signature generation function
 
-signature_bayes
+marker_genes
 
 ```
+
+
 
 ## Produce signature using edgeR selection
 
@@ -85,6 +162,7 @@ signature_edgeR_robust = count %>%
        .is_complete = TRUE)
 
 ```
+
 
 ```{r message=FALSE, warning=FALSE}
 
