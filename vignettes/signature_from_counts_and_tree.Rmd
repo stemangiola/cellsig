@@ -87,14 +87,7 @@ count = readRDS(here("dev/jian_R_files/test_count_data.rds"))
 #  as.Node
 
 # Load the bayes count file
-bayes_quantiles = readRDS(here("dev/jian_R_files/test_count_bayes.rds"))  %>%
-
-  # renaming column to standard naming
-  dplyr::rename(symbol = .feature) #%>%
-  
-  # adding sample column
-  #mutate(id = "sample", sample = cell_type)  %>%
-  #unite(sample, id, sample, sep = "_")
+bayes_quantiles = readRDS(here("dev/jian_R_files/test_count_bayes.rds"))
 
 ```
 
