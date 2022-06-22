@@ -745,7 +745,8 @@ rank_bayes <- function(.hierarchical_counts, .sample, .symbol, .cell_type,
     
     # adding pseudo-sample column
     mutate(id = "sample", sample = !!.cell_type)  %>% unite(sample, id, sample, sep = "_") %>%
-    dplyr::rename(!!.symbol := .feature, !!.cell_type := cell_type, lower_quantile = as.name(.lower_quantile), upper_quantile = as.name(.upper_quantile)) %>%
+    dplyr::rename(!!.symbol := .feature, !!.cell_type := cell_type, 
+                  lower_quantile = as.name(.lower_quantile), upper_quantile = as.name(.upper_quantile)) %>%
     do_hierarchy(.is_hierarchy = all(.hierarchical_counts$level != "root"), .tree = .tree,
                  .sample=!!.sample, .symbol=!!.symbol, .cell_type= !!.cell_type) %>%
     
