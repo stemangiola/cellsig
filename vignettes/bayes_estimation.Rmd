@@ -33,8 +33,12 @@ readRDS(here("dev/counts.rds"))
 In this test run, we are using data for only 2 cell types, which are - 2 NK cell subtypes- CD56bright NK and CD56dim NK cells.
 
 ```{bash, eval=FALSE}
+# Using tree
+Rscript dev/modeling_code/create_input.R dev/counts.rds dev/modeling_results dev/tree_kamran.yaml
 
-Rscript dev/modeling_code/create_input.R dev/counts.rds dev/tree_kamran.yaml dev/modeling_results
+# Without tree
+Rscript dev/modeling_code/create_input.R dev/counts.rds dev/modeling_results
+
 ```
 
 ## Makeflow installation and loading
@@ -58,5 +62,42 @@ makeflow -T slurm -J 200  dev/modeling_results/run_model.makeflow
 
 # Monitor
 makeflow_monitor dev/modeling_results/run_model.makeflow.makeflowlog
+
+# Parse estimates
+Rscript dev/modeling_code/parse_results.R dev/modeling_results/
 ```
 
+## Feature selection
+
+```{r}
+# Select only leaves
+cell_types = data.tree::as.Node(yaml::read_yaml(here("dev/tree_kamran.yaml")))$leaves %>% purrr::map(~ .x$name) %>% as.character()
+
+# Get data
+bayes_quantiles = readRDS(here("dev/modeling_results/counts_bayes.rds")) %>% dplyr::filter(cell_type %in% cell_types) %>% rename(symbol=.feature)
+counts = readRDS(here("dev/counts.rds")) %>% dplyr::filter(cell_type %in% cell_types) 
+library(tidybulk)
+library(tidySummarizedExperiment)
+feature_selected = counts %>% 
+  
+  # Get markers
+  markers_from_transcription_abundance_quantiles(
+    
+    .sample = sample, 
+    .symbol = symbol, 
+    .count= count,
+    .cell_type = cell_type,
+    
+    quantile_dataset = bayes_quantiles,
+    lower_quantile = `10%`,
+    upper_quantile = `90%`,
+    
+    contrast_method = pairwise_contrast,
+    selection_method = "silhouette", 
+    reduction_method = "PCA", 
+    dims=2, 
+    discard_number = 10,
+    optimisation_method = "penalty",
+    is_complete = TRUE
+  )
+```

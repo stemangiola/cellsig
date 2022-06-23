@@ -290,3 +290,54 @@ cellsig_multilevel_varing_intercept.data.frame = function(
     )
   
 }
+
+#' @export
+markers_from_transcription_abundance_quantiles <- function(.input, .sample, .symbol, .count=NULL, .cell_type,
+                                                           
+                                                           quantile_dataset,
+                                                           lower_quantile, 
+                                                           upper_quantile, 
+                                                           
+                                                           tree = NULL,
+                                                           contrast_method = pairwise_contrast, 
+                                                           selection_method = "silhouette", 
+                                                           reduction_method = "PCA", 
+                                                           dims= 4, 
+                                                           discard_number = 1000,
+                                                           optimisation_method = "penalty",
+                                                           is_complete = TRUE) {
+  
+  
+  .sample = enquo(.sample)
+  .symbol = enquo(.symbol)
+  .count = enquo(.count)
+  .cell_type = enquo(.cell_type)
+  lower_quantile = enquo(lower_quantile)
+  upper_quantile = enquo(upper_quantile)
+  
+  if (is.null(tree))
+  {
+    tree = .input %>% from_dataframe_to_one_level_tree(!!.cell_type)
+    
+    is_hierarchy = FALSE
+    
+  } else {
+    
+    is_hierarchy = TRUE
+    
+  }
+  
+  .input %>%
+    
+    main(.sample = !!.sample, .symbol = !!.symbol, .count = !!.count, .cell_type = !!.cell_type,
+         .is_hierarchy = is_hierarchy, 
+         .tree = tree,
+         .lower_quantile = quo_name(lower_quantile),
+         .upper_quantile = quo_name(upper_quantile),
+         .contrast_method = contrast_method, .ranking_method = rank_bayes, .bayes= quantile_dataset,
+         .selection_method = selection_method, .reduction_method = reduction_method, 
+         .dims= dims, .discard_number = discard_number,
+         .optimisation_method = optimisation_method,
+         .is_complete = is_complete)
+  
+}

@@ -37,17 +37,27 @@ library(data.tree)
 
 # Read arguments
 args = commandArgs(trailingOnly=TRUE)
-dataset_in = args[1]
-tree_in = args[2]
-directory_out = args[3]
+dataset_in_path = args[1]
+directory_out = args[2]
+tree_in_path = args[3]
 
 local_dir = "~/PostDoc/cellsig"
 
 dir.create(file.path(local_dir, directory_out), showWarnings = FALSE)
 
+# Load data
+dataset_in = readRDS(dataset_in_path) 
+
+# If no tree provided, just une one level
+tree_in = 
+  tree_in_path %>% 
+  when(
+    is.na(.) ~ from_dataframe_to_one_level_tree(dataset_in, cell_type),
+    ~ read_yaml(.) %>% as.Node
+  )
+
 # PARSE
 dataset_in %>%
-  readRDS() %>%
   
   # Imputation
   as_SummarizedExperiment(sample, symbol, count) %>% 
@@ -57,7 +67,7 @@ dataset_in %>%
   
   # Parsing
   tree_and_signatures_to_database(
-    read_yaml(tree_in) %>% as.Node,
+    tree_in,
     .,
     .sample,
     cell_type,
