@@ -12,6 +12,7 @@ cellsig_multilevel_varing_intercept(
   .cell_group,
   .scaling_multiplier,
   .multilevel_grouping,
+  approximate_posterior_inference = FALSE,
   cores = detectCores(),
   priors = list(assoc_intercept_mean = 1, assoc_slope_mean = -0.55, assoc_sd_sd_mean =
     1.22, assoc_sd_shape_mean = 1.14, lambda_mu_mean = 9.8, lambda_sigma_mean = 2,
@@ -28,6 +29,8 @@ cellsig_multilevel_varing_intercept(
 \item{.sample}{A column name as symbol. The sample identifier}
 
 \item{.cell_group}{A column name as symbol. The cell_group identifier}
+
+\item{approximate_posterior_inference}{A boolean. Whether the inference of the joint posterior distribution should be approximated with variational Bayes. It confers execution time advantage.}
 
 \item{cores}{An integer. How many cored to be used with parallel calculations.}
 
@@ -52,8 +55,6 @@ cellsig_multilevel_varing_intercept(
 \item{use_data}{A booelan. Whether to sun the model data free. This can be used for prior predictive check.}
 
 \item{max_sampling_iterations}{An integer. This limit the maximum number of iterations in case a large dataset is used, for limiting the computation time.}
-
-\item{approximate_posterior_inference}{A boolean. Whether the inference of the joint posterior distribution should be approximated with variational Bayes. It confers execution time advantage.}
 
 \item{test_composition_above_logit_fold_change}{A positive integer. It is the effect threshold used for the hypothesis test. A value of 0.2 correspond to a change in cell proportion of 10\% for a cell type with baseline proportion of 50\%. That is, a cell type goes from 45\% to 50\%. When the baseline proportion is closer to 0 or 1 this effect thrshold has consistent value in the logit uncontrained scale.}
 
