@@ -83,6 +83,7 @@ cellsig_multilevel_varing_intercept <- function(.data,
                                                 .multilevel_grouping,
                                                 
                                                 # Other parameters
+                                                approximate_posterior_inference = FALSE,
                                                 cores = detectCores(),
                                                 priors = list(
                                                   assoc_intercept_mean = 1,
@@ -220,7 +221,7 @@ cellsig_multilevel_varing_intercept.data.frame = function(
     gene_sd = fit_vb %>% summary("shape") %$% summary %>% .[,1]
   )
   
-  vb = FALSE
+  vb = approximate_posterior_inference
   
   # Sample
   if(vb) fit = (

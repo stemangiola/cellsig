@@ -1085,6 +1085,8 @@ pre <- function(.level) {
 
 # Generate contrast for ranking
 
+
+#' @export
 pairwise_contrast = function(.data, .level){
   
   .data %>%

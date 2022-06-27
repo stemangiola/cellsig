@@ -23,6 +23,7 @@ knitr::opts_chunk$set(
 library(here)
 library(tibble)
 library(readr)
+library(cellsig)
 
 readRDS(here("dev/counts.rds"))
 
@@ -74,10 +75,41 @@ Rscript dev/modeling_code/parse_results.R dev/modeling_results/
 cell_types = data.tree::as.Node(yaml::read_yaml(here("dev/tree_kamran.yaml")))$leaves %>% purrr::map(~ .x$name) %>% as.character()
 
 # Get data
-bayes_quantiles = readRDS(here("dev/modeling_results/counts_bayes.rds")) %>% dplyr::filter(cell_type %in% cell_types) %>% rename(symbol=.feature)
-counts = readRDS(here("dev/counts.rds")) %>% dplyr::filter(cell_type %in% cell_types) 
+bayes_quantiles = 
+  readRDS(here("dev/modeling_results/counts_bayes.rds")) %>% 
+  dplyr::filter(cell_type %in% cell_types) %>% 
+  rename(symbol=.feature) %>% 
+  
+  # This should be done in the backend
+  mutate(id = "sample", sample = cell_type)  %>%
+  unite(sample, id, sample, sep = "_")
+
+counts = 
+  readRDS(here("dev/counts.rds")) %>% 
+  dplyr::filter(cell_type %in% cell_types) 
+
 library(tidybulk)
 library(tidySummarizedExperiment)
+library(ape)
+library(data.tree)
+library(glue)
+
+library(ape)
+library(rlang)
+library(factoextra)
+library(stringr)
+library(scales)
+library(KernSmooth)
+library(splus2R)
+library(data.tree)
+library(cluster)
+library(tidyverse)
+library(tidybulk)
+library(cellsig)
+library(patchwork)
+library(tidySummarizedExperiment)
+library(treemap)
+
 feature_selected = counts %>% 
   
   # Get markers
@@ -100,4 +132,6 @@ feature_selected = counts %>%
     optimisation_method = "penalty",
     is_complete = TRUE
   )
+
+#bayes_quantiles %>% select(symbol, cell_type, count = `50%`) %>% mutate(is_marker = symbol %in%  marker_genes) %>% filter(is_marker) %>% distinct(symbol)
 ```
