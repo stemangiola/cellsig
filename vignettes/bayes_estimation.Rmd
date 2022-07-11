@@ -74,7 +74,8 @@ Rscript dev/modeling_code/get_simulated_data_from_estimates.R dev/modeling_resul
 
 ## Feature selection
 
-```{r}
+```
+{r}
 # Select only leaves
 cell_types = data.tree::as.Node(yaml::read_yaml(here("dev/tree_kamran.yaml")))$leaves %>% purrr::map(~ .x$name) %>% as.character()
 
