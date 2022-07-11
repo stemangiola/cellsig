@@ -184,7 +184,7 @@ cellsig_multilevel_varing_intercept.data.frame = function(
       mutate_if(is.factor, as.integer) %>% 
       as_matrix(),
     
-    G = .data %>% pull(feature_cell_type) %>% unique() %>%  length(),
+    G = .data %>% pull(feature_cell_type) %>% unique() %>% length(),
     D = length(unique(.data$database_for_cell_type_feature)),
     S = length(unique(.data %>% pull(!!.sample))),
     

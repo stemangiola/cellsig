@@ -66,6 +66,10 @@ makeflow_monitor dev/modeling_results/run_model.makeflow.makeflowlog
 
 # Parse estimates
 Rscript dev/modeling_code/parse_results.R dev/modeling_results/
+
+# Get simulated data
+Rscript dev/modeling_code/get_simulated_data_from_estimates.R dev/modeling_results/
+
 ```
 
 ## Feature selection
