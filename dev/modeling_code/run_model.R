@@ -26,6 +26,7 @@ readRDS(file_in) %>%
     cores = 15, 
     pass_fit = TRUE, 
     use_cmdstanr = TRUE
+    #, approximate_posterior_inference = TRUE
   ) %>%
   saveRDS(file_out)
 
