@@ -1,9 +1,17 @@
+
+# srun --job-name "InteractiveJob" --cpus-per-task 8 --mem-per-cpu 55000 --time 48:00:00 --pty bash
+# Rscript dev/modeling_code/create_input.R dev/benchmark_database_crossvalidation_batch_2/training_data_2_parsed.rds dev/benchmark_database_crossvalidation_batch_2
+# ~/third_party_sofware/cctools-7.2.0-x86_64-centos7/bin/makeflow -T slurm -J 200  dev/benchmark_database_crossvalidation/run_model.makeflow
+
 library(tidyverse)
 library(magrittr)
 library(tidybulk)
 library(tidySummarizedExperiment)
+library(glue)
+library(cellsig)
+library(yaml)
+library(data.tree)
 
-# library(cellsig)
 # library(future)
 # library("future.batchtools")
 # library(furrr)
@@ -27,28 +35,52 @@ library(tidySummarizedExperiment)
 #     nest(data = -partition)
 # }
 
-# Save files
-create_partition_files = function(.data, .level, .partitions = 30){
-  .data %>%
-    mutate(level = .level) %>%
-    nest(data = -c(cell_type, .feature)) %>%
-    
-    # For testing
-    #sample_frac(0.01) %>%
-    mutate(partition = sample(1:.partitions, size = n(), replace = T)) %>%
-    unnest(data) %>%
-    nest(data = -partition) %>%
-    mutate(saved = map2_lgl(
-      data, partition,
-      ~ {
-        .x %>% saveRDS(sprintf("%s/dev/modeling_results/level_%s_patition_%s_input.rds", local_dir, .level, .y))
-        TRUE
-      }
-    ))
-}
+# Read arguments
+args = commandArgs(trailingOnly=TRUE)
+dataset_in_path = args[1]
+directory_out = args[2]
+tree_in_path = args[3]
 
-# Read counts
-readRDS("dev/counts.rds") %>%
+local_dir = "~/PostDoc/cellsig"
+
+dir.create(file.path(local_dir, directory_out), showWarnings = FALSE)
+
+# Load data
+dataset_in = readRDS(dataset_in_path) 
+
+# If no tree provided, just une one level
+tree_in = 
+  tree_in_path %>% 
+  when(
+    is.na(.) ~ from_dataframe_to_one_level_tree(dataset_in, cell_type),
+    ~ read_yaml(.) %>% as.Node
+  )
+
+# PARSE
+dataset_in %>%
+  
+  # Imputation
+  as_SummarizedExperiment(sample, symbol, count) %>% 
+  impute_missing_abundance(~ cell_type, force_scaling = TRUE) %>% 
+  as_tibble() %>% 
+  filter(count %>% is.na %>% `!`) %>% 
+  
+  # Parsing
+  tree_and_signatures_to_database(
+    tree_in,
+    .,
+    .sample,
+    cell_type,
+    .feature,
+    count
+  ) %>%
+  identify_abundant(.sample, .feature, count) %>%
+  scale_abundance(.sample, .feature, count) %>%
+  dplyr::select(-count_scaled) %>%
+  filter(!.imputed) %>% 
+  select(-.imputed) %>% 
+
+  # CREATE INPUTS
   select(-cell_type) %>%
   pivot_longer(
     contains("level_"), names_prefix="level_", 
@@ -59,8 +91,59 @@ readRDS("dev/counts.rds") %>%
   mutate(count = as.integer(count)) %>%
   
   # Create partition files
-  nest(data = -level) %>%
-  mutate(partitions = map2(
-    data, level,
-    ~ create_partition_files(.x, .y, 15)
+  nest(data = -c(level, cell_type, .feature)) %>%
+  nest(data = -c(level, cell_type)) %>% 
+  
+  mutate(number_of_partitions = if_else(cell_type=="immune_cell", 100, 40)) %>%
+  mutate(data = map2(
+    data, number_of_partitions,
+    ~ mutate(.x, partition = sample(1:.y, size = n(), replace = T))
+  )) %>%
+  unnest(data) %>% 
+  unnest(data) %>% 
+  
+  # Save
+  nest(data = -c(level, cell_type, partition)) %>%
+  mutate(saved = pmap_lgl(
+    list(data, level, cell_type, partition),
+    ~ {
+      ..1 %>% 
+        mutate(
+          level = ..2,
+          cell_type = ..3,
+          partition= ..4
+        ) %>% 
+      droplevels() %>% 
+      saveRDS(glue("{local_dir}/{directory_out}/level_{..2}_cell_type_{..3}_partition_{..4}_input.rds"), compress=FALSE )
+      TRUE
+    }
   ))
+
+
+
+# CREATE MAKEFILE
+
+cores = 15
+tab = "\t"
+
+sprintf("CATEGORY=create_input\nMEMORY=20024\nCORES=%s", cores) %>%
+  
+  c(
+    dir(glue("{local_dir}/{directory_out}/"), pattern = "input.rds") %>%
+      
+      enframe(value = "file") %>%
+      mutate(cores = !!cores) %>%
+      mutate(command = map2_chr(
+        file, cores,
+        ~{
+          my_basename = basename(.x) %>%  sub("^([^.]*).*", "\\1", .)
+          my_basename = glue("{my_basename}_result.rds")
+          glue("{directory_out}/{my_basename}: {directory_out}/{.x}\n{tab}Rscript dev/modeling_code/run_model.R {directory_out}/{.x} {directory_out}/{my_basename} {.y}" )
+          }
+        )
+      ) %>%
+      pull(command) %>%
+      unlist()
+  ) %>%
+  write_lines(glue("{local_dir}/{directory_out}/run_model.makeflow")) 
+
