@@ -17,10 +17,17 @@ assay<-
   left_join(meta_data, by = c(".cell" = "Cell_name")) %>%
   filter(!is.na(SingleR_annotation))
 
-rename(assay, cell_type=SingleR_annotation) #the cell type column
+assay<-assay%>%
+  #the cell type column
+  rename(cell_type=SingleR_annotation)%>%
+  mutate(dataset='GSE176031')
 
+assay$sample<-assay$orig.ident
 saveRDS(assay,file='dev/xinpu_datascript/parsed_data/GSE176031_final.rds')
 
+#assay<-readRDS(file='dev/xinpu_datascript/parsed_data/GSE176031_final.rds')
 
-
-
+#list unique cell type
+assay%>%distinct(dataset,sample,cell_type)
+# cell number in each sample
+assay%>%group_by(dataset,sample)%>%summarise(count=n())
