@@ -1,0 +1,36 @@
+name: Tissue
+epithelial: []
+fibroblast: []
+endothelial: []
+immune_cell:
+  b_cell:
+    b_memory: []
+    b_naive: []
+  t_cell:
+    t_CD8:
+      t_CD8_memory:
+        t_CD8_memory_central: []
+        t_CD8_memory_effector: []
+      t_CD8_naive: []
+    t_CD4:
+      t_helper: []
+      t_reg: []
+      t_CD4_memory:
+        t_CD4_memory_central: []
+        t_CD4_memory_effector: []
+    t_gamma_delta: []
+  mast_cell: []
+  mono_derived:
+    monocyte: []
+    dendritic_myeloid:
+      dendritic_myeloid_immature: []
+      dendritic_myeloid_mature: []
+    macrophage:
+      macrophage_M1: []
+      macrophage_M2: []
+  granulocyte:
+    eosinophil: []
+    neutrophil: []
+  natural_killer:
+    nk_cd56bright: []
+    nk_cd56dim: []
