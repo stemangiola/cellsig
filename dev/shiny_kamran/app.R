@@ -50,7 +50,7 @@ load("bayes.RData")
 # Define UI for application that draws a histogram
 ui <- navbarPage(
   
-  title = "Cell Signature",
+  title = "CellSigDB",
   
   tags$style(type='text/css', 
              ".selectize-input {font-size: 20px; line-height: 22px;} 
@@ -115,11 +115,11 @@ ui <- navbarPage(
         
         # Input: Choose dataset ----
         selectInput("dataset", 
-                    h3(strong("Choose a cell-type:")),
+                    h3(strong("Download Cell-type wise datasets:")),
                     choices = celltypes),
         
         # Button
-        downloadButton("downloadData", "Download")
+        downloadButton("downloadData", "Download"),
         
       ),
       
@@ -129,8 +129,9 @@ ui <- navbarPage(
         tableOutput("table")
         
       )
+        
+      )
       
-    )
   )
   
 ) # navbarPage
@@ -174,7 +175,7 @@ server <- function(input, output, session) {
     geneExpPCA() %>% 
       ggplot(aes(PC1, PC2, colour = count_scaled)) + 
       geom_point()+
-      scale_colour_viridis_c() +
+      scale_colour_viridis_c(trans = "log10") +
       theme_bw() +
       theme(plot.background = element_blank(),
             panel.grid.major = element_blank(),
@@ -370,8 +371,7 @@ server <- function(input, output, session) {
       geom_jitter(alpha=0.3) +
       
       ### Add a segment based on 50% and 90% values from bayes data
-      geom_errorbar(aes(x = cell_type, ymin = fiftieth, ymax = fiftieth), color = "blue") +
-      geom_errorbar(aes(x = cell_type, ymin = ninetieth, ymax = ninetieth), color = "red") +
+      geom_errorbar(aes(x = cell_type, ymin = fiftieth, ymax = ninetieth), width=.2, color = "red") +
       
       
       theme_bw() +
@@ -399,13 +399,20 @@ server <- function(input, output, session) {
  
   output$downloadData <- downloadHandler(
     filename = function() {
+      if (input$dataset == "ALL"){
+      paste(input$dataset, ".rds", sep = "")
+      } else {
       paste(input$dataset, ".csv", sep = "")
-    },
+    }
+      },
     content = function(file) {
-      write.csv(datasetInput(), file, row.names = FALSE)
+      if (input$dataset == "ALL"){
+        saveRDS(data_for_download, file, compress = "xz")
+      } else {
+        write.csv(datasetInput(), file, row.names = FALSE)
+      }
     }
   )
-  
 }
 
 # Run the application 
