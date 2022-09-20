@@ -35,13 +35,13 @@ library(tidySummarizedExperiment)
 # load("dev/shiny_pub/pca_df.RData")
 
 #  load data for webpage deployment
-new_tree <- read_yaml("tree.yaml") %>% as.Node
-load("geneNames.RData")
-load("expression.RData")
-load("pca_df.RData")
-load("data_for_download.RData")
-load("celltypes.RData")
-load("bayes.RData")
+new_tree <- read_yaml("/home/khan.k/ShinyApps/cellsigdb/tree.yaml") %>% as.Node
+load("/home/khan.k/ShinyApps/cellsigdb/geneNames.RData")
+load("/home/khan.k/ShinyApps/cellsigdb/expression.RData")
+load("/home/khan.k/ShinyApps/cellsigdb/pca_df.RData")
+load("/home/khan.k/ShinyApps/cellsigdb/data_for_download.RData")
+load("/home/khan.k/ShinyApps/cellsigdb/celltypes.RData")
+load("/home/khan.k/ShinyApps/cellsigdb/bayes.RData")
 
 
 # expression = expression@assays@data$count_scaled %>% Matrix(sparse = TRUE)
