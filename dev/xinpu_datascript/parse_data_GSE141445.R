@@ -27,3 +27,11 @@ assay%>%distinct(dataset,sample,cell_type)
 # cell number in each sample
 assay%>%group_by(dataset,sample)%>%summarise(count=n())
 
+
+# change the sample to orig.ident.y
+GSE141445_final <- readRDS("/stornext/Bioinf/data/bioinf-data/Papenfuss_lab/projects/xinpu/master_project/cellsig/dev/xinpu_datascript/parsed_data/GSE141445_final.rds")
+GSE141445_final<-GSE141445_final%>%rename(orig.ident.x=sample)
+GSE141445_final<-GSE141445_final%>%rename(sample=orig.ident.y)
+saveRDS(GSE141445_final,file='./parsed_data/GSE141445_final.rds')
+
+

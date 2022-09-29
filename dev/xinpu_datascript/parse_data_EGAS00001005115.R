@@ -24,7 +24,11 @@ assay<-assay%>%left_join(meta_data, by = c("umi_code" = "NAME",'orig.ident'='don
   mutate(dataset='EGAS00001005115')
 assay<-assay%>%rename(cell_type=CellType)
 assay<-assay%>%rename(sample=biosample_id)
-saveRDS(assay,file='dev/xinpu_datascript/parsed_data/EGAS00001005115_final.rds')
+
+#remove breast cancer and keep prostate cancer only
+assay<-EGAS00001005115_final%>%filter(disease__ontology_label=='prostate cancer')
+saveRDS(assay,file='/stornext/Bioinf/data/bioinf-data/Papenfuss_lab/projects/xinpu/master_project/cellsig/dev/xinpu_datascript/parsed_data/EGAS00001005115_final.rds')
+
 #assay<-readRDS(file='dev/xinpu_datascript/parsed_data/EGAS00001005115_final.rds')
 
 #list unique cell type

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # History files
 .Rhistory
 .Rapp.history
@@ -42,3 +43,12 @@ dev/*rds
 makeflow.failed*
 slurm.status*
 mixed_effect_cmdstanr-*.csv
+=======
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+jascap.Rproj
+>>>>>>> 28e418c2e19956ef3415b9c971a0562b2b4ff0d6
+.h5seurat
+gcm-linux_amd64.2.0.785.deb

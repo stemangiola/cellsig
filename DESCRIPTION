@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 Package: cellsig
 Title: What the Package Does (One Line, Title Case)
 Version: 0.0.0.9000
@@ -45,3 +46,16 @@ Suggests:
     testthat
 Remotes: 
     stan-dev/rstan@v2.26.9
+=======
+Package: jascap
+Type: Package
+Title: What the Package Does (Title Case)
+Version: 0.1.0
+Author: Who wrote it
+Maintainer: The package maintainer <yourself@somewhere.net>
+Description: More about what it does (maybe more than one line)
+    Use four spaces when indenting paragraphs within the Description.
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
+>>>>>>> 28e418c2e19956ef3415b9c971a0562b2b4ff0d6
