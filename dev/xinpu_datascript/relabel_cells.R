@@ -4,7 +4,7 @@ library(tidyseurat)
 library(dplyr)
 library(ggplot2)
 library(xlsx)
-source('xinpu_datascript/functions.R')
+
 
 sample.combined<-readRDS('/stornext/Bioinf/data/bioinf-data/Papenfuss_lab/projects/xinpu/master_project/cellsig/dev/xinpu_datascript/parsed_data/integrated_sample.rds')
 # Get the cell types from each cluster
@@ -32,20 +32,6 @@ sample.combined@meta.data[["cell_type"]]<-cell_type_new
 DimPlot(sample.combined,reduction='umap',label=TRUE,repel=TRUE)
 
 #sample.combined<-readRDS('/stornext/Bioinf/data/bioinf-data/Papenfuss_lab/projects/xinpu/master_project/cellsig/dev/xinpu_datascript/parsed_data/integrated_sample.rds')
-DefaultAssay(sample.combined) <- 'SCT'
-FeaturePlot(sample.combined, features = c("CD14", "FCGR3A", "CD79A", "CD3G", "EPCAM", 'LUM',"VIM", "PLVAP",
-                                          "CD68"))
-FeaturePlot(sample.combined, features = c('LUM',"VIM",'DCN','THY1','COL1A1','COL14A1','FN1','CAV1'))
-
-DefaultAssay(sample.combined) <- 'integrated'
-# Get cell marker in clusters
-cluster.markers<-FindAllMarkers(sample.combined,only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
-cluster.markers %>%
-  group_by(cluster) %>%
-  top_n(n = 10, wt = avg_log2FC) -> top10
-var.heatmap<-DoHeatmap(sample.combined, features = top10$gene) + NoLegend()
-saveRDS(cluster.markers,file='/stornext/Bioinf/data/bioinf-data/Papenfuss_lab/projects/xinpu/master_project/cellsig/dev/xinpu_datascript/parsed_data/cluster_marker.rds')
-
 
 #Sanity check
 # Get percentage of mitochondria
@@ -57,14 +43,6 @@ FeaturePlot(sample.combined,reduction='umap',features='nCount_RNA',order = TRUE)
 DimPlot(sample.combined,reduction='umap',group.by = 'sample')+ggplot2::theme(legend.position = 'bottom')
 # 10X vs SMART-Seq (GSE176031)
 DimPlot(sample.combined,reduction='umap',group.by = 'dataset',cols=c('GSE176031'='red'))+ggplot2::ggtitle('SMART-Seq')
-# cancer vs normal改
-sample<-sample.combined@meta.data[["sample"]]
-cancer<-c()
-for (i in 1:length(sample)){
-  cell_type_new<-cell_type_new%>%replace(cell_type_new==old_name[i],new_name[i])
-}
-DimPlot(sample.combined,reduction='umap',group.by = 'sample',cols=c(tumor_set='red'))+ggplot2::ggtitle('cancer sample')
-DimPlot(sample.combined,reduction='umap',group.by = 'sample',cols=c(normal_set='grey'))+ggplot2::ggtitle('cancer sample')
 
 #markers<-ComputeMarkers
 # #filter epithelial and non-epithelial cells
