@@ -1,0 +1,1 @@
+\text{Mean absolute error} = \frac{\sum\left | (\text{Reference proportion a cell type}-\text{Estimated proportion of that cell type}) \right |}{\text{Total number of cell types}}
