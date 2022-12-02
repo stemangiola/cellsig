@@ -1,5 +1,8 @@
-README
-================
+# Explore database through the web user interface
+
+[Shiny app](https://shiny.wehi.edu.au/khan.k/cellsigdb)
+
+# Example
 
 Create a hierarchical signature data frame from a tree and and signature
 database
