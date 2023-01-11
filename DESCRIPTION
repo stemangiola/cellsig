@@ -43,5 +43,9 @@ LinkingTo:
 SystemRequirements: GNU make
 Suggests: 
     testthat
-Remotes:  
-    stan-dev/rstan@v2.26.9
+
+Additional_repositories:
+    https://mc-stan.org/r-packages/
+    
+#Remotes:  
+ #   stan-dev/rstan@v2.26.9
