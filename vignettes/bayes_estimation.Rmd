@@ -1,0 +1,137 @@
+---
+title: "Bayes estimation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Bayes estimation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r include = FALSE}
+library(knitr)
+
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+
+## Input dataset
+
+```{r}
+library(here)
+library(tibble)
+library(readr)
+library(cellsig)
+
+readRDS(here("dev/counts.rds"))
+
+```
+
+## Create input and infer
+
+In this test run, we are using data for only 2 cell types, which are - 2 NK cell subtypes- CD56bright NK and CD56dim NK cells.
+
+```{bash, eval=FALSE}
+# Using tree
+Rscript dev/modeling_code/create_input.R dev/counts.rds dev/modeling_results dev/tree_kamran.yaml
+
+# Without tree
+Rscript dev/modeling_code/create_input.R dev/counts.rds dev/modeling_results
+
+```
+
+## Makeflow installation and loading
+
+Source https://cctools.readthedocs.io/en/latest/install/
+
+```{bash, eval=FALSE}
+module load miniconda3
+conda create -n cctools-env -y -c conda-forge --strict-channel-priority python ndcctools
+conda activate cctools-env
+
+# When done
+conda deactivate
+
+```
+
+```{bash, eval=FALSE}
+# Run
+conda activate cctools-env
+makeflow -T slurm -J 200  dev/modeling_results/run_model.makeflow
+
+# Monitor
+makeflow_monitor dev/modeling_results/run_model.makeflow.makeflowlog
+
+# Parse estimates
+Rscript dev/modeling_code/parse_results.R dev/modeling_results/
+```
+
+## Feature selection
+
+```{r}
+# Select only leaves
+cell_types = data.tree::as.Node(yaml::read_yaml(here("dev/tree_kamran.yaml")))$leaves %>% purrr::map(~ .x$name) %>% as.character()
+
+# Get data
+bayes_quantiles = 
+  readRDS(here("dev/modeling_results/counts_bayes.rds")) %>% 
+  dplyr::filter(cell_type %in% cell_types) %>% 
+  rename(symbol=.feature) %>% 
+  
+  # This should be done in the backend
+  mutate(id = "sample", sample = cell_type)  %>%
+  unite(sample, id, sample, sep = "_")
+
+counts = 
+  readRDS(here("dev/counts.rds")) %>% 
+  dplyr::filter(cell_type %in% cell_types) 
+
+library(tidybulk)
+library(tidySummarizedExperiment)
+library(ape)
+library(data.tree)
+library(glue)
+
+library(ape)
+library(rlang)
+library(factoextra)
+library(stringr)
+library(scales)
+library(KernSmooth)
+library(splus2R)
+library(data.tree)
+library(cluster)
+library(tidyverse)
+library(tidybulk)
+library(cellsig)
+library(patchwork)
+library(tidySummarizedExperiment)
+library(treemap)
+
+feature_selected = counts %>% 
+  
+  # Get markers
+  markers_from_transcription_abundance_quantiles(
+    
+    .sample = sample, 
+    .symbol = symbol, 
+    .count= count,
+    .cell_type = cell_type,
+    
+    quantile_dataset = bayes_quantiles,
+    lower_quantile = `10%`,
+    upper_quantile = `90%`,
+    
+    contrast_method = pairwise_contrast,
+    selection_method = "silhouette", 
+    reduction_method = "PCA", 
+    dims=2, 
+    discard_number = 10,
+    optimisation_method = "penalty",
+    is_complete = TRUE
+  )
+
+#bayes_quantiles %>% select(symbol, cell_type, count = `50%`) %>% mutate(is_marker = symbol %in%  marker_genes) %>% filter(is_marker) %>% distinct(symbol)
+```

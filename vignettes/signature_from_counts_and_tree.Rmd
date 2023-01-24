@@ -1,0 +1,124 @@
+---
+title: "Signature generation from tree and count"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Signature generation from tree and count}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r include = FALSE}
+library(knitr)
+
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+
+
+
+
+```
+
+# Run without tree
+
+## Prepare the files
+
+In this test run, we are using data for only 2 cell types, which are - 2 NK cell subtypes- CD56bright NK and CD56dim NK cells.
+
+```{r message=FALSE, warning=FALSE, results='hide'}
+library(here)
+
+# Load the functions
+source(here("dev/jian_R_files/cellsig_for_kamran.R"), local = knitr::knit_global())
+
+# Load the count data and tree file
+count = readRDS(here("dev/jian_R_files/test_count_data.rds"))
+
+# Load tree
+#tree = yaml.load_file(here("dev/jian_R_files/test_tree.yaml")) %>% 
+#  as.Node
+
+# Load the bayes count file
+bayes_quantiles = readRDS(here("dev/jian_R_files/test_count_bayes.rds"))  %>%
+
+  # renaming column to standard naming
+  dplyr::rename(symbol = .feature) #%>%
+  
+  # adding sample column
+  #mutate(id = "sample", sample = cell_type)  %>%
+  #unite(sample, id, sample, sep = "_")
+
+```
+
+
+## Produce signature using Bayesian selection
+
+```{r message=FALSE, warning=FALSE, results='hide'}
+
+# Signature generation function
+
+marker_genes = 
+  
+  count %>%
+  
+  markers_from_transcription_abundance_quantiles(
+    
+    
+    .sample = sample, 
+    .symbol = symbol, 
+    .count= count,
+    .cell_type = cell_type,
+    
+    
+    quantile_dataset = bayes_quantiles,
+    lower_quantile = "10%",
+    upper_quantile = "90%",
+    
+    
+    contrast_method = pairwise_contrast,
+    selection_method = "silhouette", 
+    reduction_method = "PCA", 
+    dims=2, 
+    discard_number = 10,
+    optimisation_method = "penalty",
+    is_complete = TRUE
+  )
+
+
+```
+
+
+```{r message=FALSE, warning=FALSE}
+
+# Signature generation function
+
+marker_genes
+
+```
+
+
+
+## Produce signature using edgeR selection
+
+```{r message=FALSE, warning=FALSE, results='hide'}
+
+# Signature generation function
+
+signature_edgeR_robust = count %>%
+  main(.sample = sample, .symbol = symbol, .count = count, .cell_type = cell_type,
+       .is_hierarchy=FALSE,
+       .tree = tree,
+       .contrast_method = pairwise_contrast, .ranking_method = rank_edgR_robust_likelihood_ratio, .rank_stat="PValue",
+       .selection_method = "silhouette", .reduction_method = "PCA", .dims=2, .discard_number = 10,
+       .optimisation_method = "penalty",
+       .is_complete = TRUE)
+
+```
+
+
+```{r message=FALSE, warning=FALSE}
+
+signature_edgeR_robust
+
+```
