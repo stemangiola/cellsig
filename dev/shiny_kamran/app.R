@@ -50,11 +50,11 @@ load("/home/khan.k/ShinyApps/cellsigdb/bayes.RData")
 # Define UI for application that draws a histogram
 ui <- navbarPage(
   
-  title = "CellSigDB",
+  title = "HBCC",
   
   tags$style(type='text/css', 
              ".selectize-input {font-size: 20px; line-height: 22px;} 
-             .selectize-dropdown {font-size: 20px; line-height: 22px; }"),
+             .selectize-dropdown {font-size: 20px; line-height: 22px;}"),
   
   
   tabPanel(
@@ -370,8 +370,8 @@ server <- function(input, output, session) {
       geom_violin() +
       geom_jitter(alpha=0.3) +
       
-      ### Add a segment based on 50% and 90% values from bayes data
-      geom_errorbar(aes(x = cell_type, ymin = fiftieth, ymax = ninetieth), width=.2, color = "red") +
+      ### Add a segment based on 10% and 90% values from bayes data
+      geom_errorbar(aes(x = cell_type, ymin = tenth, ymax = ninetieth), width=.2, color = "red") +
       
       
       theme_bw() +
