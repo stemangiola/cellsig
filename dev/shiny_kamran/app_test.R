@@ -122,6 +122,13 @@ ui <- navbarPage(
         # Button
         downloadButton("downloadData", "Download"),
         
+        
+        # adding the new div tag to the sidebar            
+        tags$div(class="header", checked=NA,
+                 tags$br(),
+                 tags$a(href="https://doi.org/10.5281/zenodo.7582421", "Alternatively retrieve the entire database from here", target="_blank")
+        )
+        
       ),
       
       # Main panel for displaying outputs ----
