@@ -1,4 +1,39 @@
 cibersortx
 *.rds
 Rmd hierarchy levels
-
+Error files
+adapt_input_dataframe_to_tree.R
+bayes.R
+cellsig_for_kamran.R
+cibersortx.R
+compare_methods_using_full_vs_subset_tree.R
+comparison for all methods.R
+create_counts_bayes_imputed.R
+create_mix_source.R
+data_exploration.R
+draft_paper.R
+for_zijie.R
+function_jian.R
+hierarchy_L1.R
+hierarchy_L2.R
+hierarchy_L3.R
+hierarchy_L4.R
+hierarchy_L5.R
+hierarchy_all.R
+hierarchy_non.R
+increase_feature_dimensions.R
+launch_script_through_SLURM.sh
+limit_imputed_markers.R
+method_optimisation.R
+method_pairwise_selection_by_silhouette.R
+modify_tree_structure.R
+modules.R
+produce_benchmark_plot_from_database_plus_tree.R
+pw_sil_H_unOp.R
+separate job files
+separate_job_files
+shiny
+test_tree.yaml
+tree.yaml
+tree_structure.R
+update_treg_of_the_old_tree.R
