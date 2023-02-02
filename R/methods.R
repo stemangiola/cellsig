@@ -222,7 +222,9 @@ cellsig_multilevel_varing_intercept.data.frame = function(
     gene_sd = fit_vb %>% summary("shape") %$% summary %>% .[,1]
   )
   
+
   vb = approximate_posterior_inference
+
   
   # Sample
   if(vb) fit = (
@@ -291,6 +293,7 @@ cellsig_multilevel_varing_intercept.data.frame = function(
       ~ (.)
     )
   
+
 }
 
 #' @export
@@ -343,3 +346,4 @@ markers_from_transcription_abundance_quantiles <- function(.input, .sample, .sym
          .is_complete = is_complete)
   
 }
+

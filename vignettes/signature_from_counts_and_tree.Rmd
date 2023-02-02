@@ -20,7 +20,7 @@ knitr::opts_chunk$set(
 
 ```
 
-# Run without tree
+
 
 ## Prepare the files
 
@@ -36,6 +36,7 @@ source(here("dev/jian_R_files/cellsig_for_kamran.R"), local = knitr::knit_global
 count = readRDS(here("dev/jian_R_files/test_count_data.rds"))
 
 # Load tree
+
 #tree = yaml.load_file(here("dev/jian_R_files/test_tree.yaml")) %>% 
 #  as.Node
 
@@ -57,6 +58,7 @@ bayes_quantiles = readRDS(here("dev/jian_R_files/test_count_bayes.rds"))  %>%
 ```{r message=FALSE, warning=FALSE, results='hide'}
 
 # Signature generation function
+
 
 marker_genes = 
   
@@ -86,6 +88,7 @@ marker_genes =
   )
 
 
+
 ```
 
 
@@ -93,9 +96,11 @@ marker_genes =
 
 # Signature generation function
 
+
 marker_genes
 
 ```
+
 
 
 

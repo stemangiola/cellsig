@@ -1,3 +1,4 @@
+
 functions{
 
 int neg_binomial_2_log_safe_rng(real eta, real phi) {
@@ -41,11 +42,14 @@ vector summarise_mean(int[,] grouping_gene_idx_D, vector shape, int G){
 }
   data {
 
+
   // dataset * gene level
   int<lower=1> G; // total genes
   int<lower=1> D; // total datasets, they are unique with genes, so D >> G
+
   
   int<lower=1> grouping_gene_idx_D[D, 2];  // grouping and gene indicator per observation // first clumn is dataset second is gene
+
 
 
 }
@@ -56,19 +60,25 @@ parameters {
   vector[G] gene_sd;  // group-level standard deviations
 
 }
+
 transformed parameters{
   vector[G] shape_mean = summarise_mean(grouping_gene_idx_D, shape,  G); 
 
 }
+
 generated quantities{
 
   int Y_gen[G];  // response variable
   real Y_gen_log[G];
   
 	for(g in 1:G) {
+
     	Y_gen[g] = neg_binomial_2_log_safe_rng( normal_rng(gene_mean[g], gene_sd[g]), 1.0 ./ exp(shape_mean[g]));
+
 	}
 	
 	Y_gen_log = log1p(Y_gen);
 
+
 }
+

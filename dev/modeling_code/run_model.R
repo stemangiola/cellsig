@@ -2,6 +2,8 @@
 # ~/third_party_sofware/cctools-7.2.0-x86_64-centos7/bin/makeflow -T slurm -J 200  dev/TCGA_makeflow_pipeline/makefile_ARMET_TCGA.makeflow
 
 
+
+library(rstan)
 library(tidyverse)
 library(cellsig)
 
@@ -13,9 +15,7 @@ cores = as.integer(args[3])
 
 # file_in = "/stornext/Bioinf/data/bioinf-data/Papenfuss_lab/projects/mangiola.s/PostDoc/cellsig/dev/modeling_results/level_2_cell_type_mono_derived_partition_18_input.rds"
 readRDS(file_in) %>%
-  # nest(data = -.feature) %>% 
-  # slice(1:10) %>% 
-  # unnest() %>% 
+
   cellsig_multilevel_varing_intercept(
     .sample,
     .feature,
@@ -24,8 +24,7 @@ readRDS(file_in) %>%
     multiplier, 
     database, 
     cores = 15, 
-    pass_fit = TRUE, 
-    use_cmdstanr = TRUE
+    pass_fit = TRUE
   ) %>%
   saveRDS(file_out)
 

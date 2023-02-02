@@ -620,6 +620,7 @@ from_dataframe_to_one_level_tree = function(counts, cell_type_column){
     )
   
   as.Node(pseudo_tree_from_count_data)
+
 }
 
 # create input files for cibersortx cell signature selection using bulk RNA-seq data
@@ -2520,3 +2521,4 @@ vector_to_formatted_text <- function(.vector, .k=6){
   
   return(text)
 }
+
