@@ -33,10 +33,12 @@ cellsig.so
 src/stanExports_ARMET_ref.h
 src/stanExports_ARMET_ref.o
 src/stanExports_ARMET_ref.cc
-inst/include/stan_meta_header.hpp
+#inst/include/stan_meta_header.hpp
 RcppExports.cpp
 dev/*pdf
 dev/tt.rds
 dev/database*
+dev/*rds
+makeflow.failed*
 slurm.status*
 mixed_effect_cmdstanr-*.csv

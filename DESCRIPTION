@@ -1,13 +1,13 @@
 Package: cellsig
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
+Title: RNA sequencing multilevel model to estimate gene transcription across datasets
+Version: 0.1
 Authors@R: 
-    person(given = "First",
-           family = "Last",
+    person(given = "Stefano",
+           family = "Mangiolz",
            role = c("aut", "cre"),
-           email = "first.last@example.com",
+           email = "mangiolastefano@gmail.com",
            comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
+Description: RNA sequencing multilevel model to estimate gene transcription across datasets.
 License: `use_mit_license()`, `use_gpl3_license()` or friends to
     pick a license
 Encoding: UTF-8
@@ -27,16 +27,21 @@ Imports:
     tidyr,
     purrr,
     stringr,
-    nanny,
     data.tree,
-    tidybayes
+    tidybayes,
+    forcats, 
+    magrittr, 
+    rlang, 
+    tibble
 LinkingTo: 
     BH (>= 1.66.0),
     Rcpp (>= 0.12.0),
     RcppEigen (>= 0.3.3.3.0),
     RcppParallel (>= 5.0.1),
-    rstan (>= 2.18.1),
-    StanHeaders (>= 2.18.0)
+    rstan (>= 2.26.0),
+    StanHeaders (>= 2.26.0)
 SystemRequirements: GNU make
 Suggests: 
     testthat
+Remotes: 
+    stan-dev/rstan@v2.26.9
