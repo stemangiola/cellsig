@@ -113,6 +113,7 @@ cellsig_multilevel_varing_intercept.data.frame = function(
                              .multilevel_grouping,
                              
                              # Other parameters
+                            approximate_posterior_inference = FALSE,
                             cores = detectCores(),
                             priors = list(
                               assoc_intercept_mean = 1,
@@ -246,7 +247,7 @@ cellsig_multilevel_varing_intercept.data.frame = function(
   
   rng =  rstan::gqs(
     stanmodels$mixed_effect_generate,
-    draws =  as.matrix(fit),
+    draws =  as.matrix(fit, pars=c("gene_mean", "shape", "gene_sd")),
     data = model_data
   )
   

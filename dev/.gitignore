@@ -17,3 +17,4 @@ slurm.*
 dev/benchmark_results.*
 modeling_results_*
 benchmark_database*
+*.rds
