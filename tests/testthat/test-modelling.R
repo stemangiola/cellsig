@@ -15,7 +15,8 @@ test_that("model runs", {
       cell_type,
       multiplier, 
       database, 
-      pass_fit = TRUE, 
-      use_cmdstanr = TRUE
+      pass_fit = TRUE
+      #, 
+      #use_cmdstanr = TRUE
     )
 })
