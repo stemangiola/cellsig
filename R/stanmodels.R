@@ -23,5 +23,4 @@ stanmodels <- sapply(stanmodels, function(model_name) {
                model_code = stanfit$model_code,
                model_cpp = stanfit$model_cpp,
                mk_cppmodule = function(x) get(paste0("rstantools_model_", model_name)))
-
 })

@@ -16,10 +16,5 @@ test_that("model runs", {
       multiplier, 
       database, 
       pass_fit = TRUE
-<<<<<<< HEAD
-      #, 
-      #use_cmdstanr = TRUE
-=======
->>>>>>> b9c107af17b9250647f20b346108dc0faf7f4272
     )
 })
