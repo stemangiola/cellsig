@@ -2,7 +2,7 @@ test_that("model runs", {
 
   library(cellsig)
 
-  # debugonce(cellsig_multilevel_varing_intercept)
+   # debugonce(cellsig_multilevel_varing_intercept)
   
  x =
    test_random_intercept |>

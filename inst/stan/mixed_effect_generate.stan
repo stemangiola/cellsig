@@ -11,9 +11,8 @@ int neg_binomial_2_log_safe_rng(real eta, real phi) {
     return poisson_rng(gamma_rate);
   }
   
-vector summarise_mean(int[,] grouping_gene_idx_D, vector shape, int G){
+vector summarise_mean(int[,] grouping_gene_idx_D, vector shape, int G, int D){
   
-  int D = num_elements(shape);
   vector[G] shape_mean;
   real placeholder;
   int counter;
@@ -44,36 +43,31 @@ vector summarise_mean(int[,] grouping_gene_idx_D, vector shape, int G){
 
 
   // dataset * gene level
-  int<lower=1> G; // total genes
-  int<lower=1> D; // total datasets, they are unique with genes, so D >> G
+  int G; // total genes
+  int D; // total datasets, they are unique with genes, so D >> G
+  int grouping_gene_idx_D[D, 2];  // grouping and gene indicator per observation // first clumn is dataset second is gene
 
-  
-  int<lower=1> grouping_gene_idx_D[D, 2];  // grouping and gene indicator per observation // first clumn is dataset second is gene
-
-
-
+  // non centered
+  vector[G] gene_mean_offset;
 }
 parameters {
 
-  vector[G] gene_mean;  // temporary gene_mean for centered predictors
-  vector[G] shape;  // shape parameter
+  vector<offset=gene_mean_offset>[G] gene_mean;  // temporary gene_mean for centered predictors
+  vector[D] shape;  // shape parameter
   vector[G] gene_sd;  // group-level standard deviations
 
 }
-
-transformed parameters{
-  vector[G] shape_mean = summarise_mean(grouping_gene_idx_D, shape,  G); 
-
-}
-
 generated quantities{
 
   int Y_gen[G];  // response variable
   real Y_gen_log[G];
   
+    vector[G] shape_mean = summarise_mean(grouping_gene_idx_D, shape,  G, D); 
+
+
 	for(g in 1:G) {
 
-    	Y_gen[g] = neg_binomial_2_log_safe_rng( normal_rng(gene_mean[g], gene_sd[g]), 1.0 ./ exp(shape_mean[g]));
+    	Y_gen[g] = neg_binomial_2_log_safe_rng( normal_rng(gene_mean[g], gene_sd[g]), shape_mean[g]);
 
 	}
 	
