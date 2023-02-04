@@ -56,20 +56,21 @@
 #'
 #' @examples
 #'
-#' data("counts_obj")
+#' data("test_random_intercept")
 #'
 #' estimate =
-#'   sccomp_glm(
-#'   counts_obj ,
-#'    ~ type,
-#'    ~1,
-#'    sample,
-#'    cell_group,
-#'    count,
-#'     approximate_posterior_inference = "all",
-#'     check_outliers = FALSE,
-#'     cores = 1
-#'   )
+# test_random_intercept |>
+#   
+#   #mutate(multiplier = exp(exposure_rate)) |> 
+#   cellsig_multilevel_varing_intercept(
+#     .sample, 
+#     .feature,
+#     count, 
+#     cell_type,
+#     multiplier, 
+#     database, 
+#     approximate_posterior_inference = T
+#   )
 #'
 #' @export
 #'
