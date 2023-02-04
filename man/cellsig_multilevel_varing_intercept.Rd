@@ -87,19 +87,8 @@ The function for linear modelling takes as input a table of cell counts with thr
 }
 \examples{
 
-data("counts_obj")
+data("test_random_intercept")
 
 estimate =
-  sccomp_glm(
-  counts_obj ,
-   ~ type,
-   ~1,
-   sample,
-   cell_group,
-   count,
-    approximate_posterior_inference = "all",
-    check_outliers = FALSE,
-    cores = 1
-  )
 
 }
