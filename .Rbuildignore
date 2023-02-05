@@ -19,3 +19,4 @@ README.Rmd
 .travis.yml
 .github$
 shinyApp
+^LICENSE\.md$

@@ -8,8 +8,7 @@ Authors@R:
            email = "mangiolastefano@gmail.com",
            comment = c(ORCID = "YOUR-ORCID-ID"))
 Description: RNA sequencing multilevel model to estimate gene transcription across datasets.
-License: `use_mit_license()`, `use_gpl3_license()` or friends to
-    pick a license
+License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
