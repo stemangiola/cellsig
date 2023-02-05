@@ -2,10 +2,10 @@
 % Please edit documentation in R/utilities.R
 \name{get_idx_level}
 \alias{get_idx_level}
-\title{get_idx_level}
+\title{create_tree_object}
 \usage{
 get_idx_level(tree, my_level)
 }
 \description{
-get_idx_level
+create tree object that is in data directory
 }

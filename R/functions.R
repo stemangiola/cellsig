@@ -104,7 +104,7 @@ ref_intercept_only = function(reference,
     generate_quantities_standalone( res1[[2]], G  ) 
   
   res1[[1]] %>% 
-    nanny::subset(c(.feature, cell_type)) %>%
+    .subset(c(.feature, cell_type)) %>%
     select(-starts_with("level_")) %>%
 
     # Attach lambda sigma

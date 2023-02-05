@@ -33,7 +33,11 @@ Imports:
     magrittr, 
     rlang, 
     tibble,
-    SingleCellExperiment
+    SingleCellExperiment,
+    yaml,
+    tidybulk,
+    factoextra,
+    gtools
 LinkingTo: 
     BH (>= 1.66.0),
     Rcpp (>= 0.12.0),
