@@ -32,7 +32,8 @@ test_random_intercept |>
       count, 
       cell_type,
       multiplier, 
-      database,
+      database, 
+      cores = 1
     )
 
 ```
