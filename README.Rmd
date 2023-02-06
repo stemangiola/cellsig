@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Create a hierarchical signature data frame from a tree and and signature database
 
-```{r eval = FALSE}
+```{r}
 library(here)
 library(tibble)
 library(readr)
@@ -26,7 +26,6 @@ library(cellsig)
 
 test_random_intercept |>
     
-    #mutate(multiplier = exp(exposure_rate)) |> 
     cellsig_multilevel_varing_intercept(
       .sample, 
       .feature,

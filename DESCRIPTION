@@ -44,8 +44,13 @@ LinkingTo:
     RcppParallel (>= 5.0.1),
     rstan (>= 2.26.0),
     StanHeaders (>= 2.26.0)
+VignetteBuilder: 
+    knitr
 SystemRequirements: GNU make
 Suggests: 
-    testthat
+    testthat,
+    BiocStyle,
+    markdown,
+    knitr
 Additional_repositories:
     https://mc-stan.org/r-packages/

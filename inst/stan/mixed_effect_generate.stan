@@ -67,7 +67,7 @@ generated quantities{
 
 	for(g in 1:G) {
 
-    	Y_gen[g] = neg_binomial_2_log_safe_rng( normal_rng(gene_mean[g], gene_sd[g]), shape_mean[g]);
+    	Y_gen[g] = neg_binomial_2_log_safe_rng( normal_rng(gene_mean[g], gene_sd[g]), 1.0 ./ exp(shape_mean[g]));
 
 	}
 	
