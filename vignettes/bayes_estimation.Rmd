@@ -20,24 +20,19 @@ knitr::opts_chunk$set(
 ## Input dataset
 
 ```{r}
-library(here)
-library(tibble)
-library(readr)
+
 library(cellsig)
 
 
 
 test_random_intercept |>
-    
-    #mutate(multiplier = exp(exposure_rate)) |> 
-    cellsig_multilevel_varing_intercept(
+  cellsig_multilevel_varing_intercept(
       .sample, 
       .feature,
       count, 
       cell_type,
       multiplier, 
-      database, 
-      pass_fit = TRUE
+      database,
     )
 
 ```

@@ -11,14 +11,6 @@ Create a hierarchical signature data frame from a tree and and signature
 database
 
 ``` r
-library(here)
-```
-
-    ## here() starts at /stornext/Bioinf/data/bioinf-data/Papenfuss_lab/projects/mangiola.s/PostDoc/cellsig
-
-``` r
-library(tibble)
-library(readr)
 library(cellsig)
 ```
 
@@ -34,25 +26,23 @@ library(cellsig)
 ``` r
 test_random_intercept |>
     
-    #mutate(multiplier = exp(exposure_rate)) |> 
     cellsig_multilevel_varing_intercept(
       .sample, 
       .feature,
       count, 
       cell_type,
       multiplier, 
-      database, 
-      pass_fit = TRUE
+      database
     )
 ```
 
-    ## Warning: There were 4 divergent transitions after warmup. See
+    ## Warning: There were 3 divergent transitions after warmup. See
     ## https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
     ## to find out why this is a problem and how to eliminate them.
 
     ## Warning: Examine the pairs() plot to diagnose sampling problems
 
-    ## Warning: The largest R-hat is 1.14, indicating chains have not mixed.
+    ## Warning: The largest R-hat is 1.08, indicating chains have not mixed.
     ## Running the chains for more iterations may help. See
     ## https://mc-stan.org/misc/warnings.html#r-hat
 
@@ -65,18 +55,18 @@ test_random_intercept |>
     ## https://mc-stan.org/misc/warnings.html#tail-ess
 
     ## # A tibble: 50 × 13
-    ##    .feature…¹ .feat…² cell_…³    mean se_mean      sd  `10%`  `50%`  `90%` n_eff
-    ##         <int> <chr>   <fct>     <dbl>   <dbl>   <dbl>  <dbl>  <dbl>  <dbl> <dbl>
-    ##  1          1 AGBL5-… endoth… 2.4 e-1 5.02e-2 8.78e-1 0         0   1   e0  306.
-    ##  2          2 ASGR1   endoth… 9.65e+2 6.53e+1 1.07e+3 1.65e2  692.  2.02e3  271.
-    ##  3          3 BCL2L2… endoth… 4.15e+2 4.92e+1 7.39e+2 3.38e1  220   8.69e2  226.
-    ##  4          4 BTG2    endoth… 1.51e+4 2.83e+3 5.05e+4 1.79e3 7692.  2.55e4  318.
-    ##  5          5 C2orf66 endoth… 5.82e+1 7.48e+0 1.24e+2 1.90e0   22.5 1.28e2  277.
-    ##  6          6 CACNB4  endoth… 8.53e+1 1.19e+1 1.63e+2 4   e0   35   2.13e2  190.
-    ##  7          7 CCL21   endoth… 6.18e+1 1.28e+1 2.31e+2 0         4   1.67e2  323.
-    ##  8          8 CHURC1… endoth… 1.23e+2 1.09e+1 1.93e+2 5.9 e0   59   2.93e2  310.
-    ##  9          9 CLCN3P1 endoth… 9.29e+0 1.21e+0 1.94e+1 0         1   2.71e1  258.
-    ## 10         10 COL14A1 endoth… 5.36e+1 6.60e+0 9.53e+1 1   e0   19.5 1.27e2  208.
+    ##    .feature_…¹ .feat…² cell_…³    mean se_mean     sd  `10%`  `50%`  `90%` n_eff
+    ##          <int> <chr>   <fct>     <dbl>   <dbl>  <dbl>  <dbl>  <dbl>  <dbl> <dbl>
+    ##  1           1 AGBL5-… endoth… 3.57e-1 1.35e-1 2.40e0    0      0   1   e0  316.
+    ##  2           2 ASGR1   endoth… 8.55e+2 4.55e+1 7.88e2  152.   648   1.73e3  300.
+    ##  3           3 BCL2L2… endoth… 4.21e+2 5.22e+1 6.24e2   23.9  212.  9.26e2  143.
+    ##  4           4 BTG2    endoth… 1.64e+4 5.32e+3 9.36e4 1871.  7344.  2.21e4  309.
+    ##  5           5 C2orf66 endoth… 7.28e+1 1.63e+1 2.78e2    2     25.5 1.29e2  290.
+    ##  6           6 CACNB4  endoth… 1.36e+2 3.19e+1 5.33e2    5     47.5 2.14e2  279.
+    ##  7           7 CCL21   endoth… 5.88e+1 1.91e+1 3.39e2    0      5   1.01e2  315.
+    ##  8           8 CHURC1… endoth… 1.47e+2 3.38e+1 5.94e2    4     49   2.89e2  309.
+    ##  9           9 CLCN3P1 endoth… 1.21e+1 3.05e+0 5.13e1    0      2   1.81e1  283.
+    ## 10          10 COL14A1 endoth… 9.87e+1 3.15e+1 5.37e2    1     20.5 1.20e2  290.
     ## # … with 40 more rows, 3 more variables: Rhat <dbl>, log_mean <dbl>,
     ## #   log_sd <dbl>, and abbreviated variable names ¹​.feature_idx, ²​.feature,
     ## #   ³​cell_type
