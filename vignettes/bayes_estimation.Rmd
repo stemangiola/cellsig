@@ -1,0 +1,13 @@
+---
+title: "Bayes estimation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Bayes estimation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r include = FALSE}
+
+```
+
