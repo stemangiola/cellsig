@@ -48,100 +48,121 @@ load("/home/khan.k/ShinyApps/cellsigdb/bayes.RData")
 
 
 # Define UI for application that draws a histogram
-ui <- navbarPage(
+ui <- tagList(
   
-  title = "HBCC",
-  
-  tags$style(type='text/css', 
-             ".selectize-input {font-size: 20px; line-height: 22px;} 
-             .selectize-dropdown {font-size: 20px; line-height: 22px;}"),
+  tags$style(HTML(".navbar-header { width:100% }
+                   .navbar-brand { width: 100%; text-align: center }"),
+  ),
   
   
-  tabPanel(
-    "Gene Expression Comparison",
+  navbarPage(
     
-    sidebarLayout(
+    #title = "Human Bulk Cell-type Catalogue (HBCC)",
+    
+    titlePanel("Human Bulk Cell-type Catalogue (HBCC)"),
+    
+    
+    #tags$style(type='text/css', 
+    #          ".selectize-input {font-size: 20px; line-height: 22px;} 
+    #          .selectize-dropdown {font-size: 20px; line-height: 22px;}"),
+    
+    
+    tabPanel(
+      h4("Gene Expression Comparison"),
       
-      sidebarPanel(
-        selectInput("cell",
-                    h3(strong("Cellular Compartment")),
-                    choices = list("All", "Immune", "Non-immune"),
-                    selected = "All"
-        ),
-        selectizeInput("gene",
-                       h3(strong("Gene")),
-                       choices = NULL,
-                       selected = 1
-        ),
+      sidebarLayout(
         
-        width = 3
-      ),
-      
-      mainPanel(
-        
-        fluidRow(
-          
-          h3("PCA"),
-          
-          column(width = 6, 
-                 span(textOutput("name"), style="font-size: 16px"),
-                 plotOutput("geneExp_pca")
+        sidebarPanel(
+          selectInput("cell",
+                      h3(strong("Cellular Compartment")),
+                      choices = list("All", "Immune", "Non-immune"),
+                      selected = "All"
           ),
-          column(width = 6,
-                 h4("Cell type"),
-                 plotOutput("cellType_pca")
-          )
+          selectizeInput("gene",
+                         h3(strong("Gene")),
+                         choices = NULL,
+                         selected = 1
+          ),
+          
+          width = 3
         ),
         
-        fluidRow(
-          h3("Gene Expression"),
-          plotOutput("boxplot")
-        ),
-        
-        width = 9
-      ) # mainPanel
-    ) # sidebarLayout
-    
-  ) , # tabPanel
-  
-  tabPanel(
-    "Download Dataset",
-    
-    # Sidebar layout with input and output definitions ----
-    sidebarLayout(
+        mainPanel(
+          
+          fluidRow(
+            
+            h3("PCA"),
+            
+            column(width = 6, 
+                   span(textOutput("name"), style="font-size: 16px"),
+                   plotOutput("geneExp_pca")
+            ),
+            column(width = 6,
+                   h4("Cell type"),
+                   plotOutput("cellType_pca")
+            )
+          ),
+          
+          fluidRow(
+            h3("Gene Expression"),
+            
+            tags$div(h4("The violin plot represents the scaled read counts as expression of the selected transcript for each cell type. The red 80% credible interval bar highlights the Bayesian multilevel modelled abundance distributions.")),
+            
+            # Button
+            downloadButton("downloadPlot", "Download"),
+            
+            
+            
+            plotOutput("boxplot"),
+            
+          ),
+          
+          width = 9
+        ) # mainPanel
+      ) # sidebarLayout
       
-      # Sidebar panel for inputs ----
-      sidebarPanel(
+    ) , # tabPanel
+    
+    tabPanel(
+      h4("Download Dataset"),
+      
+      # Sidebar layout with input and output definitions ----
+      sidebarLayout(
         
-        # Input: Choose dataset ----
-        selectInput("dataset", 
-                    h3(strong("Download Cell-type wise datasets:")),
-                    choices = celltypes),
+        # Sidebar panel for inputs ----
+        sidebarPanel(
+          
+          # Input: Choose dataset ----
+          selectInput("dataset", 
+                      h3(strong("Download Cell-type wise datasets:")),
+                      choices = celltypes),
+          
+          # Button
+          downloadButton("downloadData", "Download"),
+          
+          
+          # adding the new div tag to the sidebar            
+          tags$div(class="header", checked=NA,
+                   tags$br(),
+                   tags$a(href="https://doi.org/10.5281/zenodo.7582421", "Alternatively retrieve the entire database from here", target="_blank")
+          ),
+          
+        ),
         
-        # Button
-        downloadButton("downloadData", "Download"),
-        
-        
-        # adding the new div tag to the sidebar            
-        tags$div(class="header", checked=NA,
-                 tags$br(),
-                 tags$a(href="https://doi.org/10.5281/zenodo.7582421", "Alternatively retrieve the entire database from here", target="_blank")
+        # Main panel for displaying outputs ----
+        mainPanel(
+          
+          tableOutput("table")
+          
         )
         
-      ),
-      
-      # Main panel for displaying outputs ----
-      mainPanel(
-        
-        tableOutput("table")
-        
-      )
-        
       )
       
+    )
+    
   )
   
-) # navbarPage
+)# navbarPage
 
 
 # Define server logic required to draw a histogram
@@ -392,7 +413,42 @@ server <- function(input, output, session) {
             panel.border = element_blank(),
       )
     
+    
   })
+  
+  bp <- function(){
+    req(input$gene)
+    
+    expression[input$gene, ] %>% 
+      as_tibble() %>% 
+      # left_join(pca_df %>% select(.sample, cell_type), by = ".sample") %>% 
+      # filter(!is.na(cell_type)) %>% 
+      filter(cell_type %in% (new_tree %>% as.phylo %>% .$tip.label)) %>%
+      left_join(bayes) %>%
+      # filter(.feature == gene()) %>% 
+      ggplot(aes(cell_type, count_scaled + 1)) +
+      scale_y_log10() +
+      labs(y="expression") +
+      geom_violin() +
+      geom_jitter(alpha=0.3) +
+      
+      ### Add a segment based on 10% and 90% values from bayes data
+      geom_errorbar(aes(x = cell_type, ymin = tenth, ymax = ninetieth), width=.2, color = "red") +
+      
+      
+      theme_bw() +
+      theme(text = element_text(size=20),
+            plot.title = element_text(hjust = 0.5),
+            axis.text.x = element_text(angle=45, vjust=1, hjust=1),
+            axis.title.x=element_blank(),
+            #plot.background = element_blank(),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            #panel.border = element_blank(),
+      )
+    
+    
+  }
   
   
   datasetInput <- reactive({
@@ -400,18 +456,18 @@ server <- function(input, output, session) {
     
     data_for_download %>%
       filter(cell_type == input$dataset)
-
+    
   })
   
- 
+  
   output$downloadData <- downloadHandler(
     filename = function() {
       if (input$dataset == "ALL"){
-      paste(input$dataset, ".rds", sep = "")
+        paste(input$dataset, ".rds", sep = "")
       } else {
-      paste(input$dataset, ".csv", sep = "")
-    }
-      },
+        paste(input$dataset, ".csv", sep = "")
+      }
+    },
     content = function(file) {
       if (input$dataset == "ALL"){
         saveRDS(data_for_download, file, compress = "xz")
@@ -420,6 +476,14 @@ server <- function(input, output, session) {
       }
     }
   )
+  
+  
+  output$downloadPlot <- downloadHandler(
+    filename = 'gene_expression_plot.png',
+    content = function(file) {
+      ggsave(bp(), filename = file, width = 10, height = 7)
+    })
+  
 }
 
 # Run the application 
