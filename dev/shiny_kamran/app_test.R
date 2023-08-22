@@ -34,7 +34,7 @@ library(tidySummarizedExperiment)
 # load("dev/shiny_pub/expression.RData")
 # load("dev/shiny_pub/pca_df.RData")
 
-# setwd("/stornext/Home/data/allstaff/k/khan.k/cellsig/dev/shiny_kamran")
+setwd("D:/Kamran/PhD/phd_main_works/cellsig_paper/cellsig/dev/shiny_kamran")
 #  load data for webpage deployment
 new_tree <- read_yaml("tree.yaml") %>% as.Node
 load("geneNames.RData")
@@ -49,17 +49,27 @@ load("bayes.RData")
 
 
 # Define UI for application that draws a histogram
-ui <- navbarPage(
+ui <- tagList(
   
-  title = "HBCC",
+  tags$style(HTML(".navbar-header { width:100% }
+                   .navbar-brand { width: 100%; text-align: center }"),
+             ),
+           
+
+  navbarPage(
   
-  tags$style(type='text/css', 
-             ".selectize-input {font-size: 20px; line-height: 22px;} 
-             .selectize-dropdown {font-size: 20px; line-height: 22px;}"),
+  #title = "Human Bulk Cell-type Catalogue (HBCC)",
+  
+  titlePanel("Human Bulk Cell-type Catalogue (HBCC)"),
+  
+  
+  #tags$style(type='text/css', 
+   #          ".selectize-input {font-size: 20px; line-height: 22px;} 
+   #          .selectize-dropdown {font-size: 20px; line-height: 22px;}"),
   
   
   tabPanel(
-    "Gene Expression Comparison",
+    h4("Gene Expression Comparison"),
     
     sidebarLayout(
       
@@ -96,7 +106,16 @@ ui <- navbarPage(
         
         fluidRow(
           h3("Gene Expression"),
-          plotOutput("boxplot")
+          
+          tags$div(h4("The violin plot represents the scaled read counts as expression of the selected transcript for each cell type. The red 80% credible interval bar highlights the Bayesian multilevel modelled abundance distributions.")),
+          
+          # Button
+          downloadButton("downloadPlot", "Download"),
+          
+          
+          
+          plotOutput("boxplot"),
+          
         ),
         
         width = 9
@@ -106,7 +125,7 @@ ui <- navbarPage(
   ) , # tabPanel
   
   tabPanel(
-    "Download Dataset",
+    h4("Download Dataset"),
     
     # Sidebar layout with input and output definitions ----
     sidebarLayout(
@@ -127,7 +146,7 @@ ui <- navbarPage(
         tags$div(class="header", checked=NA,
                  tags$br(),
                  tags$a(href="https://doi.org/10.5281/zenodo.7582421", "Alternatively retrieve the entire database from here", target="_blank")
-        )
+        ),
         
       ),
       
@@ -142,7 +161,9 @@ ui <- navbarPage(
     
   )
   
-) # navbarPage
+)
+
+)# navbarPage
 
 
 # Define server logic required to draw a histogram
@@ -392,8 +413,43 @@ server <- function(input, output, session) {
             panel.grid.minor = element_blank(),
             panel.border = element_blank(),
       )
+ 
     
   })
+  
+  bp <- function(){
+    req(input$gene)
+    
+    expression[input$gene, ] %>% 
+      as_tibble() %>% 
+      # left_join(pca_df %>% select(.sample, cell_type), by = ".sample") %>% 
+      # filter(!is.na(cell_type)) %>% 
+      filter(cell_type %in% (new_tree %>% as.phylo %>% .$tip.label)) %>%
+      left_join(bayes) %>%
+      # filter(.feature == gene()) %>% 
+      ggplot(aes(cell_type, count_scaled + 1)) +
+      scale_y_log10() +
+      labs(y="expression") +
+      geom_violin() +
+      geom_jitter(alpha=0.3) +
+      
+      ### Add a segment based on 10% and 90% values from bayes data
+      geom_errorbar(aes(x = cell_type, ymin = tenth, ymax = ninetieth), width=.2, color = "red") +
+      
+      
+      theme_bw() +
+      theme(text = element_text(size=20),
+            plot.title = element_text(hjust = 0.5),
+            axis.text.x = element_text(angle=45, vjust=1, hjust=1),
+            axis.title.x=element_blank(),
+            #plot.background = element_blank(),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            #panel.border = element_blank(),
+      )
+    
+    
+  }
   
   
   datasetInput <- reactive({
@@ -421,6 +477,14 @@ server <- function(input, output, session) {
       }
     }
   )
+  
+  
+  output$downloadPlot <- downloadHandler(
+    filename = 'gene_expression_plot.png',
+    content = function(file) {
+      ggsave(bp(), filename = file, width = 10, height = 7)
+    })
+  
 }
 
 # Run the application 
