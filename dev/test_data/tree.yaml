@@ -1,0 +1,8 @@
+name: Tissue
+epithelial: []
+fibroblast: []
+endothelial: []
+immune_cell:
+  natural_killer:
+    nk_cd56bright: []
+    nk_cd56dim: []
