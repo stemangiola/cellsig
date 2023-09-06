@@ -11,18 +11,119 @@ knitr::opts_chunk$set(echo = TRUE)
 
 [Shiny app](https://shiny.wehi.edu.au/khan.k/cellsigdb)
 
+# Installation
+
+**Github**
+
+``` {r}
+
+#install.packages(devtools)
+#devtools::install_github("stemangiola/cellsig@master")
+
+```
+
+
+
 # Example
+
+Here, we'll demonstrate an example of how to utilize the Bayesian multilevel noise-modelling of a transcriptome dataset.
+
+
+```{r}
+
+library(tidyverse)
+library(magrittr)
+library(tidybulk)
+library(tidySummarizedExperiment)
+library(glue)
+library(cellsig)
+library(yaml)
+library(data.tree)
+
+
+# Load the example dataset and the tree file with cell type hierarchy
+
+dataset <- readRDS("dev/test_data/count_data_small.rds")
+
+dataset
+
+# A tibble: 1,934,920 × 5
+#   cell_type  symbol database    sample      count
+#   <chr>      <fct>  <fct>       <fct>       <int>
+# 1 epithelial TSPAN6 ENCSR822SUG ENCFF556AGI  1330
+# 2 epithelial TSPAN6 ENCSR822SUG ENCFF106YFW  1378
+# 3 epithelial TSPAN6 ENCSR000AAD ENCFF377UBC  1388
+# 4 epithelial TSPAN6 ENCSR000AAD ENCFF193YHT  1216
+# 5 epithelial TSPAN6 ENCSR118TVR ENCFF380AIN  2750
+# 6 epithelial TSPAN6 ENCSR118TVR ENCFF129BNX  4444
+# 7 epithelial TSPAN6 ENCSR373BDG ENCFF108PJF  2598
+# 8 epithelial TSPAN6 ENCSR000COX ENCFF300LEY  2287
+# 9 epithelial TSPAN6 ENCSR000CUN ENCFF374KZN  1571
+#10 epithelial TSPAN6 ENCSR000AAL ENCFF826JBV  2883
+# ℹ 1,934,910 more rows
+# ℹ Use `print(n = ...)` to see more rows
+
+tree <- read_yaml("dev/test_data/tree.yaml") %>% as.Node()
+
+tree ##
+
+#                  levelName
+#1 Tissue                   
+#2  ¦--epithelial           
+#3  ¦--fibroblast           
+#4  ¦--endothelial          
+#5  °--immune_cell          
+#6      °--natural_killer   
+#7          ¦--nk_cd56bright
+#8          °--nk_cd56dim   
+
+```
 
 
 Create a hierarchical signature data frame from a tree and and signature database
 
 ```{r}
 
-library(cellsig)
+# Firstly, we have prepare an input dataset for the modelling
+
+dataset_input <- dataset %>%
+  
+  # Imputation
+  as_SummarizedExperiment(sample, symbol, count) %>% 
+  impute_missing_abundance(~ cell_type, force_scaling = TRUE) %>% 
+  as_tibble() %>% 
+  filter(count %>% is.na %>% `!`) %>% 
+  
+  # Parsing
+  tree_and_signatures_to_database(
+    tree,
+    .,
+    .sample,
+    cell_type,
+    .feature,
+    count
+  ) %>%
+  identify_abundant(.sample, .feature, count) %>%
+  scale_abundance(.sample, .feature, count) %>%
+  dplyr::select(-count_scaled) %>%
+  filter(!.imputed) %>% 
+  select(-.imputed) %>% 
+
+  # CREATE INPUTS
+  select(-cell_type) %>%
+  pivot_longer(
+    contains("level_"), names_prefix="level_", 
+    names_to = "level", values_to="cell_type",
+    names_transform=list(level=as.integer)
+  ) %>%
+  filter(cell_type %>% is.na %>% `!`) %>%
+  mutate(count = as.integer(count))
 
 
 
-test_random_intercept |>
+
+
+dataset_input |>
     
     cellsig_multilevel_varing_intercept(
       .sample, 
