@@ -1,6 +1,5 @@
 test_that("model runs", {
 
-  library(cellsig)
 
    # debugonce(cellsig_multilevel_varing_intercept)
   
