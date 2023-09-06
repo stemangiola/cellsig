@@ -11,3 +11,28 @@ vignette: >
 
 ```
 
+## Input dataset
+
+```{r}
+
+library(cellsig)
+
+
+
+test_random_intercept |>
+  cellsig_multilevel_varing_intercept(
+      .sample, 
+      .feature,
+      count, 
+      cell_type,
+      multiplier, 
+      database, 
+      cores = 1
+    )
+
+```
+
+```{r}
+sessionInfo()
+```
+

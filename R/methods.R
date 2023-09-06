@@ -139,7 +139,7 @@ cellsig_multilevel_varing_intercept.data.frame = function(
   
   # Chains and cores
   chains = 3
-  cores = max(cores, chains)
+  # cores = max(cores, chains)
   
   # Set global options
   rstan_options(threads_per_chain = ceiling(cores / chains))
@@ -241,7 +241,7 @@ cellsig_multilevel_varing_intercept.data.frame = function(
   else fit = sampling(
     stanmodels$mixed_effect,
     data = model_data ,
-    cores = chains,
+    cores = cores,
     chains = chains,
     iter = iterations_sampling_per_chain + iterations_warmup,
     warmup = iterations_warmup,
