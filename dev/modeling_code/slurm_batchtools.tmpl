@@ -1,0 +1,12 @@
+#!/bin/bash
+
+#SBATCH --job-name=<%= job.name %>
+#SBATCH --output=<%= log.file %>
+#SBATCH --error=<%= log.file %>
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=<%= resources[["cores"]] %>
+#SBATCH --mem-per-cpu=<%= resources[["memory_mb"]] %>
+#SBATCH --time=<%= resources[["time"]] %>
+
+<%= if (array.jobs) sprintf("#SBATCH --array=1-%i", nrow(jobs)) else "" %>
+Rscript -e 'batchtools::doJobCollection("<%= uri %>")'

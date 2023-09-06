@@ -15,3 +15,12 @@ counts_imputed.rda
 makeflow*
 slurm.*
 dev/benchmark_results.*
+modeling_results_*
+benchmark_database*
+*.rds
+PPCG_deconvolution_signatures_RAW_DATA
+RedcardData.csv
+bayes_results_tree
+bayes_results_tree_kamran_july2022
+figures_article
+._*

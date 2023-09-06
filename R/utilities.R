@@ -1,56 +1,57 @@
-#' create_tree_object
-#'
-#' @description create tree object that is in data directory
-#'
-#' @export
-create_tree_object = function(my_ref = cellsig::counts) {
-
-
-
-  #yaml:: yaml.load_file("~/PhD/deconvolution/ARMET/data/tree.yaml") %>%
-  tree =
-    yaml::yaml.load_file("dev/tree.yaml") %>%
-    data.tree::as.Node() %>%
-
-    {
-
-      my_ct = my_ref %>% distinct(`cell_type`) %>% pull(1) %>% as.character
-
-      # Filter if not in reference
-      data.tree::Prune(., pruneFun = function(x) ( x$name %in% my_ct ))
-
-      # Sort tree by name
-      data.tree::Sort(., "name")
-
-      # Add C indexes
-      .$Set(C =
-              tibble(
-                name = .$Get('name'),
-                level = .$Get('level')
-              ) %>%
-              left_join((.) %>% arrange(level, name) %>%	 	mutate(C = 0:(n(
-
-              ) - 1)))	%>%
-              pull(C))
-      .$Set(C1 = get_idx_level(., 1))
-      .$Set(C2 = get_idx_level(., 2))
-      .$Set(C3 = get_idx_level(., 3))
-      .$Set(C4 = get_idx_level(., 4))
-      #		if(max(levels)>1) for(l in 2:max(levels)) { my_c = sprintf("C%s", l); .$Set(	my_c = get_idx_level(.,2)	); . }
-
-      # Set cell_type label
-      .$Set("cell_type" = .$Get("name"))
-
-      .
-
-    }
-
-  save(tree, file="data/tree.rda", compress = "xz")
-
-  # ancestor_child = tree %>% get_ancestor_child
-  #
-  # save(ancestor_child, file="data/ancestor_child.rda", compress = "gzip")
-}
+#
+##' create_tree_object
+##'
+##' @description create tree object that is in data directory
+##'
+##' @export
+#create_tree_object = function(my_ref = cellsig::counts) {
+# 
+# 
+# 
+#   #yaml:: yaml.load_file("~/PhD/deconvolution/ARMET/data/tree.yaml") %>%
+#   tree =
+#     yaml::yaml.load_file("dev/tree.yaml") %>%
+#     data.tree::as.Node() %>%
+# 
+#     {
+# 
+#       my_ct = my_ref %>% distinct(`cell_type`) %>% pull(1) %>% as.character
+# 
+#       # Filter if not in reference
+#       data.tree::Prune(., pruneFun = function(x) ( x$name %in% my_ct ))
+# 
+#       # Sort tree by name
+#       data.tree::Sort(., "name")
+# 
+#       # Add C indexes
+#       .$Set(C =
+#               tibble(
+#                 name = .$Get('name'),
+#                 level = .$Get('level')
+#               ) %>%
+#               left_join((.) %>% arrange(level, name) %>%	 	mutate(C = 0:(n(
+# 
+#               ) - 1)))	%>%
+#               pull(C))
+#       .$Set(C1 = get_idx_level(., 1))
+#       .$Set(C2 = get_idx_level(., 2))
+#       .$Set(C3 = get_idx_level(., 3))
+#       .$Set(C4 = get_idx_level(., 4))
+#       #		if(max(levels)>1) for(l in 2:max(levels)) { my_c = sprintf("C%s", l); .$Set(	my_c = get_idx_level(.,2)	); . }
+# 
+#       # Set cell_type label
+#       .$Set("cell_type" = .$Get("name"))
+# 
+#       .
+# 
+#     }
+# 
+#   save(tree, file="data/tree.rda", compress = "xz")
+# 
+#   # ancestor_child = tree %>% get_ancestor_child
+#   #
+#   # save(ancestor_child, file="data/ancestor_child.rda", compress = "gzip")
+# }
 
 #' get_idx_level
 #'

@@ -1,0 +1,38 @@
+---
+title: "Bayes estimation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Bayes estimation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r include = FALSE}
+
+```
+
+## Input dataset
+
+```{r}
+
+library(cellsig)
+
+
+
+test_random_intercept |>
+  cellsig_multilevel_varing_intercept(
+      .sample, 
+      .feature,
+      count, 
+      cell_type,
+      multiplier, 
+      database, 
+      cores = 1
+    )
+
+```
+
+```{r}
+sessionInfo()
+```
+

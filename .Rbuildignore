@@ -18,3 +18,5 @@ README.Rmd
 .coveralls.yml
 .travis.yml
 .github$
+shinyApp
+^LICENSE\.md$

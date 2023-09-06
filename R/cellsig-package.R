@@ -8,6 +8,8 @@
 #' @useDynLib cellsig, .registration = TRUE
 #' @import methods
 #' @import Rcpp
+#' @import RcppParallel
+#' @import rstantools
 #' @importFrom rstan sampling
 #'
 #' @references
