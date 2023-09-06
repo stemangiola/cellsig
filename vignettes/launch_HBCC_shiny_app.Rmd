@@ -1,0 +1,18 @@
+---
+title: "cellsig: a Bayesian sparse random-effect model and large-scale human bulk transcriptional catalogue support cell-type marker selection"
+output: html_document
+
+---
+
+<br>
+
+## ***HBCC shiny app***
+
+<h4><p>Launch the HBCC shiny app from <a href='https://shiny.wehi.edu.au/khan.k/cellsigdb/'>here</a></p>
+
+
+<br>
+
+## ***Download the entire HBCC database***
+
+<h4><p>The entire HBCC database can also be retrieved from <a href='https://doi.org/10.5281/zenodo.7582421'>here</a></p>

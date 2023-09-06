@@ -19,7 +19,8 @@ cellsig_multilevel_varing_intercept(
     lambda_skew_mean = -5),
   iterations_warmup = 250,
   iterations_sampling = 300,
-  pass_fit = FALSE
+  pass_fit = FALSE,
+  use_cmdstanr = FALSE
 )
 }
 \arguments{
