@@ -15,11 +15,11 @@ library(rstan)
 ```
 
 
-#### Explore database through the web user interface
+## Explore database through the web user interface
 
 [Shiny app](https://shiny.wehi.edu.au/khan.k/cellsigdb)
 
-#### Installation
+## Installation
 
 **Github**
 
@@ -28,11 +28,11 @@ install.packages("devtools")
 devtools::install_github("stemangiola/cellsig")
 ```
 
-#### Example
+## Example
 
-##### Here, we'll demonstrate an example of how to utilize the Bayesian multilevel noise-modelling of a transcriptome dataset.
+### Here, we'll demonstrate an example of how to utilize the Bayesian multilevel noise-modelling of a transcriptome dataset.
 
-###### Load the required packages
+### Load the required packages
 
 ```{r, eval = FALSE}
 library(tidyverse)
@@ -45,7 +45,7 @@ library(rstan)
 ```
 
 
-###### Load the example count dataset
+### Load the example count dataset
 
 
 ```{r}
@@ -60,7 +60,7 @@ The count dataset is in tibble format (as the data is not rectangular), where th
 dataset
 ```
 
-###### Load the exmaple tree file with cell type hierarchy
+### Load the exmaple tree file with cell type hierarchy
 
 To utilise the cellular hierarchy information in the modelling, we generated a `tree` file using `data.tree` package.
 
@@ -75,9 +75,9 @@ tree
 ```
 
 
-###### Create a hierarchical signature data frame from a tree and and signature database
+### Create a hierarchical signature data frame from a tree and and signature database
 
-Now, we have to prepare the input dataset with the cellular hierarchy embedded within it, so that the modelling step can utilise the cellular hierarchy information. The dataset has to be rectangular (equal amount of cell type-transcript pairs for every included cell types) for the integration of cellular hierarchy levels, therefore, we impute the missing transcript abundances for each cell type with `impute_missing_abundance` function of `tidybulk` package. After that we used `tree_and_signatures_to_database` function of `cellsig` to assign the respective cellular hierarchy levels for each cell type. Once we have merged the cellular hierarchy, we dropped the imputed transcripts from the dataset.
+Now, we have to prepare the input dataset with the cellular hierarchy embedded within it, so that the modelling step can utilise the cellular hierarchy information. The dataset has to be rectangular (equal amount of cell type-transcript pairs for every included cell types) for the integration of cellular hierarchy levels, therefore, we impute the missing transcript abundances for each cell type with `impute_missing_abundance` function of `tidybulk` package. Next, we used `tree_and_signatures_to_database` function of `cellsig` to assign the respective cellular hierarchy levels for each cell type. Once we have merged the cellular hierarchy, we dropped the imputed transcripts from the dataset.
 
 ```{r}
 dataset_input <- dataset %>%
@@ -118,10 +118,10 @@ dataset_input <- dataset %>%
 dataset_input
 ```
 
-In our prepared input dataset, we have generated some extra information, such as `TMM` and `multiplier` columns refer to the estimated library size factors and trimmed mean of M values, respectively for each sample-transcript pairs. `.abundant` column indicates whether one transcript is one of the most abundant transcripts within a sample. `level` column highlights the cellular hierachy levels of the cell types listed in `cell_type`.
+In our prepared input dataset, we have generated some extra information, such as `TMM` and `multiplier` columns refer to the estimated library size factors and trimmed mean of M values, respectively for each sample-transcript pairs. `.abundant` column indicates whether one transcript is one of the most abundant transcripts within a sample. `level` column highlights the cellular hierarchy levels of the cell types listed in `cell_type`.
 
 
-###### Now, we'll perform the modelling on the prepared input dataset
+### Now, we'll perform the modelling on the prepared input dataset
 
 ``` {r, warning = FALSE}
 modelled_dataset <- dataset_input %>%
@@ -209,4 +209,4 @@ modelled_dataset
 The resulting dataframe contains the modelled variability information such as - `mean` indicating the mean abundance of a cell type-transcript pair, `se_mean` and `sd` refer to the standard error and standard deviation of the mean values, respectively. `10%`, `50%`, and `90%` values highlight the quantile distributions of abundances for each cell type-transcript pair. `n_eff` values points to the effective sample size, and `Rhat` refers to the Rhat statistic which is a measure of chain equilibrium (should be within 0.05 of 1.0) estimated by the `stan` program. `log_mean` and `log_sd`values represents the log-transformed `mean` and `sd` values, respectively.
 
 
-Finally, the modelled abundance variability information can further be used in obtaining downstream transcriptomic applications such as cell type specific marker identification approaches.
+#### Finally, the modelled abundance variability information can further be used in obtaining downstream transcriptomic applications such as cell type specific marker identification approaches.

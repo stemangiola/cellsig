@@ -2,11 +2,11 @@ cellsig: a Bayesian sparse multilevel modelling approach for modelling
 variability of celltype specific transcriptional profiles across studies
 ================
 
-#### Explore database through the web user interface
+## Explore database through the web user interface
 
 [Shiny app](https://shiny.wehi.edu.au/khan.k/cellsigdb)
 
-#### Installation
+## Installation
 
 **Github**
 
@@ -15,11 +15,11 @@ install.packages("devtools")
 devtools::install_github("stemangiola/cellsig")
 ```
 
-#### Example
+## Example
 
-##### Here, we’ll demonstrate an example of how to utilize the Bayesian multilevel noise-modelling of a transcriptome dataset.
+### Here, we’ll demonstrate an example of how to utilize the Bayesian multilevel noise-modelling of a transcriptome dataset.
 
-###### Load the required packages
+### Load the required packages
 
 ``` r
 library(tidyverse)
@@ -31,7 +31,7 @@ library(data.tree)
 library(rstan)
 ```
 
-###### Load the example count dataset
+### Load the example count dataset
 
 ``` r
 dataset <- readRDS("dev/test_data/count_dataset.rds")
@@ -63,7 +63,7 @@ dataset
     ## 10 endothelial ENCFF117AWL CTSA    ENCSR000AAB  4014
     ## # ℹ 990 more rows
 
-###### Load the exmaple tree file with cell type hierarchy
+### Load the exmaple tree file with cell type hierarchy
 
 To utilise the cellular hierarchy information in the modelling, we
 generated a `tree` file using `data.tree` package.
@@ -93,7 +93,7 @@ tree
     ## 7          ¦--nk_cd56bright
     ## 8          °--nk_cd56dim
 
-###### Create a hierarchical signature data frame from a tree and and signature database
+### Create a hierarchical signature data frame from a tree and and signature database
 
 Now, we have to prepare the input dataset with the cellular hierarchy
 embedded within it, so that the modelling step can utilise the cellular
@@ -101,11 +101,11 @@ hierarchy information. The dataset has to be rectangular (equal amount
 of cell type-transcript pairs for every included cell types) for the
 integration of cellular hierarchy levels, therefore, we impute the
 missing transcript abundances for each cell type with
-`impute_missing_abundance` function of `tidybulk` package. After that we
-used `tree_and_signatures_to_database` function of `cellsig` to assign
-the respective cellular hierarchy levels for each cell type. Once we
-have merged the cellular hierarchy, we dropped the imputed transcripts
-from the dataset.
+`impute_missing_abundance` function of `tidybulk` package. Next, we used
+`tree_and_signatures_to_database` function of `cellsig` to assign the
+respective cellular hierarchy levels for each cell type. Once we have
+merged the cellular hierarchy, we dropped the imputed transcripts from
+the dataset.
 
 ``` r
 dataset_input <- dataset %>%
@@ -177,10 +177,10 @@ such as `TMM` and `multiplier` columns refer to the estimated library
 size factors and trimmed mean of M values, respectively for each
 sample-transcript pairs. `.abundant` column indicates whether one
 transcript is one of the most abundant transcripts within a sample.
-`level` column highlights the cellular hierachy levels of the cell types
-listed in `cell_type`.
+`level` column highlights the cellular hierarchy levels of the cell
+types listed in `cell_type`.
 
-###### Now, we’ll perform the modelling on the prepared input dataset
+### Now, we’ll perform the modelling on the prepared input dataset
 
 ``` r
 modelled_dataset <- dataset_input %>%
@@ -267,16 +267,16 @@ modelled_dataset
     ## # A tibble: 700 × 13
     ##    .feature_idx symbol cell_type    mean se_mean     sd `10%` `50%`  `90%` n_eff
     ##           <int> <chr>  <chr>       <dbl>   <dbl>  <dbl> <dbl> <dbl>  <dbl> <dbl>
-    ##  1            1 AADAT  endotheli… 3.18e2 4.62e+1 7.09e2  46    152. 5.52e2  235.
-    ##  2            2 AADAT  epithelial 8.43e2 1.07e+2 1.86e3  81.4  324. 1.98e3  301.
-    ##  3            3 AADAT  fibroblast 3.47e3 1.38e+3 1.62e4 242.  1102. 4.18e3  139.
-    ##  4            4 AADAT  immune_ce… 1.52e1 2.32e+0 3.97e1   0      4  3.11e1  293.
-    ##  5            5 AADAT  natural_k… 4.68e1 3.39e+1 5.91e2   0      3  2.51e1  303.
-    ##  6            6 AADAT  nk_cd56br… 2.83e0 6.00e-1 1.08e1   0      0  5.10e0  326.
-    ##  7            7 AADAT  nk_cd56dim 6.84e1 2.09e+1 3.30e2   1     12  9.71e1  250.
-    ##  8            8 ADAD2  endotheli… 1.06e1 3.27e+0 4.69e1   0      2  1.9 e1  206.
-    ##  9            9 ADAD2  epithelial 4.23e0 2.48e+0 4.31e1   0      0  3.10e0  301.
-    ## 10           10 ADAD2  fibroblast 6.59e0 4.55e+0 6.58e1   0      0  3   e0  209.
+    ##  1            1 AADAT  endotheli… 2.74e2  50.3   6.32e2  49.8  148.  455.   158.
+    ##  2            2 AADAT  epithelial 1.60e3 690.    1.21e4  40.9  268. 1709.   307.
+    ##  3            3 AADAT  fibroblast 1.66e3 155.    2.49e3 258.   992. 2952    257.
+    ##  4            4 AADAT  immune_ce… 2.10e1   5.16  8.85e1   0      3    38    294.
+    ##  5            5 AADAT  natural_k… 4.78e1  31.9   5.54e2   0      3    28.3  302.
+    ##  6            6 AADAT  nk_cd56br… 2.29e0   0.537 9.75e0   0      0     5    329.
+    ##  7            7 AADAT  nk_cd56dim 5.48e1  13.8   1.73e2   1     13   117    158.
+    ##  8            8 ADAD2  endotheli… 7.94e0   1.31  2.34e1   0      1    19.2  318.
+    ##  9            9 ADAD2  epithelial 1.43e0   0.465 6.67e0   0      0     2    206.
+    ## 10           10 ADAD2  fibroblast 2.85e0   0.945 1.63e1   0      0     2    296.
     ## # ℹ 690 more rows
     ## # ℹ 3 more variables: Rhat <dbl>, log_mean <dbl>, log_sd <dbl>
 
@@ -291,6 +291,4 @@ chain equilibrium (should be within 0.05 of 1.0) estimated by the `stan`
 program. `log_mean` and `log_sd`values represents the log-transformed
 `mean` and `sd` values, respectively.
 
-Finally, the modelled abundance variability information can further be
-used in obtaining downstream transcriptomic applications such as cell
-type specific marker identification approaches.
+#### Finally, the modelled abundance variability information can further be used in obtaining downstream transcriptomic applications such as cell type specific marker identification approaches.
