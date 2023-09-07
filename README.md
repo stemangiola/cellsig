@@ -12,13 +12,13 @@ cellsig: a Bayesian sparse multilevel modelling approach
 ``` {r}
 install.packages(devtools)
 devtools::install_github("stemangiola/cellsig")
-
 ```
 
 ### Example
 
 #### Here, we'll demonstrate an example of how to utilize the Bayesian multilevel noise-modelling of a transcriptome dataset.
 
+##### Load the required packages
 
 ```{r}
 library(tidyverse)
@@ -30,10 +30,11 @@ library(cellsig)
 library(yaml)
 library(data.tree)
 library(rstan)
+```
 
+## Load the example count dataset
 
-## Load the example dataset and the tree file with cell type hierarchy
-
+```{r}
 dataset <- readRDS("dev/test_data/count_dataset.rds")
 
 dataset
@@ -53,7 +54,11 @@ dataset
 ## 10 epithelial TSPAN6 ENCSR000AAL ENCFF826JBV  2883
 ##  ℹ 1,934,910 more rows
 # ℹ Use `print(n = ...)` to see more rows
+```
 
+## Load the exmaple tree file with cell type hierarchy
+
+```{r}
 tree <- read_yaml("dev/test_data/tree.yaml") %>% as.Node()
 
 tree 
@@ -67,7 +72,6 @@ tree
 ## 6      °--natural_killer   
 ## 7          ¦--nk_cd56bright
 ## 8          °--nk_cd56dim   
-
 ```
 
 
@@ -112,10 +116,26 @@ dataset_input <- dataset %>%
 ## No group or design set. Assuming all samples belong to one group.
 ## tidybulk says: the sample with largest library size ENCFF467LOW was chosen as reference for scaling
 ## Warning: tidybulk says: There are < 100 features/genes that are present in all you samples. Because edgeR::calcNormFactors does not allow NAs, the scaling is performed on that limited set of features.genes. The scaling could not be accurate, it is adivasble to perform impute_missing_abundance() before scaling. It is possible to filter the imputed counts after scaling.
-
-
 ```
 
+```{r}
+dataset_input
+
+## # A tibble: 1,800 × 11
+##    .feature .sample count sample database  symbol  .abundant   TMM multiplier level cell_type     
+##    <chr>    <chr>   <int> <chr>  <chr>     <chr>   <lgl>     <dbl>      <dbl> <int> <chr>         
+##  1 AADAT    1405_0      0 1405_0 GSE152571 AADAT   FALSE      1.14       4.22     1 immune_cell   
+##  2 AADAT    1405_0      0 1405_0 GSE152571 AADAT   FALSE      1.14       4.22     2 natural_killer
+##  3 AADAT    1405_0      0 1405_0 GSE152571 AADAT   FALSE      1.14       4.22     3 nk_cd56bright 
+##  4 ADAD2    1405_0      1 1405_0 GSE152571 ADAD2   FALSE      1.14       4.22     1 immune_cell   
+##  5 ADAD2    1405_0      1 1405_0 GSE152571 ADAD2   FALSE      1.14       4.22     2 natural_killer
+##  6 ADAD2    1405_0      1 1405_0 GSE152571 ADAD2   FALSE      1.14       4.22     3 nk_cd56bright 
+##  7 AGAP3    1405_0    951 1405_0 GSE152571 AGAP3   TRUE       1.14       4.22     1 immune_cell   
+##  8 AGAP3    1405_0    951 1405_0 GSE152571 AGAP3   TRUE       1.14       4.22     2 natural_killer
+##  9 AGAP3    1405_0    951 1405_0 GSE152571 AGAP3   TRUE       1.14       4.22     3 nk_cd56bright 
+## 10 ANAPC15  1405_0    436 1405_0 GSE152571 ANAPC15 TRUE       1.14       4.22     1 immune_cell   
+## # ℹ 1,790 more rows
+```
 
 #### Now, we'll perform the modelling on the prepared input dataset
 
@@ -209,7 +229,9 @@ modelled_dataset <- dataset_input |>
 ## Chain 1: Iteration: 285 / 350 [ 81%]  (Sampling)
 ## Chain 3: Iteration: 320 / 350 [ 91%]  (Sampling)
 ## Chain 2: Iteration: 320 / 350 [ 91%]  (Sampling)
+```
 
+```{r}
 modelled_dataset
 
 ## # A tibble: 700 × 13
@@ -226,6 +248,6 @@ modelled_dataset
 ##  9            9 ADAD2    epithelial        13.0      8.86     154.     0      0      3     303. 1.00     0.408  1.05 
 ## 10           10 ADAD2    fibroblast         2.19     0.732     12.9    0      0      2     311. 0.998    0.312  0.796
 # ℹ 690 more rows
-
 ```
+
 
