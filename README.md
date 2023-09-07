@@ -1,4 +1,5 @@
-cellsig: a Bayesian sparse multilevel modelling approach for modelling variability of celltype specific transcriptional profiles across studies
+cellsig: a Bayesian sparse multilevel modelling approach for modelling
+variability of celltype specific transcriptional profiles across studies
 ================
 
 ### Explore database through the web user interface
@@ -9,18 +10,18 @@ cellsig: a Bayesian sparse multilevel modelling approach for modelling variabili
 
 **Github**
 
-``` {r}
-install.packages(devtools)
+``` r
+install.packages("devtools")
 devtools::install_github("stemangiola/cellsig")
 ```
 
 ### Example
 
-#### Here, we'll demonstrate an example of how to utilize the Bayesian multilevel noise-modelling of a transcriptome dataset.
+#### Here, we’ll demonstrate an example of how to utilize the Bayesian multilevel noise-modelling of a transcriptome dataset.
 
 ##### Load the required packages
 
-```{r}
+``` r
 library(tidyverse)
 library(magrittr)
 library(tidybulk)
@@ -33,50 +34,48 @@ library(rstan)
 
 ##### Load the example count dataset
 
-```{r}
+``` r
 dataset <- readRDS("dev/test_data/count_dataset.rds")
 
 dataset
-
-##  A tibble: 1,934,920 × 5
-##    cell_type  symbol database    sample      count
-##    <chr>      <fct>  <fct>       <fct>       <int>
-##  1 epithelial TSPAN6 ENCSR822SUG ENCFF556AGI  1330
-##  2 epithelial TSPAN6 ENCSR822SUG ENCFF106YFW  1378
-##  3 epithelial TSPAN6 ENCSR000AAD ENCFF377UBC  1388
-##  4 epithelial TSPAN6 ENCSR000AAD ENCFF193YHT  1216
-##  5 epithelial TSPAN6 ENCSR118TVR ENCFF380AIN  2750
-##  6 epithelial TSPAN6 ENCSR118TVR ENCFF129BNX  4444
-##  7 epithelial TSPAN6 ENCSR373BDG ENCFF108PJF  2598
-##  8 epithelial TSPAN6 ENCSR000COX ENCFF300LEY  2287
-##  9 epithelial TSPAN6 ENCSR000CUN ENCFF374KZN  1571
-## 10 epithelial TSPAN6 ENCSR000AAL ENCFF826JBV  2883
-##  ℹ 1,934,910 more rows
-# ℹ Use `print(n = ...)` to see more rows
 ```
+
+    ## # A tibble: 1,000 × 5
+    ##    cell_type   sample      symbol  database    count
+    ##    <chr>       <fct>       <fct>   <fct>       <int>
+    ##  1 endothelial ENCFF117AWL CFLAR   ENCSR000AAB 36711
+    ##  2 endothelial ENCFF117AWL MYLIP   ENCSR000AAB  2554
+    ##  3 endothelial ENCFF117AWL BTK     ENCSR000AAB     2
+    ##  4 endothelial ENCFF117AWL CD22    ENCSR000AAB    60
+    ##  5 endothelial ENCFF117AWL SEMA3B  ENCSR000AAB    62
+    ##  6 endothelial ENCFF117AWL GRAMD1B ENCSR000AAB   168
+    ##  7 endothelial ENCFF117AWL LCP2    ENCSR000AAB    50
+    ##  8 endothelial ENCFF117AWL PRSS8   ENCSR000AAB     0
+    ##  9 endothelial ENCFF117AWL CS      ENCSR000AAB 10642
+    ## 10 endothelial ENCFF117AWL CTSA    ENCSR000AAB  4014
+    ## # ℹ 990 more rows
 
 ##### Load the exmaple tree file with cell type hierarchy
 
-```{r}
+``` r
 tree <- read_yaml("dev/test_data/tree.yaml") %>% as.Node() # tree file was generated using data.tree package
 
 tree 
-
-##                   levelName
-## 1 Tissue                   
-## 2  ¦--epithelial           
-## 3  ¦--fibroblast           
-## 4  ¦--endothelial          
-## 5  °--immune_cell          
-## 6      °--natural_killer   
-## 7          ¦--nk_cd56bright
-## 8          °--nk_cd56dim   
 ```
 
+    ##                   levelName
+    ## 1 Tissue                   
+    ## 2  ¦--epithelial           
+    ## 3  ¦--fibroblast           
+    ## 4  ¦--endothelial          
+    ## 5  °--immune_cell          
+    ## 6      °--natural_killer   
+    ## 7          ¦--nk_cd56bright
+    ## 8          °--nk_cd56dim
 
 ##### Create a hierarchical signature data frame from a tree and and signature database
 
-```{r}
+``` r
 # Firstly, we have prepare an input dataset for the modelling
 
 dataset_input <- dataset %>%
@@ -111,34 +110,42 @@ dataset_input <- dataset %>%
   ) %>%
   filter(cell_type %>% is.na %>% `!`) %>%
   mutate(count = as.integer(count))
-
-## No group or design set. Assuming all samples belong to one group.
-## tidybulk says: the sample with largest library size ENCFF467LOW was chosen as reference for scaling
-## Warning: tidybulk says: There are < 100 features/genes that are present in all you samples. Because edgeR::calcNormFactors does not allow NAs, the scaling is performed on that limited set of features.genes. The scaling could not be accurate, it is adivasble to perform impute_missing_abundance() before scaling. It is possible to filter the imputed counts after scaling.
 ```
 
-```{r}
+    ## No group or design set. Assuming all samples belong to one group.
+
+    ## tidybulk says: the sample with largest library size ENCFF467LOW was chosen as reference for scaling
+
+    ## Warning in add_scaled_counts_bulk.calcNormFactor(df, reference, .sample =
+    ## !!.sample, : tidybulk says: There are < 100 features/genes that are present in
+    ## all you samples. Because edgeR::calcNormFactors does not allow NAs, the scaling
+    ## is performed on that limited set of features.genes. The scaling could not be
+    ## accurate, it is adivasble to perform impute_missing_abundance() before scaling.
+    ## It is possible to filter the imputed counts after scaling.
+
+``` r
 dataset_input
-
-## # A tibble: 1,800 × 11
-##    .feature .sample count sample database  symbol  .abundant   TMM multiplier level cell_type     
-##    <chr>    <chr>   <int> <chr>  <chr>     <chr>   <lgl>     <dbl>      <dbl> <int> <chr>         
-##  1 AADAT    1405_0      0 1405_0 GSE152571 AADAT   FALSE      1.14       4.22     1 immune_cell   
-##  2 AADAT    1405_0      0 1405_0 GSE152571 AADAT   FALSE      1.14       4.22     2 natural_killer
-##  3 AADAT    1405_0      0 1405_0 GSE152571 AADAT   FALSE      1.14       4.22     3 nk_cd56bright 
-##  4 ADAD2    1405_0      1 1405_0 GSE152571 ADAD2   FALSE      1.14       4.22     1 immune_cell   
-##  5 ADAD2    1405_0      1 1405_0 GSE152571 ADAD2   FALSE      1.14       4.22     2 natural_killer
-##  6 ADAD2    1405_0      1 1405_0 GSE152571 ADAD2   FALSE      1.14       4.22     3 nk_cd56bright 
-##  7 AGAP3    1405_0    951 1405_0 GSE152571 AGAP3   TRUE       1.14       4.22     1 immune_cell   
-##  8 AGAP3    1405_0    951 1405_0 GSE152571 AGAP3   TRUE       1.14       4.22     2 natural_killer
-##  9 AGAP3    1405_0    951 1405_0 GSE152571 AGAP3   TRUE       1.14       4.22     3 nk_cd56bright 
-## 10 ANAPC15  1405_0    436 1405_0 GSE152571 ANAPC15 TRUE       1.14       4.22     1 immune_cell   
-## # ℹ 1,790 more rows
 ```
 
-##### Now, we'll perform the modelling on the prepared input dataset
+    ## # A tibble: 1,800 × 11
+    ##    .feature .sample count sample database  symbol  .abundant   TMM multiplier
+    ##    <chr>    <chr>   <int> <chr>  <chr>     <chr>   <lgl>     <dbl>      <dbl>
+    ##  1 AADAT    1405_0      0 1405_0 GSE152571 AADAT   FALSE      1.14       4.22
+    ##  2 AADAT    1405_0      0 1405_0 GSE152571 AADAT   FALSE      1.14       4.22
+    ##  3 AADAT    1405_0      0 1405_0 GSE152571 AADAT   FALSE      1.14       4.22
+    ##  4 ADAD2    1405_0      1 1405_0 GSE152571 ADAD2   FALSE      1.14       4.22
+    ##  5 ADAD2    1405_0      1 1405_0 GSE152571 ADAD2   FALSE      1.14       4.22
+    ##  6 ADAD2    1405_0      1 1405_0 GSE152571 ADAD2   FALSE      1.14       4.22
+    ##  7 AGAP3    1405_0    951 1405_0 GSE152571 AGAP3   TRUE       1.14       4.22
+    ##  8 AGAP3    1405_0    951 1405_0 GSE152571 AGAP3   TRUE       1.14       4.22
+    ##  9 AGAP3    1405_0    951 1405_0 GSE152571 AGAP3   TRUE       1.14       4.22
+    ## 10 ANAPC15  1405_0    436 1405_0 GSE152571 ANAPC15 TRUE       1.14       4.22
+    ## # ℹ 1,790 more rows
+    ## # ℹ 2 more variables: level <int>, cell_type <chr>
 
-``` {r}
+##### Now, we’ll perform the modelling on the prepared input dataset
+
+``` r
 modelled_dataset <- dataset_input |>
     
     cellsig_multilevel_varing_intercept(
@@ -149,24 +156,12 @@ modelled_dataset <- dataset_input |>
       multiplier, 
       database
     )
+```
 
-## Warning: There were 6 divergent transitions after warmup. See
-## https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
-## to find out why this is a problem and how to eliminate them.Warning: Examine the pairs() plot to diagnose sampling problems
-
-## Warning: The largest R-hat is 1.17, indicating chains have not mixed.
-## Running the chains for more iterations may help. See
-## https://mc-stan.org/misc/warnings.html#r-hatWarning: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
-
-## Running the chains for more iterations may help. See
-## https://mc-stan.org/misc/warnings.html#bulk-essWarning: Tail Effective Samples Size (ESS) is too low, indicating posterior variances and tail quantiles #may be unreliable.
-
-## Running the chains for more iterations may help. See
-## https://mc-stan.org/misc/warnings.html#tail-ess
-
-###############################################################################################################
+``` r
+##################################################################################################
 ## You can also follow-up the progress from the viewer window
-###############################################################################################################
+##################################################################################################
 
 ## Click the Refresh button to see progress of the chains
 ## starting worker pid=8968 on localhost:11465 at 13:13:21.944
@@ -230,23 +225,22 @@ modelled_dataset <- dataset_input |>
 ## Chain 2: Iteration: 320 / 350 [ 91%]  (Sampling)
 ```
 
-```{r}
+``` r
 modelled_dataset
-
-## # A tibble: 700 × 13
-##    .feature_idx .feature cell_type          mean   se_mean        sd `10%`  `50%`   `90%` n_eff  Rhat log_mean log_sd
-##           <int> <chr>    <chr>             <dbl>     <dbl>     <dbl> <dbl>  <dbl>   <dbl> <dbl> <dbl>    <dbl>  <dbl>
-##  1            1 AADAT    endothelial      434.     196.      3281.    53.7  174    506.    279. 1.00     5.11   1.01 
-##  2            2 AADAT    epithelial       836.     117.      2079.    62.9  289   1650.    317. 0.997    5.68   1.43 
-##  3            3 AADAT    fibroblast     24696.   21908.    381473.   298.  1219   5160.    303. 1.00     7.14   1.40 
-##  4            4 AADAT    immune_cell       17.0      2.83      51.3    0      3.5   37     329. 0.998    1.64   1.43 
-##  5            5 AADAT    natural_killer    13.4      2.62      43.9    0      4     25.1   280. 0.997    1.59   1.31 
-##  6            6 AADAT    nk_cd56bright      1.46     0.225      4.08   0      0      4.10  328. 0.997    0.387  0.794
-##  7            7 AADAT    nk_cd56dim        88.9     33.0      585.     1     12     90.3   314. 1.00     2.60   1.60 
-##  8            8 ADAD2    endothelial       10.5      2.57      45.6    0      2     18.1   315. 1.00     1.21   1.25 
-##  9            9 ADAD2    epithelial        13.0      8.86     154.     0      0      3     303. 1.00     0.408  1.05 
-## 10           10 ADAD2    fibroblast         2.19     0.732     12.9    0      0      2     311. 0.998    0.312  0.796
-# ℹ 690 more rows
 ```
 
-
+    ## # A tibble: 700 × 13
+    ##    .feature_idx .feature cell_type        mean se_mean     sd `10%` `50%`  `90%`
+    ##           <int> <chr>    <chr>           <dbl>   <dbl>  <dbl> <dbl> <dbl>  <dbl>
+    ##  1            1 AADAT    endothelial    2.78e2 2.45e+1 4.42e2  37    156. 5.41e2
+    ##  2            2 AADAT    epithelial     1.27e3 2.97e+2 5.10e3  65.8  305  1.45e3
+    ##  3            3 AADAT    fibroblast     4.97e3 2.10e+3 3.65e4 300.   953  4.62e3
+    ##  4            4 AADAT    immune_cell    1.84e1 4.64e+0 8.34e1   0      3  3.41e1
+    ##  5            5 AADAT    natural_killer 2.86e1 1.02e+1 1.80e2   0      4  3.5 e1
+    ##  6            6 AADAT    nk_cd56bright  4.68e0 1.82e+0 3.23e1   0      0  5.10e0
+    ##  7            7 AADAT    nk_cd56dim     7.46e1 2.40e+1 3.29e2   1     14  9.92e1
+    ##  8            8 ADAD2    endothelial    6.14e0 7.34e-1 1.06e1   0      2  1.7 e1
+    ##  9            9 ADAD2    epithelial     5.27e0 2.61e+0 4.51e1   0      0  2.10e0
+    ## 10           10 ADAD2    fibroblast     1.61e0 3.51e-1 6.23e0   0      0  3.10e0
+    ## # ℹ 690 more rows
+    ## # ℹ 4 more variables: n_eff <dbl>, Rhat <dbl>, log_mean <dbl>, log_sd <dbl>
