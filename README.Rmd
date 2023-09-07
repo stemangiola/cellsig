@@ -127,9 +127,10 @@ dataset_input <- dataset %>%
 
 ```
 
-Now, we'll perform the modelling on the prepared input dataset.
+Now, we'll perform the modelling on the prepared input dataset
 
 ```{r}
+
 modelled_dataset <- dataset_input |>
     
     cellsig_multilevel_varing_intercept(

@@ -113,12 +113,17 @@ dataset_input <- dataset %>%
 ## tidybulk says: the sample with largest library size ENCFF467LOW was chosen as reference for scaling
 ## Warning: tidybulk says: There are < 100 features/genes that are present in all you samples. Because edgeR::calcNormFactors does not allow NAs, the scaling is performed on that limited set of features.genes. The scaling could not be accurate, it is adivasble to perform impute_missing_abundance() before scaling. It is possible to filter the imputed counts after scaling.
 
+<<<<<<< HEAD
 ```
 
 
 #### Now, we'll perform the modelling on the prepared input dataset
 
 ``` {r}
+=======
+
+
+>>>>>>> 19cc4f1861def579fb7781b60e5c193c8b25fcd2
 modelled_dataset <- dataset_input |>
     
     cellsig_multilevel_varing_intercept(
