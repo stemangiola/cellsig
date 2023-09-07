@@ -31,7 +31,7 @@ library(data.tree)
 library(rstan)
 ```
 
-## Load the example count dataset
+##### Load the example count dataset
 
 ```{r}
 dataset <- readRDS("dev/test_data/count_dataset.rds")
@@ -55,7 +55,7 @@ dataset
 # ℹ Use `print(n = ...)` to see more rows
 ```
 
-## Load the exmaple tree file with cell type hierarchy
+##### Load the exmaple tree file with cell type hierarchy
 
 ```{r}
 tree <- read_yaml("dev/test_data/tree.yaml") %>% as.Node()
@@ -74,7 +74,7 @@ tree
 ```
 
 
-#### Create a hierarchical signature data frame from a tree and and signature database
+##### Create a hierarchical signature data frame from a tree and and signature database
 
 ```{r}
 # Firstly, we have prepare an input dataset for the modelling
@@ -136,7 +136,7 @@ dataset_input
 ## # ℹ 1,790 more rows
 ```
 
-#### Now, we'll perform the modelling on the prepared input dataset
+##### Now, we'll perform the modelling on the prepared input dataset
 
 ``` {r}
 modelled_dataset <- dataset_input |>
