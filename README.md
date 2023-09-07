@@ -1,4 +1,4 @@
-cellsig: a Bayesian sparse multilevel modelling approach
+cellsig: a Bayesian sparse multilevel modelling approach for modelling variability of celltype specific transcriptional profiles across studies
 ================
 
 ### Explore database through the web user interface
