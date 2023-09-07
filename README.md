@@ -58,7 +58,7 @@ dataset
 ##### Load the exmaple tree file with cell type hierarchy
 
 ```{r}
-tree <- read_yaml("dev/test_data/tree.yaml") %>% as.Node()
+tree <- read_yaml("dev/test_data/tree.yaml") %>% as.Node() # tree file was generate using data.tree package
 
 tree 
 
