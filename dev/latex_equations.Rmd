@@ -1,0 +1,66 @@
+---
+title: "latex_equations"
+author: "Stefano Mangiola"
+date: "9/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+de chunks within the document. You can embed an R code chunk like this:
+
+# Simplest model
+
+
+
+```{=tex}
+\begin{align}
+
+& X \alpha + Z \beta & \textrm{ (2) } \\ 
+\nonumber \\
+& \beta \sim  normal(0, \rho) & \textrm{ (3) } \\
+\nonumber \\
+& \rho \sim  gamma(\omega, \omicron); \text{ with } \omega > 1 \text{ and } \omicron > 1 & \textrm{ (4) } \\
+\nonumber \\
+& \omega, \omicron \sim  normal(3, 1) & \textrm{ (5) } \\
+\nonumber \\
+
+& \sigma_{g} \sim normal(\lambda_{0} + \lambda_{1} * \alpha_{g}, \delta) & \textrm{ (6) } \\
+\nonumber \\
+
+& \lambda_{0} \sim  normal(\lambda_{0}^{*}, \frac{|\lambda_{0}^{*}|}{5} ); \text{ where } \lambda_{0}^{*} \text{ is calculated outside the model } & \textrm{ (7) }  \\
+\nonumber \\
+
+& \lambda_{1} \sim  normal(\lambda_{1}^{*}, \frac{|\lambda_{1}^{*}|}{5} ); \text{ where } \lambda_{1}^{*} \text{ is calculated outside the model } & \textrm{ (8) }  \\
+\nonumber \\
+
+& \delta \sim  normal(\delta^{*}, \frac{|\delta^{*}|}{5} ); \text{ where } \delta^{*} \text{ is calculated outside the model } & \textrm{ (9) }  \\
+\nonumber \\
+
+& Y_{s,g} \sim  \text{NegativeBinomial}\left ( exp( X_{s,g} \alpha_{c, g} + Z_{s,r} \beta_{r, g} + \epsilon_{s} ), exp(\sigma_{g}) \right ) & \textrm{ (10) } \\
+\nonumber \\
+& \alpha \sim  skewNormal(\mu, exp(\psi), \nu) & \textrm{ (11) } \\
+\nonumber \\
+& \mu \sim  normal(\mu^{*}, \frac{|\mu^{*}|}{5} ); \text{ where } \mu^{*} \text{ is calculated outside the model } & \textrm{ (12) }  \\
+\nonumber \\
+& \psi \sim  normal(\psi^{*}, \frac{|\psi^{*}|}{5} ); \text{ where } \psi^{*} \text{ is calculated outside the model } & \textrm{ (13) }  \\
+\nonumber \\
+& \nu \sim  normal(\nu^{*}, \frac{|\nu^{*}|}{5} ); \text{ where } \nu^{*} \text{ is calculated outside the model } & \textrm{ (14) }  \\
+\nonumber \\
+
+
+& P\left ( \lambda_{0}, \lambda_{1}, \delta, \mu, \psi, \nu, \omega, \omicron \right )  \prod_{g=1}^{G} P\left ( \sigma_{g} | \alpha_{g}, \lambda_{0}, \lambda_{1}, \delta \right ) P\left ( \rho_{g} | \omega, \omicron \right ) \\ & \prod_{g=1}^{G} \prod_{c=1}^{C} P\left ( \alpha_{g,c} | \mu, \phi, \nu \right ) \prod_{g=1}^{G} \prod_{r=1}^{R} P\left ( \beta_{g,c} | \omega, \omicron \right ) & \textrm{ (15) } \\
+
+\nonumber \\
+\nonumber \\
+\nonumber \\
+\nonumber \\
+\nonumber \\
+\nonumber \\
+\end{align}
+```
+
+
+
